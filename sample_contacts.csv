@@ -1,0 +1,5 @@
+email,first_name,last_name,organization,title,phone_office,phone_cell,active,lists,tag,county,notes
+jane.doe@example.com,Jane,Doe,Acme Inc,Manager,555-1234,555-5678,Active,"newsletter;board","Client","Orange","Key contact"
+john.smith@example.com,John,Smith,Widgets Co,Director,555-9999,,Active,"events, donors","Prospect","Orange","Follow up"
+noemail,,NoEmail,Unknown,,,"",Inactive,,,
+ref@example.com,Ref,Person,#REF!,Analyst,1234,5678,Active,,"Partner","Orange","Org was bad"

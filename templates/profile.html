@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Profile — JBJ Management</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div style="display:flex;gap:12px;align-items:center">
+        <a href="/" class="btn">← Back to Search</a>
+        <h2 id="profileName">Contact</h2>
+      </div>
+      <div>
+        <button id="favToggle" class="btn">☆ Favorite</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container profile-grid">
+    <aside class="profile-left card">
+      <div class="photo-placeholder" aria-hidden="true">Photo</div>
+      <h3 id="p-name">Name</h3>
+      <div id="p-title" class="meta">Title</div>
+      <div id="p-org" class="meta">Organization</div>
+      <div id="p-tags" class="pills"></div>
+    </aside>
+
+    <section class="profile-right card">
+      <div><strong>Phone (Office):</strong> <span id="p-phone-office"></span></div>
+      <div><strong>Phone (Cell):</strong> <span id="p-phone-cell"></span></div>
+      <div><strong>Email:</strong> <span id="p-email"></span></div>
+      <div><strong>County:</strong> <span id="p-county"></span></div>
+      <div><strong>Added:</strong> <span id="p-added"></span></div>
+      <div><strong>Category:</strong> <span id="p-category"></span></div>
+      <div style="margin-top:12px"><strong>Notes:</strong>
+        <div id="p-notes" style="white-space:pre-wrap;margin-top:6px"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>const CONTACT_ID = {{ contact_id }};</script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

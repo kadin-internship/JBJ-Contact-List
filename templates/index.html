@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JBJ Management Contact Hub</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <!-- Full-screen hero shown on homepage -->
+    <div id="hero" class="hero">
+      <div class="hero-overlay"></div>
+      <div class="hero-center">
+        <h1>JBJ Management<br><span class="small">Contact Hub</span></h1>
+        <div class="hero-buttons">
+          <a id="homeContacts" class="btn btn-hero" href="#search">Contacts</a>
+          <a id="homeRoles" class="btn btn-hero" href="#search_roles">Sections</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden search / header area — shown after navigating from hero -->
+    <div class="container header-inner header-hidden" style="display:none;">
+      <div class="brand">
+        <svg class="logo" width="52" height="52" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="4" fill="#800000"></rect><text x="12" y="16" text-anchor="middle" font-family="Arial" font-size="12" fill="#fff">JBJ</text></svg>
+        <div class="brand-text">
+          <h1>JBJ Management</h1>
+          <p class="sub">Contact Hub</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div style="display:flex;gap:8px;align-items:center">
+          <a id="backHomeBtn" class="btn" href="/">Back to Home</a>
+          <button id="addContactBtn" class="btn btn-primary">Add Contact</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="container header-hidden" style="display:none;">
+      <div class="search-large">
+        <div class="search-left">
+          <label for="searchInput" class="sr-only">Search contacts</label>
+          <input id="searchInput" aria-label="Search contacts" placeholder="Search by Name, Organization, Title, or Email..." />
+          <div class="search-controls">
+            <select id="tagFilter" aria-label="Filter by tag"><option value="">All Tags</option></select>
+            <button id="searchBtn" class="btn btn-primary">Search</button>
+          </div>
+        </div>
+        <div class="search-right">
+          <div class="quick-stats" id="quickStats">
+            <div class="stat"><span class="num" id="statTotal">—</span><span class="label">Total</span></div>
+            <div class="stat"><span class="num" id="statIncomplete">—</span><span class="label">Incomplete</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="role-search header-hidden" style="display:none;">
+        <h3>Roles</h3>
+        <input id="roleSearchInput" aria-label="Search roles" placeholder="Search by Role title or Organization..." />
+        <div class="role-filters">
+          <select id="roleTagFilter" aria-label="Filter by category"><option value="">All Categories</option></select>
+          <select id="countyFilter" aria-label="Filter by county"><option value="">All Counties</option></select>
+        </div>
+        <button id="roleSearchBtn" class="btn">Search Roles</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="results-and-detail">
+      <section id="results" class="results-grid" aria-live="polite"></section>
+
+      <aside id="contactDetail" class="contact-detail" style="display:none;" aria-live="polite">
+        <div class="detail-empty">
+          <div class="photo-placeholder">No contact selected</div>
+          <div style="padding:12px;text-align:center;color:var(--muted)">Select a contact to view a quick profile here — click <strong>Edit</strong> to open the full editor.</div>
+        </div>
+      </aside>
+    </div>
+
+    <section id="rolesSection" class="roles-section">
+      <h2>Roles</h2>
+      <div id="rolesResults" class="roles-results" aria-live="polite"></div>
+    </section>
+
+    <nav class="pagination" aria-label="Pagination">
+      <button id="prevPage" class="page-btn">Previous</button>
+      <div id="pages" class="pages"></div>
+      <button id="nextPage" class="page-btn">Next</button>
+    </nav>
+  </main>
+
+  <div id="profileModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button id="closeModal" class="close">×</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- file upload removed -->
+
+  <!-- Lightweight fallback UI handler: toggles search view even if main JS errors -->
+  <script>
+    (function(){
+      function showSearchFallback(){
+        var hero = document.getElementById('hero');
+        var headerHidden = document.querySelectorAll('.header-hidden');
+        var roles = document.getElementById('rolesSection');
+        var results = document.getElementById('results');
+        var pagination = document.querySelector('.pagination');
+        if(hero) hero.style.display='none';
+        headerHidden.forEach(function(n){ n.classList.remove('header-hidden'); n.style.display = '' });
+        if(roles) roles.style.display = '';
+        if(results) results.style.display = '';
+        if(pagination) pagination.style.display = '';
+      }
+      if(location.hash === '#search' || location.hash === '#search_roles'){
+        showSearchFallback();
+        if(location.hash === '#search_roles'){
+          var r = document.getElementById('roleSearchInput'); if(r) r.focus();
+        } else { var s = document.getElementById('searchInput'); if(s) s.focus(); }
+      }
+      var hc = document.getElementById('homeContacts');
+      if(hc) hc.addEventListener('click', function(){ showSearchFallback(); });
+      var hr = document.getElementById('homeRoles');
+      if(hr) hr.addEventListener('click', function(){ showSearchFallback(); var r=document.getElementById('roleSearchInput'); if(r) r.focus(); });
+    })();
+  </script>
+
+  <script src="/static/js/app.js"></script>
+  <script>
+    (function(){
+      function trySearch(){
+        try{
+          if(window.location.hash === '#search' || window.location.hash === '#search_roles'){
+            if(typeof search === 'function'){
+              console.debug('auto-invoking search() after load/hash');
+              search();
+            } else {
+              setTimeout(trySearch, 200);
+            }
+          }
+        }catch(e){console.warn(e)}
+      }
+      setTimeout(trySearch, 150);
+    })();
+  </script>
+</body>
+</html>

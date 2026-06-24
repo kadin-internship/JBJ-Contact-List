@@ -1,0 +1,77 @@
+# Changelog
+
+What changed, and why. Add an entry here whenever the app changes —
+newest at the top. This isn't a substitute for `git log` (which has the
+full diffs); it's the "what would a non-technical teammate need to know"
+summary, especially for anything that affects data, security, or how
+staff use the app day to day.
+
+## 2026-06-24 — Repo cleanup: scrubbed contact data out of git history
+
+`contacts.db` and the raw import staging files (`data/`, `imports/`) had
+been tracked in git since the first commit — meaning every commit
+contained the full contact database (names, emails, phone numbers) and,
+after the login feature landed, password hashes. Rewrote git history
+(`git filter-repo`) to remove these from every commit before the first
+push to GitHub, and added them to `.gitignore` so they can't get
+re-tracked. Local backups of the stripped files were kept outside the
+repo as a safety net.
+
+**Operational note:** this means the contact database now lives *only*
+on this machine, with no automatic backup. See the Backup & Recovery
+section in `README.md`.
+
+## 2026-06-24 — Employee login
+
+Added per-employee accounts (Flask-Login, hashed passwords). Every page
+and API route requires login, checked centrally so new routes are
+protected by default. No public sign-up — accounts are created via
+`create_user.py` from a terminal. The outreach-activity log now records
+who logged an entry from the session instead of a free-text name field,
+so one person can't log activity under someone else's name.
+
+## 2026-06-24 — Merged Contacts and Sections tabs into one People/Organizations view
+
+The app used to have two separate tabs (Contacts and Sections) with their
+own search bars, filters, and export menus — which was the root cause of
+several bugs earlier in the day (filters not working, stray cards showing
+up, "Add Contact" silently not refreshing). Replaced both with one screen
+and a People/Organizations toggle sharing a single search bar, category
+filter, county filter, export menu, and pagination bar.
+
+Organization cards used to show only one "primary" contact even when an
+org had several people at it — now every org card lists everyone there,
+so coworkers who share an organization show up together.
+
+Also applied the JBJ Management brand color palette (maroon/black
+primary, rose/gray/charcoal secondary) across the whole app, replacing
+the placeholder maroon theme, plus a more polished home/login screen
+treatment (glass card, logo, accent line) as a step toward an eventual
+dedicated login page.
+
+## 2026-06-24 — Outreach activity tracking
+
+Added a log of outreach touchpoints per contact and per organization
+(who reached out, when, via what channel, what was discussed), with a
+"Contacted N times" badge shown before staff reach out again — so two
+people don't independently contact the same person without knowing it.
+
+## 2026-06-24 — AI email drafting, county filtering, Sections card UI
+
+- Added a Claude-powered "Draft Email" feature that generates an outreach
+  email scoped to whatever filter is currently active.
+- Added a county filter to the main Contacts toolbar (previously only
+  available on the Sections tab).
+- Reworked the Sections tab to show every organization as a card
+  immediately (like Contacts does), instead of a category-count summary
+  list, and fixed an N+1 query bug that made it feel slow with ~280
+  organizations.
+- Made `Contact.email` optional (previously required at the database
+  level) — a real schema migration since SQLite can't just drop a
+  `NOT NULL` constraint in place; the `contacts` table was rebuilt with
+  all 14,000+ existing rows preserved.
+
+## 2026-06-23 — Initial contact import
+
+First commit: Flask + SQLite app with the original contact list imported
+from spreadsheets (`scripts/import_*.py`).

@@ -205,7 +205,6 @@ function showOrgDetail(item){
 // detail panel -- lets staff see, before reaching out, whether someone
 // (or an organization) has already been contacted, by whom, and why.
 function activitySectionHtml(){
-  const savedName = localStorage.getItem('jbj_employee_name') || ''
   const today = new Date().toISOString().slice(0,10)
   return `
     <div class="activity-section">
@@ -213,7 +212,6 @@ function activitySectionHtml(){
       <div class="activity-badge"></div>
       <div class="activity-list">Loading…</div>
       <div class="activity-form">
-        <input class="activity-employee" placeholder="Your name" value="${savedName}">
         <select class="activity-channel">
           <option value="Email">Email</option>
           <option value="Phone">Phone</option>
@@ -276,17 +274,15 @@ function bindActivityForm(container, scopeType, scopeId){
   const btn = container.querySelector('.activity-log-btn')
   if(!btn) return
   btn.addEventListener('click', async ()=>{
-    const employee_name = container.querySelector('.activity-employee').value.trim()
     const summary = container.querySelector('.activity-summary').value.trim()
     const channel = container.querySelector('.activity-channel').value
     const contacted_on = container.querySelector('.activity-date').value
-    if(!employee_name || !summary){ alert('Your name and a short summary are required.'); return }
-    localStorage.setItem('jbj_employee_name', employee_name)
+    if(!summary){ alert('A short summary is required.'); return }
     try{
       const res = await fetch(activityUrl(scopeType, scopeId), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ employee_name, summary, channel, contacted_on })
+        body: JSON.stringify({ summary, channel, contacted_on })
       })
       if(!res.ok){ alert('Could not log outreach.'); return }
       container.querySelector('.activity-summary').value = ''
@@ -656,8 +652,8 @@ window.addEventListener('hashchange', ()=>{
   }
 })
 
-// Attach hero tile handlers immediately so they work without relying on DOMContentLoaded
+// Attach hero button handler immediately so it works without relying on DOMContentLoaded.
+// People vs Organizations is now just the in-page toggle, not a separate entry point.
 {
-  const c = el('homeContacts'); if(c) c.addEventListener('click', ()=> { showSearch(true, true, 'people') })
-  const r = el('homeRoles'); if(r) r.addEventListener('click', ()=> { showSearch(true, true, 'organizations') })
+  const e = el('homeEnter'); if(e) e.addEventListener('click', ()=> { showSearch(true, true, 'people') })
 }

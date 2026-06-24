@@ -1,7 +1,36 @@
 from datetime import datetime, date
 from sqlalchemy import Index
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
 from db import db
+
+
+class User(db.Model, UserMixin):
+    """An employee login. Accounts are created via create_user.py -- there's
+    no public registration since this is an internal tool."""
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, index=True, nullable=False)
+    display_name = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'display_name': self.display_name,
+            'is_admin': bool(self.is_admin),
+        }
 
 
 class Contact(db.Model):

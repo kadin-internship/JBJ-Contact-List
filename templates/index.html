@@ -11,11 +11,14 @@
     <!-- Full-screen hero shown on homepage -->
     <div id="hero" class="hero">
       <div class="hero-overlay"></div>
+      <div class="hero-pattern" aria-hidden="true"></div>
       <div class="hero-center">
-        <h1>JBJ Management<br><span class="small">Contact Hub</span></h1>
-        <div class="hero-buttons">
-          <a id="homeContacts" class="btn btn-hero" href="#search">Contacts</a>
-          <a id="homeRoles" class="btn btn-hero" href="#search_roles">Organizations</a>
+        <div class="hero-card">
+          <svg class="hero-logo" width="64" height="64" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#fff"></rect><text x="12" y="16" text-anchor="middle" font-family="Arial" font-size="11" font-weight="700" fill="#AD0304">JBJ</text></svg>
+          <h1>JBJ Management<span class="small">Contact Hub</span></h1>
+          <div class="hero-buttons">
+            <a id="homeEnter" class="btn btn-hero" href="#search">Enter <span aria-hidden="true">→</span></a>
+          </div>
         </div>
       </div>
     </div>
@@ -31,8 +34,10 @@
       </div>
       <div class="header-actions">
         <div style="display:flex;gap:8px;align-items:center">
+          <span class="current-user">{{ current_user.display_name }}</span>
           <a id="backHomeBtn" class="btn" href="/">Back to Home</a>
           <button id="addContactBtn" class="btn btn-primary">Add Contact</button>
+          <a class="btn" href="/logout">Logout</a>
         </div>
       </div>
     </div>
@@ -132,10 +137,8 @@
         showSearchFallback();
         var s = document.getElementById('searchInput'); if(s) s.focus();
       }
-      var hc = document.getElementById('homeContacts');
-      if(hc) hc.addEventListener('click', function(){ showSearchFallback(); });
-      var hr = document.getElementById('homeRoles');
-      if(hr) hr.addEventListener('click', function(){ showSearchFallback(); var s = document.getElementById('searchInput'); if(s) s.focus(); });
+      var he = document.getElementById('homeEnter');
+      if(he) he.addEventListener('click', function(){ showSearchFallback(); var s = document.getElementById('searchInput'); if(s) s.focus(); });
     })();
   </script>
 

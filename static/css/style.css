@@ -15,46 +15,55 @@
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,Helvetica,sans-serif;font-size:16px;color:var(--black)}
 .container{max-width:1100px;margin:0 auto;padding:0 16px}
-.site-header{background:linear-gradient(180deg,var(--maroon) 0%,var(--maroon-dark) 100%);color:#fff;padding-bottom:18px}
-.header-inner{display:flex;align-items:center;justify-content:space-between;padding:18px 16px}
+.site-header{background:linear-gradient(165deg,var(--maroon) 0%,var(--maroon-dark) 100%);color:#fff;padding-bottom:28px;box-shadow:0 4px 18px rgba(0,0,0,0.18)}
+.header-inner{display:flex;align-items:center;justify-content:space-between;padding:18px 16px;border-bottom:1px solid rgba(255,255,255,0.12);margin-bottom:4px}
 .brand{display:flex;align-items:center;gap:12px}
-.logo{border-radius:6px}
-.brand-text h1{margin:0;font-size:20px;line-height:1}
-.brand-text .sub{margin:0;font-size:13px;color:rgba(255,255,255,0.9)}
-.header-actions .btn{background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 12px;border-radius:8px}
+.logo{border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.25)}
+.brand-text h1{margin:0;font-size:20px;line-height:1;letter-spacing:0.2px}
+.brand-text .sub{margin:0;font-size:12px;color:rgba(255,255,255,0.85);letter-spacing:1px;text-transform:uppercase}
+.header-actions .btn{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.35);color:#fff;padding:8px 14px;border-radius:8px;transition:background 0.15s}
+.header-actions .btn:hover{background:rgba(255,255,255,0.18)}
+.header-actions .btn-primary{background:#fff;color:var(--maroon);border-color:#fff}
+.current-user{font-size:13px;color:rgba(255,255,255,0.85);margin-right:4px}
+.header-actions .btn-primary:hover{background:var(--rose);color:#fff}
 .search-bar{display:flex;gap:12px;padding:12px 16px}
 .search-bar input{flex:1;padding:12px;border-radius:10px;border:0;font-size:16px}
 .search-bar select{padding:10px;border-radius:10px;border:0;background:#fff}
  .search-bar .btn{padding:10px 14px;border-radius:10px;border:0;background:#fff}
  /* Generic button styles */
- .btn{display:inline-flex;align-items:center;gap:8px;border-radius:8px;padding:8px 10px;background:#fff;color:var(--maroon);border:1px solid rgba(148,153,156,0.4);cursor:pointer}
+ .btn{display:inline-flex;align-items:center;gap:8px;border-radius:8px;padding:8px 10px;background:#fff;color:var(--maroon);border:1px solid rgba(148,153,156,0.4);cursor:pointer;transition:background 0.15s,box-shadow 0.15s,transform 0.1s}
+ .btn:hover{background:rgba(173,3,4,0.06)}
+ .btn:active{transform:translateY(1px)}
  .btn-primary{background:var(--maroon);color:#fff;border:0}
  .btn-primary:hover{background:var(--maroon-dark)}
  .btn-sm{padding:6px 8px;font-size:14px}
  .btn:focus{outline:3px solid var(--focus);outline-offset:2px}
+ input:focus,select:focus,textarea:focus{outline:3px solid var(--focus);outline-offset:1px;border-color:var(--maroon)}
  .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.quick-stats{display:flex;gap:18px;padding:8px 16px}
-.quick-stats .stat{background:rgba(255,255,255,0.12);padding:10px 14px;border-radius:10px;display:flex;flex-direction:column;align-items:flex-start}
-.quick-stats .num{font-weight:700;font-size:18px}
 
-main{padding:20px 0}
-.results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-.card{background:var(--bg);border-radius:var(--radius);box-shadow:var(--card-shadow);padding:14px;display:flex;flex-direction:column;gap:8px}
-.card h3{margin:0;font-size:18px}
+main{padding:24px 0}
+.results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+.card{background:var(--bg);border-radius:var(--radius);box-shadow:var(--card-shadow);padding:14px;padding-top:12px;display:flex;flex-direction:column;gap:8px;border-top:3px solid var(--rose);transition:transform 0.15s,box-shadow 0.15s}
+.card:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(0,0,0,0.14)}
+.card h3{margin:0;font-size:18px;color:var(--black)}
 .card h3 a{color:inherit;text-decoration:none}
 .card .meta{color:var(--muted);font-size:14px}
 .pills{display:flex;gap:8px;flex-wrap:wrap}
 .pill{background:rgba(173,3,4,0.08);color:var(--maroon);padding:6px 8px;border-radius:999px;font-size:13px}
 .category{font-size:12px;color:var(--muted)}
 
-.pagination{display:flex;align-items:center;gap:12px;justify-content:center;padding:18px}
-.page-btn{background:#fff;border:0;padding:8px 12px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
+.pagination{display:flex;align-items:center;gap:12px;justify-content:center;padding:24px 18px}
+.page-btn{background:#fff;border:1px solid rgba(148,153,156,0.3);padding:8px 14px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.06);cursor:pointer;transition:background 0.15s}
+.page-btn:hover{background:rgba(173,3,4,0.06)}
 .pages{display:flex;gap:8px}
-.page-number{background:#fff;padding:8px 10px;border-radius:6px}
+.page-number{background:#fff;border:1px solid rgba(148,153,156,0.25);padding:8px 12px;border-radius:8px;cursor:pointer;transition:background 0.15s,color 0.15s}
+.page-number:hover{background:rgba(173,3,4,0.08);color:var(--maroon)}
 
-.modal{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center}
-.modal-content{background:#fff;padding:18px;border-radius:12px;max-width:720px;width:95%;box-shadow:var(--card-shadow);position:relative;max-height:90vh;overflow-y:auto}
-.modal .close{position:absolute;right:12px;top:8px;border:0;background:transparent;font-size:24px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center}
+.modal-content{background:#fff;padding:24px;border-radius:14px;max-width:720px;width:95%;box-shadow:0 30px 70px rgba(0,0,0,0.35);position:relative;max-height:90vh;overflow-y:auto;border-top:4px solid var(--maroon)}
+.modal-content h2,.modal-content h3{color:var(--maroon-dark)}
+.modal .close{position:absolute;right:14px;top:12px;border:0;background:transparent;font-size:24px;color:var(--gray);cursor:pointer;transition:color 0.15s}
+.modal .close:hover{color:var(--maroon)}
 #contactForm label{display:block;margin-bottom:12px;font-weight:600;font-size:13px;color:var(--charcoal)}
 #contactForm input,#contactForm textarea{display:block;width:100%;margin-top:4px;padding:8px;border-radius:6px;border:1px solid rgba(148,153,156,0.5);font-family:inherit;font-size:14px;font-weight:400;box-sizing:border-box}
 .muted{color:var(--muted);font-size:13px}
@@ -83,35 +92,72 @@ main{padding:20px 0}
 .tile:hover{box-shadow:var(--card-shadow);transform:translateY(-4px);transition:transform 0.18s}
 .home-section .tile + .tile{margin-left:12px}
 
-/* Large search layout */
-.search-large{display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:16px}
+/* Large search layout -- a white panel "lifted" off the maroon header strip,
+   so the toolbar reads as its own surface rather than inputs floating
+   directly on the brand color. */
+.search-large{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  background:#fff;border-radius:18px;padding:22px 26px;margin-top:14px;
+  box-shadow:0 16px 36px rgba(0,0,0,0.22);color:var(--charcoal);
+}
 .search-left{flex:1}
 .search-left input{width:100%;padding:14px;border-radius:10px;border:1px solid rgba(148,153,156,0.4);font-size:18px}
-.search-controls{margin-top:8px;display:flex;gap:8px;align-items:center}
+.search-controls{margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .search-controls select{padding:10px;border-radius:8px;border:1px solid rgba(148,153,156,0.4)}
 .export-wrap{position:relative}
-.export-menu{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border-radius:10px;box-shadow:var(--card-shadow);padding:6px;min-width:230px;z-index:50;display:flex;flex-direction:column}
-.export-menu-item{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:8px;border:0;background:transparent;color:var(--black);cursor:pointer;font-size:14px}
+.export-menu{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border-radius:10px;box-shadow:0 16px 36px rgba(0,0,0,0.18);padding:6px;min-width:230px;z-index:50;display:flex;flex-direction:column}
+.export-menu-item{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:8px;border:0;background:transparent;color:var(--black);cursor:pointer;font-size:14px;transition:background 0.15s}
 .export-menu-item:hover{background:rgba(173,3,4,0.08)}
+.export-menu-item+.export-menu-item{border-top:1px solid rgba(148,153,156,0.15)}
 .search-right{display:flex;align-items:center;gap:12px}
 .quick-stats{display:flex;gap:12px;align-items:center}
-.quick-stats .stat{background:rgba(255,255,255,0.12);padding:8px 10px;border-radius:8px;display:flex;flex-direction:column;align-items:flex-start}
-.quick-stats .num{font-weight:700;font-size:16px}
+.quick-stats .stat{background:rgba(173,3,4,0.06);padding:8px 14px;border-radius:10px;display:flex;flex-direction:column;align-items:flex-start;min-width:70px}
+.quick-stats .num{font-weight:700;font-size:18px;color:var(--maroon)}
+.quick-stats .label{font-size:11px;color:var(--muted);letter-spacing:0.5px;text-transform:uppercase}
 
 /* People / Organizations view toggle */
-.view-toggle{display:inline-flex;margin-top:10px;border:1px solid rgba(148,153,156,0.4);border-radius:999px;padding:3px;background:#fff;width:fit-content}
-.view-toggle-btn{border:0;background:transparent;color:var(--charcoal);padding:7px 16px;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer}
+.view-toggle{display:inline-flex;margin-top:10px;border:1px solid rgba(148,153,156,0.4);border-radius:999px;padding:3px;background:#f5f5f5;width:fit-content}
+.view-toggle-btn{border:0;background:transparent;color:var(--charcoal);padding:7px 16px;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.15s,color 0.15s}
+.view-toggle-btn:hover:not(.active){background:rgba(173,3,4,0.08)}
 .view-toggle-btn.active{background:var(--maroon);color:#fff}
 
-/* Full-screen hero */
-.hero{position:relative;height:100vh;display:flex;align-items:center;justify-content:center;background-image:linear-gradient(180deg, rgba(173,3,4,0.55), rgba(109,7,18,0.65)), linear-gradient(160deg, var(--maroon), var(--maroon-dark));background-size:cover;background-position:center;color:#fff}
-.hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.28));}
+/* Full-screen hero -- this is the placeholder for the future login page, so
+   it's built as a centered "glass" card over a layered brand-color backdrop
+   rather than plain text on a flat gradient. */
+.hero{
+  position:relative;height:100vh;display:flex;align-items:center;justify-content:center;
+  background-image:
+    radial-gradient(circle at 18% 16%, rgba(214,129,130,0.35) 0, transparent 38%),
+    radial-gradient(circle at 84% 78%, rgba(109,7,18,0.55) 0, transparent 45%),
+    linear-gradient(155deg, var(--maroon) 0%, var(--maroon-dark) 65%, #2a0306 100%);
+  background-size:cover;background-position:center;color:#fff;overflow:hidden;
+}
+.hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.32));}
+.hero-pattern{
+  position:absolute;inset:0;pointer-events:none;opacity:0.5;
+  background-image:repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 26px);
+}
 .hero-center{position:relative;z-index:2;text-align:center;padding:20px}
-.hero-center h1{font-size:48px;line-height:1.05;margin:0;font-weight:800}
-.hero-center h1 .small{font-size:18px;font-weight:600;display:block;margin-top:6px}
-.hero-buttons{margin-top:28px;display:flex;gap:18px;justify-content:center}
-.btn-hero{background:#fff;color:var(--maroon);padding:14px 26px;border-radius:999px;border:0;font-weight:700;font-size:16px;cursor:pointer}
-.btn-hero:hover{transform:translateY(-3px);box-shadow:var(--card-shadow);transition:all 0.18s}
+.hero-card{
+  background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.16);border-radius:24px;
+  padding:48px 64px;backdrop-filter:blur(8px);box-shadow:0 24px 60px rgba(0,0,0,0.35);
+}
+.hero-logo{display:block;margin:0 auto 20px;border-radius:14px;box-shadow:0 10px 24px rgba(0,0,0,0.3)}
+.hero-center h1{font-size:46px;line-height:1.05;margin:0;font-weight:800;letter-spacing:0.3px;position:relative;padding-bottom:18px}
+.hero-center h1::after{content:'';position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:56px;height:3px;border-radius:2px;background:linear-gradient(90deg, var(--rose), #fff)}
+.hero-center h1 .small{font-size:13px;font-weight:600;display:block;margin-top:16px;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,0.78)}
+.hero-buttons{margin-top:30px;display:flex;gap:18px;justify-content:center}
+.btn-hero{background:#fff;color:var(--maroon);padding:14px 32px;border-radius:999px;border:0;font-weight:700;font-size:16px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;letter-spacing:0.3px}
+.btn-hero:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(214,129,130,0.45);transition:all 0.18s}
+.btn-hero span{transition:transform 0.18s}
+.btn-hero:hover span{transform:translateX(3px)}
+
+/* Login page (reuses .hero/.hero-card from the home screen) */
+.login-form{display:flex;flex-direction:column;gap:12px;margin-top:30px;width:280px}
+.login-form input{padding:13px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.95);font-size:15px}
+.login-form input:focus{outline:3px solid rgba(214,129,130,0.5);outline-offset:1px}
+.login-form .btn-hero{justify-content:center;margin-top:6px;width:100%}
+.login-error{margin-top:24px;background:rgba(214,129,130,0.22);border:1px solid rgba(214,129,130,0.5);color:#fff;padding:10px 14px;border-radius:8px;font-size:14px}
 
 /* hide original header/search when hero present; JS toggles .header-hidden display */
 .header-hidden{display:none}
@@ -125,7 +171,8 @@ main{padding:20px 0}
 .org-contact-row:last-child{border-bottom:0}
 .org-contact-row:hover{color:var(--maroon)}
 .org-contact-list{display:flex;flex-direction:column;gap:8px;margin:8px 0}
-.org-contact-item{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fafafa;border-radius:8px;padding:8px 10px}
+.org-contact-item{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fafafa;border-radius:8px;padding:8px 10px;border-left:3px solid var(--rose);transition:background 0.15s}
+.org-contact-item:hover{background:rgba(173,3,4,0.05)}
 .org-contact-actions{display:flex;gap:6px;flex-shrink:0}
 
 @media (max-width:900px){
@@ -135,7 +182,7 @@ main{padding:20px 0}
 
 /* Results + Detail layout */
 .results-and-detail{display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start}
-.contact-detail{background:#fff;border-radius:12px;box-shadow:var(--card-shadow);padding:12px}
+.contact-detail{background:#fff;border-radius:12px;box-shadow:var(--card-shadow);padding:16px;border-top:4px solid var(--maroon)}
 .detail-card{display:flex;gap:12px}
 .detail-photo{width:120px;height:120px;border-radius:10px;background:linear-gradient(180deg,var(--maroon),var(--maroon-dark));color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700}
 .detail-main h2{margin:0 0 6px 0}
@@ -151,13 +198,14 @@ main{padding:20px 0}
 
 /* Outreach activity log (Contacts + Organizations detail panels) */
 .activity-section{margin-top:14px;border-top:1px solid rgba(148,153,156,0.3);padding-top:10px}
-.activity-section h4{margin:0 0 8px}
-.activity-item{background:#fafafa;border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.activity-section h4{margin:0 0 8px;color:var(--maroon-dark)}
+.activity-item{background:#fafafa;border-radius:8px;padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--maroon)}
 .activity-meta{font-size:13px;color:var(--muted)}
 .activity-summary{font-size:14px;margin-top:4px;white-space:pre-wrap}
 .activity-item .activity-delete{margin-top:6px}
 .activity-form{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .activity-form input,.activity-form select,.activity-form textarea{padding:8px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);font-family:inherit;font-size:14px}
+.activity-form .activity-log-btn{align-self:flex-start;margin-top:4px}
 
 @media (max-width:900px){
   .results-and-detail{grid-template-columns:1fr}

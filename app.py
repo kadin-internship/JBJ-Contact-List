@@ -3,15 +3,19 @@ import io
 import csv
 from datetime import date
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, send_file, render_template, render_template_string
+from flask import Flask, request, jsonify, send_file, render_template, render_template_string, redirect, url_for
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
 from db import db
-from models import Contact, OutreachOrg, Activity
+from models import Contact, OutreachOrg, Activity, User
 from schemas import ContactSchema
 from utils import read_uploaded_file, clean_dataframe
 from sqlalchemy import or_, func
 
 load_dotenv()
+
+login_manager = LoginManager()
+login_manager.login_view = 'login'
 
 
 def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None):
@@ -53,12 +57,52 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     db.init_app(app)
+    login_manager.init_app(app)
 
     with app.app_context():
         db.create_all()
 
     contact_schema = ContactSchema()
     contacts_schema = ContactSchema(many=True)
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
+
+    # Every page and API route requires login except the login page itself
+    # and static assets -- gated centrally here instead of decorating each
+    # of the ~20 routes individually, so a newly added route can't
+    # accidentally end up unprotected.
+    @app.before_request
+    def require_login():
+        if request.endpoint in (None, 'login', 'static'):
+            return None
+        if not current_user.is_authenticated:
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'authentication required'}), 401
+            return redirect(url_for('login', next=request.path))
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        if current_user.is_authenticated:
+            return redirect(url_for('index'))
+        error = None
+        username = ''
+        if request.method == 'POST':
+            username = (request.form.get('username') or '').strip()
+            password = request.form.get('password') or ''
+            user = User.query.filter_by(username=username).first()
+            if user and user.check_password(password):
+                login_user(user, remember=True)
+                next_path = request.args.get('next')
+                return redirect(next_path or url_for('index'))
+            error = 'Invalid username or password.'
+        return render_template('login.html', error=error, username=username)
+
+    @app.route('/logout')
+    def logout():
+        logout_user()
+        return redirect(url_for('login'))
 
     @app.route('/')
     def index():
@@ -161,14 +205,13 @@ def create_app(config_class=Config):
     def create_contact_activity(contact_id):
         c = Contact.query.get_or_404(contact_id)
         data = request.get_json(silent=True) or {}
-        employee_name = (data.get('employee_name') or '').strip()
         summary = (data.get('summary') or '').strip()
-        if not employee_name or not summary:
-            return jsonify({'error': 'employee_name and summary are required'}), 400
+        if not summary:
+            return jsonify({'error': 'summary is required'}), 400
         a = Activity(
             contact_id=c.id,
             organization=c.organization,
-            employee_name=employee_name,
+            employee_name=current_user.display_name,
             channel=data.get('channel') or None,
             summary=summary,
             contacted_on=date.fromisoformat(data['contacted_on']) if data.get('contacted_on') else date.today(),
@@ -186,14 +229,13 @@ def create_app(config_class=Config):
     @app.route('/api/organizations/<organization>/activity', methods=['POST'])
     def create_org_activity(organization):
         data = request.get_json(silent=True) or {}
-        employee_name = (data.get('employee_name') or '').strip()
         summary = (data.get('summary') or '').strip()
-        if not employee_name or not summary:
-            return jsonify({'error': 'employee_name and summary are required'}), 400
+        if not summary:
+            return jsonify({'error': 'summary is required'}), 400
         a = Activity(
             contact_id=None,
             organization=organization,
-            employee_name=employee_name,
+            employee_name=current_user.display_name,
             channel=data.get('channel') or None,
             summary=summary,
             contacted_on=date.fromisoformat(data['contacted_on']) if data.get('contacted_on') else date.today(),

@@ -114,12 +114,110 @@ async function showContactDetail(contact){
             <button id="detailEditBtn" class="btn">Edit</button>
             <a id="detailExport" class="btn" href="/api/export?id=${encodeURIComponent(c.id||'')}">Export</a>
           </div>
+          ${activitySectionHtml()}
         </div>
       </div>
     `
     panel.style.display = ''
     const edit = el('detailEditBtn'); if(edit) edit.addEventListener('click', ()=> openProfile(c.id))
+    const activityContainer = panel.querySelector('.activity-section')
+    loadActivitySection(activityContainer, 'contact', c.id)
+    bindActivityForm(activityContainer, 'contact', c.id)
   }catch(e){ console.error(e) }
+}
+
+// Outreach history shared by the Contacts detail panel and the Sections
+// org detail panel -- lets staff see, before reaching out, whether someone
+// (or an organization) has already been contacted, by whom, and why.
+function activitySectionHtml(){
+  const savedName = localStorage.getItem('jbj_employee_name') || ''
+  const today = new Date().toISOString().slice(0,10)
+  return `
+    <div class="activity-section">
+      <h4>Outreach History</h4>
+      <div class="activity-badge"></div>
+      <div class="activity-list">Loading…</div>
+      <div class="activity-form">
+        <input class="activity-employee" placeholder="Your name" value="${savedName}">
+        <select class="activity-channel">
+          <option value="Email">Email</option>
+          <option value="Phone">Phone</option>
+          <option value="Meeting">Meeting</option>
+          <option value="Other">Other</option>
+        </select>
+        <input type="date" class="activity-date" value="${today}">
+        <textarea class="activity-summary" rows="2" placeholder="What was discussed / details"></textarea>
+        <button class="btn btn-primary activity-log-btn">Log Outreach</button>
+      </div>
+    </div>
+  `
+}
+
+function activityBadgeHtml(activity){
+  if(!activity || activity.length === 0) return ''
+  const latest = activity[0]
+  return `<span class="flag flag-warn">Contacted ${activity.length} time${activity.length===1?'':'s'} — last ${new Date(latest.contacted_on+'T00:00:00').toLocaleDateString()} by ${latest.employee_name}</span>`
+}
+
+function activityListHtml(activity){
+  if(!activity || activity.length === 0) return '<div class="muted">No outreach logged yet.</div>'
+  return activity.map(a=>`
+    <div class="activity-item">
+      <div class="activity-meta"><strong>${new Date(a.contacted_on+'T00:00:00').toLocaleDateString()}</strong> — ${a.employee_name}${a.channel? ' via '+a.channel : ''}</div>
+      <div class="activity-summary">${(a.summary||'').replace(/\n/g,'<br>')}</div>
+      <button class="btn btn-sm activity-delete" data-id="${a.id}">Delete</button>
+    </div>
+  `).join('')
+}
+
+function activityUrl(scopeType, scopeId){
+  return scopeType === 'contact'
+    ? `/api/contacts/${encodeURIComponent(scopeId)}/activity`
+    : `/api/organizations/${encodeURIComponent(scopeId)}/activity`
+}
+
+async function loadActivitySection(container, scopeType, scopeId){
+  if(!container) return
+  const listEl = container.querySelector('.activity-list')
+  const badgeEl = container.querySelector('.activity-badge')
+  try{
+    const res = await fetch(activityUrl(scopeType, scopeId))
+    const json = await res.json()
+    const activity = json.activity || []
+    if(badgeEl) badgeEl.innerHTML = activityBadgeHtml(activity)
+    if(listEl) listEl.innerHTML = activityListHtml(activity)
+    if(listEl) listEl.querySelectorAll('.activity-delete').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        if(!confirm('Delete this log entry?')) return
+        await fetch('/api/activity/'+btn.dataset.id, {method:'DELETE'})
+        loadActivitySection(container, scopeType, scopeId)
+      })
+    })
+  }catch(e){ if(listEl) listEl.innerHTML = '<div class="muted">Could not load outreach history.</div>'; console.error(e) }
+}
+
+function bindActivityForm(container, scopeType, scopeId){
+  if(!container) return
+  const btn = container.querySelector('.activity-log-btn')
+  if(!btn) return
+  btn.addEventListener('click', async ()=>{
+    const employee_name = container.querySelector('.activity-employee').value.trim()
+    const summary = container.querySelector('.activity-summary').value.trim()
+    const channel = container.querySelector('.activity-channel').value
+    const contacted_on = container.querySelector('.activity-date').value
+    if(!employee_name || !summary){ alert('Your name and a short summary are required.'); return }
+    localStorage.setItem('jbj_employee_name', employee_name)
+    try{
+      const res = await fetch(activityUrl(scopeType, scopeId), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ employee_name, summary, channel, contacted_on })
+      })
+      if(!res.ok){ alert('Could not log outreach.'); return }
+      container.querySelector('.activity-summary').value = ''
+      loadActivitySection(container, scopeType, scopeId)
+    }catch(e){ alert('Could not log outreach.'); console.error(e) }
+  })
 }
 
 function renderRoleGroup(role, contacts){
@@ -509,12 +607,16 @@ function showOrgDetail(item){
           <span class="flag flag-warn">No contact on file</span>
           <button id="detailAddContactBtn" class="btn btn-primary">Add Contact</button>
         </div>
+        ${activitySectionHtml()}
       </div>
     </div>
   `
   panel.style.display = ''
   const addBtn = el('detailAddContactBtn')
   if(addBtn) addBtn.addEventListener('click', ()=> openProfile(null, {organization: item.organization, tag: item.tag||''}))
+  const activityContainer = panel.querySelector('.activity-section')
+  loadActivitySection(activityContainer, 'org', item.organization)
+  bindActivityForm(activityContainer, 'org', item.organization)
 }
 
 // tag is passed in separately since grouped section items don't carry their

@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_file, render_template, render_template_string
 from config import Config
 from db import db
-from models import Contact, OutreachOrg
+from models import Contact, OutreachOrg, Activity
 from schemas import ContactSchema
 from utils import read_uploaded_file, clean_dataframe
 from sqlalchemy import or_, func
@@ -136,6 +136,65 @@ def create_app(config_class=Config):
         db.session.add(c)
         db.session.commit()
         return jsonify(contact_schema.dump(c)), 201
+
+    @app.route('/api/contacts/<int:contact_id>/activity', methods=['GET'])
+    def list_contact_activity(contact_id):
+        Contact.query.get_or_404(contact_id)
+        rows = Activity.query.filter_by(contact_id=contact_id) \
+            .order_by(Activity.contacted_on.desc(), Activity.created_at.desc()).all()
+        return jsonify({'activity': [a.to_dict() for a in rows]})
+
+    @app.route('/api/contacts/<int:contact_id>/activity', methods=['POST'])
+    def create_contact_activity(contact_id):
+        c = Contact.query.get_or_404(contact_id)
+        data = request.get_json(silent=True) or {}
+        employee_name = (data.get('employee_name') or '').strip()
+        summary = (data.get('summary') or '').strip()
+        if not employee_name or not summary:
+            return jsonify({'error': 'employee_name and summary are required'}), 400
+        a = Activity(
+            contact_id=c.id,
+            organization=c.organization,
+            employee_name=employee_name,
+            channel=data.get('channel') or None,
+            summary=summary,
+            contacted_on=date.fromisoformat(data['contacted_on']) if data.get('contacted_on') else date.today(),
+        )
+        db.session.add(a)
+        db.session.commit()
+        return jsonify(a.to_dict()), 201
+
+    @app.route('/api/organizations/<organization>/activity', methods=['GET'])
+    def list_org_activity(organization):
+        rows = Activity.query.filter(func.lower(Activity.organization) == organization.lower()) \
+            .order_by(Activity.contacted_on.desc(), Activity.created_at.desc()).all()
+        return jsonify({'activity': [a.to_dict() for a in rows]})
+
+    @app.route('/api/organizations/<organization>/activity', methods=['POST'])
+    def create_org_activity(organization):
+        data = request.get_json(silent=True) or {}
+        employee_name = (data.get('employee_name') or '').strip()
+        summary = (data.get('summary') or '').strip()
+        if not employee_name or not summary:
+            return jsonify({'error': 'employee_name and summary are required'}), 400
+        a = Activity(
+            contact_id=None,
+            organization=organization,
+            employee_name=employee_name,
+            channel=data.get('channel') or None,
+            summary=summary,
+            contacted_on=date.fromisoformat(data['contacted_on']) if data.get('contacted_on') else date.today(),
+        )
+        db.session.add(a)
+        db.session.commit()
+        return jsonify(a.to_dict()), 201
+
+    @app.route('/api/activity/<int:activity_id>', methods=['DELETE'])
+    def delete_activity(activity_id):
+        a = Activity.query.get_or_404(activity_id)
+        db.session.delete(a)
+        db.session.commit()
+        return jsonify({'ok': True})
 
     @app.route('/api/stats', methods=['GET'])
     def stats():

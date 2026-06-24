@@ -138,6 +138,16 @@ main{padding:20px 0}
 .flag-ok{background:rgba(0,200,0,0.06);color:#007a00}
 .pill.small{padding:4px 6px;font-size:12px}
 
+/* Outreach activity log (Contacts + Sections detail panels) */
+.activity-section{margin-top:14px;border-top:1px solid rgba(0,0,0,0.06);padding-top:10px}
+.activity-section h4{margin:0 0 8px}
+.activity-item{background:#fafafa;border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.activity-meta{font-size:13px;color:var(--muted)}
+.activity-summary{font-size:14px;margin-top:4px;white-space:pre-wrap}
+.activity-item .activity-delete{margin-top:6px}
+.activity-form{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.activity-form input,.activity-form select,.activity-form textarea{padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.1);font-family:inherit;font-size:14px}
+
 @media (max-width:900px){
   .results-and-detail{grid-template-columns:1fr}
   .contact-detail{order:2}

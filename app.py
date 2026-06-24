@@ -2,6 +2,7 @@ import os
 import io
 import csv
 from datetime import date
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_file, render_template, render_template_string
 from config import Config
 from db import db
@@ -9,6 +10,31 @@ from models import Contact, OutreachOrg
 from schemas import ContactSchema
 from utils import read_uploaded_file, clean_dataframe
 from sqlalchemy import or_, func
+
+load_dotenv()
+
+
+def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None):
+    """Shared filter logic for /api/contacts and the export endpoints, so
+    exports always match what's currently shown on the Contacts page."""
+    query = Contact.query
+    if contact_id:
+        query = query.filter(Contact.id == contact_id)
+    if q:
+        like = f"%{q}%"
+        full_name = func.coalesce(Contact.first_name, '') + ' ' + func.coalesce(Contact.last_name, '')
+        query = query.filter(or_(
+            full_name.ilike(like),
+            Contact.organization.ilike(like),
+            Contact.title.ilike(like),
+            Contact.email.ilike(like),
+            Contact.county.ilike(like),
+        ))
+    if tag:
+        query = query.filter(Contact.tag == tag)
+    if county:
+        query = query.filter(Contact.county == county)
+    return query
 
 
 def create_app(config_class=Config):
@@ -39,22 +65,11 @@ def create_app(config_class=Config):
     def list_contacts():
         q = request.args.get('q', type=str)
         tag = request.args.get('tag', type=str)
+        county = request.args.get('county', type=str)
         page = request.args.get('page', default=1, type=int)
         limit = request.args.get('limit', default=25, type=int)
 
-        query = Contact.query
-        if q:
-            like = f"%{q}%"
-            full_name = func.coalesce(Contact.first_name, '') + ' ' + func.coalesce(Contact.last_name, '')
-            query = query.filter(or_(
-                full_name.ilike(like),
-                Contact.organization.ilike(like),
-                Contact.title.ilike(like),
-                Contact.email.ilike(like),
-                Contact.county.ilike(like),
-            ))
-        if tag:
-            query = query.filter(Contact.tag == tag)
+        query = filtered_contacts_query(q=q, tag=tag, county=county)
 
         total = query.count()
         results = query.order_by(Contact.added.desc()).offset((page - 1) * limit).limit(limit).all()
@@ -193,19 +208,30 @@ def create_app(config_class=Config):
 
         rows = org_query.order_by(OutreachOrg.tag, OutreachOrg.organization).all()
 
+        # Fetch every relevant contact in one query and group by lowercased
+        # organization name in Python, instead of issuing two queries per
+        # organization (count + primary) -- that N+1 pattern was the main
+        # reason this endpoint felt slow/unresponsive with ~280 organizations.
+        contacts_query = Contact.query
+        if county:
+            contacts_query = contacts_query.filter(Contact.county.ilike(f"%{county}%"))
+        contacts_by_org = {}
+        for c in contacts_query.order_by(Contact.added.desc()).all():
+            if not c.organization:
+                continue
+            contacts_by_org.setdefault(c.organization.lower(), []).append(c)
+
         # build flat list, cross-referencing contacts by organization name
         items = []
         for org_row in rows:
             tag = org_row.tag
             org = org_row.organization
-            contacts_q = Contact.query.filter(func.lower(Contact.organization) == org.lower())
-            if county:
-                contacts_q = contacts_q.filter(Contact.county.ilike(f"%{county}%"))
-            contact_count = contacts_q.count()
+            org_contacts = contacts_by_org.get(org.lower(), [])
+            contact_count = len(org_contacts)
             if county and contact_count == 0:
                 # no contacts in the requested county for this org; skip it
                 continue
-            primary = contacts_q.order_by(Contact.added.desc()).first()
+            primary = org_contacts[0] if org_contacts else None
             primary_info = None
             if primary:
                 primary_info = {
@@ -334,18 +360,11 @@ def create_app(config_class=Config):
 
     @app.route('/api/export', methods=['GET'])
     def export():
-        # optional filters
+        q = request.args.get('q', type=str)
         tag = request.args.get('tag', type=str)
         county = request.args.get('county', type=str)
         contact_id = request.args.get('id', type=int)
-        query = Contact.query
-        if contact_id:
-            query = query.filter(Contact.id == contact_id)
-        if tag:
-            query = query.filter(Contact.tag == tag)
-        if county:
-            query = query.filter(Contact.county == county)
-        rows = query.order_by(Contact.added.desc()).all()
+        rows = filtered_contacts_query(q=q, tag=tag, county=county, contact_id=contact_id).order_by(Contact.added.desc()).all()
 
         # stream CSV
         si = io.StringIO()
@@ -361,9 +380,122 @@ def create_app(config_class=Config):
         si.seek(0)
         return send_file(io.BytesIO(si.getvalue().encode('utf-8')), mimetype='text/csv', as_attachment=True, download_name='contacts_export.csv')
 
+    @app.route('/api/export/emails', methods=['GET'])
+    def export_emails():
+        """Flat, de-duplicated list of email addresses for the current filter,
+        meant for pasting into the BCC field of a mass email."""
+        q = request.args.get('q', type=str)
+        tag = request.args.get('tag', type=str)
+        county = request.args.get('county', type=str)
+        rows = filtered_contacts_query(q=q, tag=tag, county=county).all()
+
+        emails = []
+        seen = set()
+        for r in rows:
+            if not r.email:
+                continue
+            # some legacy records store multiple addresses separated by '|'
+            for part in r.email.split('|'):
+                addr = part.strip()
+                if addr and addr.lower() not in seen:
+                    seen.add(addr.lower())
+                    emails.append(addr)
+
+        return jsonify({'count': len(emails), 'emails': emails, 'joined': ', '.join(emails)})
+
+    @app.route('/api/export/docx', methods=['GET'])
+    def export_docx():
+        from docx import Document
+
+        q = request.args.get('q', type=str)
+        tag = request.args.get('tag', type=str)
+        county = request.args.get('county', type=str)
+        rows = filtered_contacts_query(q=q, tag=tag, county=county).order_by(Contact.organization, Contact.last_name).all()
+
+        doc = Document()
+        title = tag or 'Contacts'
+        doc.add_heading(title, level=1)
+        doc.add_paragraph(f'{len(rows)} contact(s)')
+
+        table = doc.add_table(rows=1, cols=5)
+        table.style = 'Light Grid Accent 1'
+        hdr = table.rows[0].cells
+        hdr[0].text, hdr[1].text, hdr[2].text, hdr[3].text, hdr[4].text = 'Name', 'Title', 'Organization', 'Email', 'Phone'
+        for r in rows:
+            cells = table.add_row().cells
+            cells[0].text = f"{r.first_name or ''} {r.last_name or ''}".strip()
+            cells[1].text = r.title or ''
+            cells[2].text = r.organization or ''
+            cells[3].text = r.email or ''
+            cells[4].text = r.phone_office or r.phone_cell or ''
+
+        buf = io.BytesIO()
+        doc.save(buf)
+        buf.seek(0)
+        safe_name = (tag or 'contacts').replace('/', '-').replace(' ', '_')
+        return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                          as_attachment=True, download_name=f'{safe_name}_export.docx')
+
+    @app.route('/api/draft-email', methods=['POST'])
+    def draft_email():
+        import anthropic
+
+        data = request.get_json(silent=True) or {}
+        prompt = (data.get('prompt') or '').strip()
+        if not prompt:
+            return jsonify({'error': 'Describe the email you want to draft.'}), 400
+
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        if not api_key:
+            return jsonify({'error': 'ANTHROPIC_API_KEY is not configured on the server.'}), 500
+
+        q = data.get('q')
+        tag = data.get('tag')
+        county = data.get('county')
+        rows = filtered_contacts_query(q=q, tag=tag, county=county).all()
+        orgs = sorted({r.organization for r in rows if r.organization})
+
+        context_lines = [f"{len(rows)} recipient(s) in this group."]
+        if tag:
+            context_lines.append(f'Category/tag filter: {tag}.')
+        if county:
+            context_lines.append(f'County filter: {county}.')
+        if q:
+            context_lines.append(f'Search filter: "{q}".')
+        if orgs:
+            sample = ', '.join(orgs[:8])
+            context_lines.append(f'Sample organizations: {sample}{"..." if len(orgs) > 8 else "."}')
+
+        system = (
+            "You draft outreach emails for JBJ Management, sent to community contacts "
+            "(elected officials, organizations, clergy, chambers of commerce, etc). Write "
+            "a complete, professional but warm email with a subject line and body, tailored "
+            "to the recipient group described. Use \"[Name]\" as a placeholder for the "
+            "individual recipient's name. Do not invent specific facts (dates, addresses, "
+            "times) the user didn't provide -- use a placeholder like [DATE] or [LOCATION] "
+            "instead. Output only the subject line and email body, no commentary."
+        )
+        user_message = "Recipient group:\n" + "\n".join(context_lines) + f"\n\nEmail request: {prompt}"
+
+        try:
+            client = anthropic.Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                system=system,
+                messages=[{"role": "user", "content": user_message}],
+            )
+        except anthropic.APIStatusError as e:
+            return jsonify({'error': f'Claude API error: {e.message}'}), 502
+        except Exception as e:
+            return jsonify({'error': str(e)}), 502
+
+        draft = next((b.text for b in response.content if b.type == 'text'), '')
+        return jsonify({'draft': draft, 'recipient_count': len(rows)})
+
     return app
 
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), threaded=True)

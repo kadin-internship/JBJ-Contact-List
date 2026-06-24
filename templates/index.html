@@ -44,7 +44,17 @@
           <input id="searchInput" aria-label="Search contacts" placeholder="Search by Name, Organization, Title, or Email..." />
           <div class="search-controls">
             <select id="tagFilter" aria-label="Filter by tag"><option value="">All Tags</option></select>
+            <select id="mainCountyFilter" aria-label="Filter by county"><option value="">All Counties</option></select>
             <button id="searchBtn" class="btn btn-primary">Search</button>
+            <div class="export-wrap">
+              <button id="exportMenuBtn" class="btn">Export ▾</button>
+              <div id="exportMenu" class="export-menu" style="display:none;">
+                <button id="exportCopyEmails" class="export-menu-item">Copy Emails (for mass email)</button>
+                <button id="exportCsvBtn" class="export-menu-item">Download CSV</button>
+                <button id="exportDocxBtn" class="export-menu-item">Download Word Doc</button>
+              </div>
+            </div>
+            <button id="draftEmailBtn" class="btn">Draft Email ✦</button>
           </div>
         </div>
         <div class="search-right">
@@ -61,8 +71,16 @@
         <div class="role-filters">
           <select id="roleTagFilter" aria-label="Filter by category"><option value="">All Categories</option></select>
           <select id="countyFilter" aria-label="Filter by county"><option value="">All Counties</option></select>
+          <button id="roleSearchBtn" class="btn">Search Roles</button>
+          <div class="export-wrap">
+            <button id="roleExportMenuBtn" class="btn">Export ▾</button>
+            <div id="roleExportMenu" class="export-menu" style="display:none;">
+              <button id="roleExportCopyEmails" class="export-menu-item">Copy Emails (for mass email)</button>
+              <button id="roleExportCsvBtn" class="export-menu-item">Download CSV</button>
+              <button id="roleExportDocxBtn" class="export-menu-item">Download Word Doc</button>
+            </div>
+          </div>
         </div>
-        <button id="roleSearchBtn" class="btn">Search Roles</button>
       </div>
     </div>
   </header>
@@ -95,6 +113,22 @@
     <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <button id="closeModal" class="close">×</button>
       <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div id="draftEmailModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="draftEmailTitle">
+      <button id="closeDraftEmailModal" class="close">×</button>
+      <h3 id="draftEmailTitle">Draft Email</h3>
+      <p id="draftEmailAudience" class="muted"></p>
+      <label for="draftEmailPrompt">What's the email about?</label>
+      <textarea id="draftEmailPrompt" rows="3" placeholder="e.g. Invite this group to a community meeting in Dallas"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button id="draftEmailGenerateBtn" class="btn btn-primary">Generate</button>
+        <button id="draftEmailCopyBtn" class="btn" style="display:none;">Copy to Clipboard</button>
+      </div>
+      <div id="draftEmailStatus" class="muted" style="margin-top:8px;"></div>
+      <textarea id="draftEmailOutput" rows="14" style="display:none;width:100%;margin-top:8px;" placeholder="Your drafted email will appear here..."></textarea>
     </div>
   </div>
 

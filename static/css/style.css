@@ -48,6 +48,8 @@ main{padding:20px 0}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center}
 .modal-content{background:#fff;padding:18px;border-radius:12px;max-width:720px;width:95%;box-shadow:var(--card-shadow);position:relative}
 .modal .close{position:absolute;right:12px;top:8px;border:0;background:transparent;font-size:24px}
+.muted{color:var(--muted);font-size:13px}
+#draftEmailModal textarea{width:100%;border-radius:8px;border:1px solid rgba(0,0,0,0.1);padding:10px;font-family:inherit;font-size:14px}
 
 @media (max-width:600px){
   .header-inner{flex-direction:column;align-items:flex-start}
@@ -79,6 +81,10 @@ main{padding:20px 0}
 .search-left input{width:100%;padding:14px;border-radius:10px;border:1px solid rgba(0,0,0,0.06);font-size:18px}
 .search-controls{margin-top:8px;display:flex;gap:8px;align-items:center}
 .search-controls select{padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)}
+.export-wrap{position:relative}
+.export-menu{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border-radius:10px;box-shadow:var(--card-shadow);padding:6px;min-width:230px;z-index:50;display:flex;flex-direction:column}
+.export-menu-item{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:8px;border:0;background:transparent;color:#111;cursor:pointer;font-size:14px}
+.export-menu-item:hover{background:rgba(128,0,0,0.06)}
 .search-right{display:flex;align-items:center;gap:12px}
 .quick-stats{display:flex;gap:12px;align-items:center}
 .quick-stats .stat{background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:8px;display:flex;flex-direction:column;align-items:flex-start}
@@ -98,9 +104,18 @@ main{padding:20px 0}
 .header-hidden{display:none}
 
 .role-group{margin-bottom:12px}
-.sections-table{width:100%;border-collapse:collapse;margin-bottom:18px}
-.sections-table th,.sections-table td{border:1px solid #eee;padding:8px;text-align:left}
-.sections-table th{background:#fafafa}
+.roles-results h3{margin:18px 0 10px}
+.roles-results .results-grid{margin-bottom:18px}
+.pc-name{font-weight:600}
+.pc-meta{color:var(--muted);font-size:13px}
+
+/* Roles/Sections toolbar — sized to match the Contacts search-large bar */
+.role-search{padding:12px 0;display:flex;flex-direction:column;gap:10px}
+.role-search h3{margin:0}
+.role-search > input{width:100%;padding:14px;border-radius:10px;border:1px solid rgba(0,0,0,0.06);font-size:18px}
+.role-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.role-filters select{padding:12px 14px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);font-size:16px;min-width:180px}
+.role-filters .btn{padding:10px 16px;font-size:15px}
 
 @media (max-width:900px){
   .profile-grid{grid-template-columns:1fr}

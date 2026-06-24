@@ -30,7 +30,15 @@
       "Bash(kill 60435 52053)",
       "Bash(curl -s \"http://localhost:5001/\")",
       "Bash(curl -s \"http://localhost:5001/static/js/app.js\")",
-      "Bash(curl -s \"http://localhost:5001/api/sections\")"
+      "Bash(curl -s \"http://localhost:5001/api/sections\")",
+      "Bash(node --check static/js/app.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5000/)",
+      "Bash(ps -p 548 -o command=)",
+      "Bash(PORT=5050 python3 app.py)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5050/)",
+      "Bash(curl -s \"http://localhost:5050/api/counties\")",
+      "Bash(curl -s \"http://localhost:5050/api/section-categories\")",
+      "Bash(curl -s -o /tmp/exp.csv -w \"%{http_code}\\\\n\" \"http://localhost:5050/api/export?county=Dallas\")"
     ],
     "additionalDirectories": [
       "/private/tmp"

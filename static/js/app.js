@@ -1,33 +1,34 @@
 const API = {
   contacts: '/api/contacts',
+  sections: '/api/sections',
   stats: '/api/stats',
   tags: '/api/tags',
-  categories: '/api/categories',
   sectionCategories: '/api/section-categories',
   counties: '/api/counties',
 }
 
-let state = { page: 1, limit: 25, q: '', tag: '', county: '', total: 0 }
+let state = { page: 1, limit: 25, q: '', tag: '', county: '', total: 0, view: 'people' }
 
 function el(id){return document.getElementById(id)}
 console.debug('app.js loaded')
 
-async function fetchTags(){
+// The category dropdown is shared by both views, but People (Contact.tag)
+// and Organizations (OutreachOrg.tag) use different category names for the
+// same kind of grouping -- so it's repopulated from a different endpoint
+// whenever the view changes, rather than trying to merge the two lists.
+async function fetchTagOptions(){
+  const sel = el('tagFilter')
+  if(!sel) return
   try{
-    const res = await fetch(API.tags)
-    const tags = await res.json()
-    const sel = el('tagFilter')
-    sel.innerHTML = '<option value="">All Tags</option>' + tags.map(t=>`<option value="${t}">${t}</option>`).join('')
-  }catch(e){console.warn(e)}
-}
-
-async function fetchCategories(){
-  try{
-    const res = await fetch(API.sectionCategories)
-    const cats = await res.json()
-    const sel = el('roleTagFilter')
-    if(!sel) return
-    sel.innerHTML = '<option value="">All Categories</option>' + cats.map(t=>`<option value="${t.tag}">${t.tag} (${t.count||0})</option>`).join('')
+    if(state.view === 'organizations'){
+      const res = await fetch(API.sectionCategories)
+      const cats = await res.json()
+      sel.innerHTML = '<option value="">All Categories</option>' + cats.map(t=>`<option value="${t.tag}">${t.tag} (${t.count||0})</option>`).join('')
+    } else {
+      const res = await fetch(API.tags)
+      const tags = await res.json()
+      sel.innerHTML = '<option value="">All Tags</option>' + tags.map(t=>`<option value="${t}">${t}</option>`).join('')
+    }
   }catch(e){console.warn(e)}
 }
 
@@ -35,12 +36,8 @@ async function fetchCounties(){
   try{
     const res = await fetch(API.counties)
     const rows = await res.json()
-    const optionsHtml = '<option value="">All Counties</option>' + rows.map(r=>`<option value="${r.county}">${r.county||'Unknown'} (${r.count||0})</option>`).join('')
-    // populate both the main Contacts toolbar's county filter and the Roles county filter
-    ;['countyFilter', 'mainCountyFilter'].forEach(id=>{
-      const sel = el(id)
-      if(sel) sel.innerHTML = optionsHtml
-    })
+    const sel = el('mainCountyFilter')
+    if(sel) sel.innerHTML = '<option value="">All Counties</option>' + rows.map(r=>`<option value="${r.county}">${r.county||'Unknown'} (${r.count||0})</option>`).join('')
   }catch(e){console.warn(e)}
 }
 
@@ -63,7 +60,6 @@ async function fetchSectionStats(){
 }
 
 function renderCard(c){
-  console.debug('renderCard called for', c && (c.id || c.email || (c.first_name+' '+c.last_name)))
   const div = document.createElement('div')
   div.className = 'card'
   div.tabIndex = 0
@@ -77,12 +73,45 @@ function renderCard(c){
       <button class="btn btn-sm edit-btn">Edit</button>
     </div>
   `
-  // clicking the card background opens detail; Edit opens modal
   div.addEventListener('click', (ev)=>{ if(ev.target && (ev.target.classList && (ev.target.classList.contains('view-btn')||ev.target.classList.contains('edit-btn')))){ return } showContactDetail(c) })
   const viewBtn = div.querySelector('.view-btn')
   if(viewBtn) viewBtn.addEventListener('click', (e)=>{ e.stopPropagation(); showContactDetail(c) })
   const editBtn = div.querySelector('.edit-btn')
   if(editBtn) editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openProfile(c.id) })
+  return div
+}
+
+// Organizations view card -- lists every contact at the organization (not
+// just one "primary" contact), since coworkers sharing an organization
+// should show up together.
+function renderOrgCard(item){
+  const div = document.createElement('div')
+  div.className = 'card'
+  div.tabIndex = 0
+  const contacts = item.contacts || []
+  const contactsHtml = contacts.length
+    ? `<div class="org-contacts">${contacts.map(c=>`<div class="org-contact-row" data-id="${c.id}"><span class="pc-name">${c.name||'(no name)'}</span><span class="pc-meta">${c.title? ' — '+c.title : ''}</span></div>`).join('')}</div>`
+    : '<div class="muted">No contact on file</div>'
+  div.innerHTML = `
+    <h3>${item.organization||''}</h3>
+    <div class="meta">${item.contact_count||0} contact${item.contact_count===1?'':'s'}${item.latest_updated? ' • Updated '+new Date(item.latest_updated+'T00:00:00').toLocaleDateString() : ''}</div>
+    ${contactsHtml}
+    ${item.notes ? `<div class="category">${item.notes.replace(/\|\|/g,', ')}</div>` : ''}
+    <div class="card-actions" style="margin-top:8px;display:flex;gap:8px;">
+      <button class="btn btn-sm view-btn">View</button>
+      <button class="btn btn-sm add-btn">+ Add Contact</button>
+    </div>
+  `
+  div.addEventListener('click', (ev)=>{
+    const row = ev.target.closest('.org-contact-row')
+    if(row){ ev.stopPropagation(); showContactDetail(parseInt(row.dataset.id,10)); return }
+    if(ev.target && ev.target.classList && (ev.target.classList.contains('view-btn')||ev.target.classList.contains('add-btn'))){ return }
+    showOrgDetail(item)
+  })
+  const viewBtn = div.querySelector('.view-btn')
+  if(viewBtn) viewBtn.addEventListener('click', (e)=>{ e.stopPropagation(); showOrgDetail(item) })
+  const addBtn = div.querySelector('.add-btn')
+  if(addBtn) addBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openProfile(null, {organization: item.organization, tag: item.tag||''}) })
   return div
 }
 
@@ -126,8 +155,54 @@ async function showContactDetail(contact){
   }catch(e){ console.error(e) }
 }
 
-// Outreach history shared by the Contacts detail panel and the Sections
-// org detail panel -- lets staff see, before reaching out, whether someone
+// Org-level detail: full contact list (each clickable into their own detail
+// or edit), notes, last-touched date, and the shared outreach-activity log.
+function showOrgDetail(item){
+  const panel = el('contactDetail')
+  if(!panel) return
+  const contacts = item.contacts || []
+  const contactsHtml = contacts.length
+    ? `<div class="detail-row"><strong>Contacts:</strong></div><div class="org-contact-list">${contacts.map(c=>`
+        <div class="org-contact-item">
+          <div>
+            <div class="pc-name">${c.name||'(no name)'}</div>
+            <div class="pc-meta">${c.title||''}${c.email? ' • '+c.email : ''}</div>
+          </div>
+          <div class="org-contact-actions">
+            <button class="btn btn-sm view-person-btn" data-id="${c.id}">View</button>
+            <button class="btn btn-sm edit-person-btn" data-id="${c.id}">Edit</button>
+          </div>
+        </div>
+      `).join('')}</div>`
+    : '<div class="detail-row"><span class="flag flag-warn">No contact on file</span></div>'
+  panel.innerHTML = `
+    <div class="detail-card">
+      <div class="detail-photo photo-placeholder">${(item.organization||'?').charAt(0)}</div>
+      <div class="detail-main">
+        <h2>${item.organization||''}</h2>
+        <div class="detail-sub">${item.tag||''}</div>
+        <div class="detail-row"><strong>Last touched:</strong> ${item.latest_updated? new Date(item.latest_updated+'T00:00:00').toLocaleDateString() : '<span class="muted">Never</span>'}</div>
+        <div class="detail-notes">${item.notes? `<h4>Notes</h4><div class="notes">${item.notes.replace(/\|\|/g,', ')}</div>` : ''}</div>
+        ${contactsHtml}
+        <div class="detail-flags" style="margin-top:10px;display:flex;gap:8px;align-items:center">
+          <button id="detailAddContactBtn" class="btn btn-primary">+ Add Contact</button>
+        </div>
+        ${activitySectionHtml()}
+      </div>
+    </div>
+  `
+  panel.style.display = ''
+  const addBtn = el('detailAddContactBtn')
+  if(addBtn) addBtn.addEventListener('click', ()=> openProfile(null, {organization: item.organization, tag: item.tag||''}))
+  panel.querySelectorAll('.view-person-btn').forEach(b=> b.addEventListener('click', ()=> showContactDetail(parseInt(b.dataset.id,10))))
+  panel.querySelectorAll('.edit-person-btn').forEach(b=> b.addEventListener('click', ()=> openProfile(parseInt(b.dataset.id,10))))
+  const activityContainer = panel.querySelector('.activity-section')
+  loadActivitySection(activityContainer, 'org', item.organization)
+  bindActivityForm(activityContainer, 'org', item.organization)
+}
+
+// Outreach history shared by the Contacts detail panel and the Organizations
+// detail panel -- lets staff see, before reaching out, whether someone
 // (or an organization) has already been contacted, by whom, and why.
 function activitySectionHtml(){
   const savedName = localStorage.getItem('jbj_employee_name') || ''
@@ -220,43 +295,39 @@ function bindActivityForm(container, scopeType, scopeId){
   })
 }
 
-function renderRoleGroup(role, contacts){
-  const wrap = document.createElement('div')
-  wrap.className = 'role-group'
-  const header = document.createElement('h4')
-  header.textContent = role || 'Other'
-  wrap.appendChild(header)
-  const list = document.createElement('div')
-  list.className = 'role-contacts'
-  contacts.forEach(c=>{
-    const r = document.createElement('div')
-    r.className = 'role-contact'
-    r.innerHTML = `<strong>${c.first_name||''} ${c.last_name||''}</strong> — ${c.organization||''} <div class="email">${c.email||''}</div>`
-    r.addEventListener('click', ()=>openProfile(c.id))
-    list.appendChild(r)
-  })
-  wrap.appendChild(list)
-  return wrap
-}
-
+// searchSeq guards against races between overlapping calls (e.g. a slower
+// earlier fetch resolving after a faster, later one and overwriting it).
+let searchSeq = 0
 async function search(){
-  console.debug('search() start', {page: state.page, limit: state.limit, q: state.q, tag: state.tag})
+  const mySeq = ++searchSeq
   const out = el('results')
   out.innerHTML = '<div>Loading…</div>'
+  if(state.view === 'organizations') fetchSectionStats(); else fetchStats()
   const params = new URLSearchParams({page: state.page, limit: state.limit})
   if(state.q) params.set('q', state.q)
   if(state.tag) params.set('tag', state.tag)
   if(state.county) params.set('county', state.county)
   try{
-    const res = await fetch(API.contacts + '?' + params.toString())
-    const j = await res.json()
-    console.debug('search() returned', j && (j.contacts ? j.contacts.length : null), 'contacts, meta total=', j.total)
-    out.innerHTML = ''
-    state.total = j.total || 0
-    if(!j.contacts || j.contacts.length===0){ out.innerHTML = '<div>No results</div>'; renderPagination(state.total); return }
-    j.contacts.forEach(c=>out.appendChild(renderCard(c)))
-    renderPagination(state.total)
-  }catch(e){out.innerHTML = '<div>Error loading results</div>';console.error(e)}
+    if(state.view === 'organizations'){
+      const res = await fetch(API.sections + '?' + params.toString())
+      const j = await res.json()
+      if(mySeq !== searchSeq) return
+      out.innerHTML = ''
+      state.total = j.total || 0
+      if(!j.organizations || j.organizations.length === 0){ out.innerHTML = '<div>No organizations found</div>'; renderPagination(state.total); return }
+      j.organizations.forEach(item=>out.appendChild(renderOrgCard(item)))
+      renderPagination(state.total)
+    } else {
+      const res = await fetch(API.contacts + '?' + params.toString())
+      const j = await res.json()
+      if(mySeq !== searchSeq) return
+      out.innerHTML = ''
+      state.total = j.total || 0
+      if(!j.contacts || j.contacts.length===0){ out.innerHTML = '<div>No results</div>'; renderPagination(state.total); return }
+      j.contacts.forEach(c=>out.appendChild(renderCard(c)))
+      renderPagination(state.total)
+    }
+  }catch(e){ if(mySeq===searchSeq) out.innerHTML = '<div>Error loading results</div>'; console.error(e) }
 }
 
 function renderPagination(total){
@@ -333,32 +404,71 @@ async function saveContact(){
     } else {
       res = await fetch('/api/contacts', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)})
     }
-    if(!res.ok) throw new Error('Save failed')
     const j = await res.json()
+    if(!res.ok){
+      const msg = j.error === 'email exists' ? 'That email is already used by another contact.' : (j.error || 'Save failed')
+      alert(msg)
+      return
+    }
     closeModal()
-    fetchStats(); fetchTags(); state.page=1; search();
+    fetchTagOptions()
+    state.page = 1
+    search()
+    if(j && j.id) showContactDetail(j.id)
     alert('Saved')
   }catch(e){alert('Save failed'); console.error(e)}
 }
 
 function closeModal(){ const m = el('profileModal'); if(m) m.style.display = 'none' }
 
+// Switches between the People grid (Contact rows) and the Organizations
+// grid (OutreachOrg rows, cross-referenced with Contacts). The category
+// filter is reset on an actual view change since People/Organization
+// categories are different namespaces -- carrying one over would silently
+// filter against the wrong field.
+function switchView(view, userInitiated){
+  const changed = state.view !== view
+  state.view = view
+  if(changed){
+    state.page = 1
+    state.tag = ''
+    const tagSel = el('tagFilter'); if(tagSel) tagSel.value = ''
+  }
+  const peopleBtn = el('viewPeopleBtn'); const orgBtn = el('viewOrgBtn')
+  if(peopleBtn) peopleBtn.classList.toggle('active', view === 'people')
+  if(orgBtn) orgBtn.classList.toggle('active', view === 'organizations')
+  const si = el('searchInput')
+  if(si) si.placeholder = view === 'people'
+    ? 'Search by Name, Organization, Title, or Email...'
+    : 'Search by Organization or Category...'
+  if(userInitiated && changed){
+    history.pushState({page: view === 'organizations' ? 'search_roles' : 'search'}, '', view === 'organizations' ? '#search_roles' : '#search')
+  }
+  fetchTagOptions()
+  search()
+}
+
 function bind(){
   el('searchBtn').addEventListener('click', ()=>{ state.q = el('searchInput').value.trim(); state.tag = el('tagFilter').value; state.county = el('mainCountyFilter').value; state.page = 1; search() })
-  el('searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ state.q = el('searchInput').value.trim(); state.county = el('mainCountyFilter').value; state.page = 1; search() } })
+  el('searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ state.q = el('searchInput').value.trim(); state.tag = el('tagFilter').value; state.county = el('mainCountyFilter').value; state.page = 1; search() } })
+  el('tagFilter').addEventListener('change', ()=>{ state.tag = el('tagFilter').value; state.page=1; search() })
   const mainCountySel = el('mainCountyFilter')
   if(mainCountySel) mainCountySel.addEventListener('change', ()=>{ state.county = mainCountySel.value; state.page = 1; search() })
-  // Roles search
-  el('roleSearchBtn').addEventListener('click', ()=>{ runRoleSearch() })
-  el('roleSearchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ runRoleSearch() } })
-  const roleTagSel = el('roleTagFilter')
-  if(roleTagSel) roleTagSel.addEventListener('change', ()=>{ const t = roleTagSel.value; if(t) loadTagPage(t,1); else searchRoles('') })
-  const countySel = el('countyFilter')
-  if(countySel) countySel.addEventListener('change', ()=>{ const t = el('roleTagFilter').value; if(t) loadTagPage(t,1); else searchRoles('') })
-  // keyboard shortcuts: Ctrl+K and '/'
+
+  const viewPeopleBtn = el('viewPeopleBtn')
+  const viewOrgBtn = el('viewOrgBtn')
+  if(viewPeopleBtn) viewPeopleBtn.addEventListener('click', ()=> switchView('people', true))
+  if(viewOrgBtn) viewOrgBtn.addEventListener('click', ()=> switchView('organizations', true))
+
+  // keyboard shortcuts: Ctrl+K and '/' -- but not while typing in a field,
+  // otherwise '/' could never be typed into notes, lists, etc.
   window.addEventListener('keydown', (e)=>{
-    if((e.ctrlKey && e.key.toLowerCase()==='k') || e.key === '/'){
-      e.preventDefault(); el('searchInput').focus();
+    const typingInField = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName)
+    if(e.ctrlKey && e.key.toLowerCase()==='k'){
+      e.preventDefault(); el('searchInput').focus(); return
+    }
+    if(e.key === '/' && !typingInField){
+      e.preventDefault(); el('searchInput').focus()
     }
   })
   el('prevPage').addEventListener('click', ()=>{ if(state.page>1){ state.page--; search() } })
@@ -368,19 +478,20 @@ function bind(){
   })
   el('closeModal').addEventListener('click', closeModal)
   const addBtn = el('addContactBtn')
-  if(addBtn) addBtn.addEventListener('click', ()=>{ openProfile(null); showSearch(); })
+  if(addBtn) addBtn.addEventListener('click', ()=>{ openProfile(null) })
   const backBtn = el('backHomeBtn')
   if(backBtn) backBtn.addEventListener('click', ()=>{ showHome(true) })
-  el('tagFilter').addEventListener('change', ()=>{ state.tag = el('tagFilter').value; state.page=1; search() })
   bindExportMenu()
-  bindRoleExportMenu()
   bindDraftEmail()
 }
 
 function currentExportParams(){
   const params = new URLSearchParams()
   if(state.q) params.set('q', state.q)
-  if(state.tag) params.set('tag', state.tag)
+  if(state.tag){
+    if(state.view === 'organizations') params.set('org_tag', state.tag)
+    else params.set('tag', state.tag)
+  }
   if(state.county) params.set('county', state.county)
   return params
 }
@@ -424,7 +535,7 @@ function bindDraftEmail(){
 
   const describeAudience = ()=>{
     const parts = []
-    if(state.tag) parts.push(`tag "${state.tag}"`)
+    if(state.tag) parts.push(`${state.view === 'organizations' ? 'organization category' : 'tag'} "${state.tag}"`)
     if(state.county) parts.push(`county "${state.county}"`)
     if(state.q) parts.push(`search "${state.q}"`)
     el('draftEmailAudience').textContent = parts.length
@@ -457,7 +568,13 @@ function bindDraftEmail(){
       const res = await fetch('/api/draft-email', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ prompt, q: state.q, tag: state.tag, county: state.county })
+        body: JSON.stringify({
+          prompt,
+          q: state.q,
+          county: state.county,
+          tag: state.view === 'organizations' ? undefined : state.tag,
+          org_tag: state.view === 'organizations' ? state.tag : undefined,
+        })
       })
       const j = await res.json()
       if(!res.ok){ el('draftEmailStatus').textContent = j.error || 'Could not draft email.'; return }
@@ -480,274 +597,13 @@ function bindDraftEmail(){
     }catch(e){ el('draftEmailStatus').textContent = 'Could not copy.' }
   })
 }
-// Export params for the Roles/Sections tab, scoped to whatever's active in
-// its own toolbar (separate from the Contacts tab's currentExportParams()).
-function currentRoleExportParams(){
-  const params = new URLSearchParams()
-  const q = el('roleSearchInput') ? el('roleSearchInput').value.trim() : ''
-  const tag = el('roleTagFilter') ? el('roleTagFilter').value : ''
-  const county = el('countyFilter') ? el('countyFilter').value : ''
-  if(q) params.set('q', q)
-  if(tag) params.set('tag', tag)
-  if(county) params.set('county', county)
-  return params
-}
-
-function bindRoleExportMenu(){
-  const btn = el('roleExportMenuBtn')
-  const menu = el('roleExportMenu')
-  if(!btn || !menu) return
-  btn.addEventListener('click', (e)=>{ e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? '' : 'none' })
-  document.addEventListener('click', ()=>{ menu.style.display = 'none' })
-
-  const copyBtn = el('roleExportCopyEmails')
-  if(copyBtn) copyBtn.addEventListener('click', async ()=>{
-    menu.style.display = 'none'
-    try{
-      const res = await fetch('/api/export/emails?' + currentRoleExportParams().toString())
-      const j = await res.json()
-      if(!j.emails || j.emails.length === 0){ alert('No emails found for the current filter.'); return }
-      await navigator.clipboard.writeText(j.joined)
-      alert(`Copied ${j.count} email address${j.count===1?'':'es'} to clipboard — paste into BCC.`)
-    }catch(e){ alert('Could not copy emails'); console.error(e) }
-  })
-
-  const csvBtn = el('roleExportCsvBtn')
-  if(csvBtn) csvBtn.addEventListener('click', ()=>{
-    menu.style.display = 'none'
-    window.location.href = '/api/export?' + currentRoleExportParams().toString()
-  })
-
-  const docxBtn = el('roleExportDocxBtn')
-  if(docxBtn) docxBtn.addEventListener('click', ()=>{
-    menu.style.display = 'none'
-    window.location.href = '/api/export/docx?' + currentRoleExportParams().toString()
-  })
-}
-
-// Run the "Search Roles" action, respecting the active category filter the
-// same way the category/county dropdowns already do — otherwise an empty
-// search box would wipe out a category you'd just selected.
-function runRoleSearch(){
-  const q = el('roleSearchInput').value.trim()
-  const tag = el('roleTagFilter') ? el('roleTagFilter').value : ''
-  if(!q && tag){ loadTagPage(tag,1); return }
-  searchRoles(q)
-}
-
-// Roles: show tag list and allow viewing a paginated list per tag.
-// rolesRenderSeq guards against races between overlapping calls (e.g. the
-// initial unfiltered "show everyone" fetch resolving after a faster,
-// later county/tag-filtered fetch and overwriting it with stale results).
-let rolesRenderSeq = 0
-async function searchRoles(q=''){
-  const mySeq = ++rolesRenderSeq
-  const out = el('rolesResults')
-  out.innerHTML = '<div>Loading sections…</div>'
-  fetchSectionStats()
-  try{
-    const roleTag = el('roleTagFilter') ? el('roleTagFilter').value : ''
-    const county = el('countyFilter') ? el('countyFilter').value : ''
-    // If q provided, perform a text search across sections and render flattened results
-    if(q){
-      const params = new URLSearchParams({q, limit:50, page:1})
-      if(roleTag) params.set('tag', roleTag)
-      if(county) params.set('county', county)
-      const res = await fetch('/api/sections?'+params.toString())
-      const json = await res.json()
-      if(mySeq !== rolesRenderSeq) return
-      renderSectionsSearchResults(json, out)
-      return
-    }
-
-    // If a county is selected, check whether the Sections data (organizations)
-    // actually has anything in that county. If not, fall back to listing the
-    // raw Contacts for that county instead of an unrelated, unfiltered overview.
-    if(county){
-      const sres = await fetch('/api/sections?county='+encodeURIComponent(county))
-      const sjson = await sres.json()
-      if(mySeq !== rolesRenderSeq) return
-      if(sjson.meta && sjson.meta.total > 0){
-        renderSectionsSearchResults(sjson, out)
-        return
-      }
-      const cres = await fetch('/api/contacts?county='+encodeURIComponent(county)+'&limit=200')
-      const cjson = await cres.json()
-      if(mySeq !== rolesRenderSeq) return
-      renderCountyContactsFallback(cjson, out, county)
-      return
-    }
-
-    // No filters at all — show every organization across every category,
-    // the same way the Contacts tab shows everyone by default.
-    const res = await fetch('/api/sections')
-    const json = await res.json()
-    if(mySeq !== rolesRenderSeq) return
-    renderSectionsSearchResults(json, out)
-  }catch(e){ if(mySeq === rolesRenderSeq){ out.innerHTML = '<div>Error loading sections</div>' } console.error(e) }
-}
-
-// Build one box for an organization/section entry — same card look as the
-// Contacts tab's individual contact boxes.
-// Shown in the contact-detail panel for an organization that has no contact
-// on file yet, with a button to add one (pre-filled with the organization).
-function showOrgDetail(item){
-  const panel = el('contactDetail')
-  if(!panel) return
-  panel.innerHTML = `
-    <div class="detail-card">
-      <div class="detail-photo photo-placeholder">${(item.organization||'?').charAt(0)}</div>
-      <div class="detail-main">
-        <h2>${item.organization||''}</h2>
-        <div class="detail-sub">${item.tag||''}</div>
-        <div class="detail-row"><strong>Contacts on file:</strong> ${item.contact_count||0}</div>
-        <div class="detail-row"><strong>Last touched:</strong> ${item.latest_updated? new Date(item.latest_updated).toLocaleDateString() : '<span class="muted">Never</span>'}</div>
-        <div class="detail-notes">${item.notes? `<h4>Notes</h4><div class="notes">${item.notes.replace(/\|\|/g,', ')}</div>` : '<span class="muted">No notes yet</span>'}</div>
-        <div class="detail-flags" style="margin-top:10px;display:flex;gap:8px;align-items:center">
-          <span class="flag flag-warn">No contact on file</span>
-          <button id="detailAddContactBtn" class="btn btn-primary">Add Contact</button>
-        </div>
-        ${activitySectionHtml()}
-      </div>
-    </div>
-  `
-  panel.style.display = ''
-  const addBtn = el('detailAddContactBtn')
-  if(addBtn) addBtn.addEventListener('click', ()=> openProfile(null, {organization: item.organization, tag: item.tag||''}))
-  const activityContainer = panel.querySelector('.activity-section')
-  loadActivitySection(activityContainer, 'org', item.organization)
-  bindActivityForm(activityContainer, 'org', item.organization)
-}
-
-// tag is passed in separately since grouped section items don't carry their
-// own tag field (it's the dict key one level up) -- used to pre-fill the
-// category when adding a contact for an org that doesn't have one yet.
-function renderSectionCard(item, tag){
-  const fullItem = Object.assign({}, item, {tag: item.tag || tag || ''})
-  const div = document.createElement('div')
-  div.className = 'card'
-  div.tabIndex = 0
-  const p = item.primary_contact || {}
-  const primaryHtml = p.name
-    ? `<div class="pc-name">${p.name}</div><div class="pc-meta">${p.title||''}${p.email? ' • '+p.email : ''}${p.phone_cell? ' • '+p.phone_cell : ''}</div>`
-    : '<div class="muted">No contact on file</div>'
-  div.innerHTML = `
-    <h3>${item.organization||''}</h3>
-    <div class="meta">${item.contact_count||0} contact${item.contact_count===1?'':'s'}${item.latest_updated? ' • Updated '+new Date(item.latest_updated).toLocaleDateString() : ''}</div>
-    ${primaryHtml}
-    ${item.notes ? `<div class="category">${item.notes.replace(/\|\|/g,', ')}</div>` : ''}
-    <div class="card-actions" style="margin-top:8px;display:flex;gap:8px;">
-      <button class="btn btn-sm view-btn">View</button>
-      <button class="btn btn-sm edit-btn">Edit</button>
-    </div>
-  `
-  const handleView = ()=> p.id ? showContactDetail(p.id) : showOrgDetail(fullItem)
-  const handleEdit = ()=> p.id ? openProfile(p.id) : openProfile(null, {organization: fullItem.organization, tag: fullItem.tag})
-  div.addEventListener('click', (ev)=>{ if(ev.target && ev.target.classList && (ev.target.classList.contains('view-btn')||ev.target.classList.contains('edit-btn'))){ return } handleView() })
-  const viewBtn = div.querySelector('.view-btn')
-  if(viewBtn) viewBtn.addEventListener('click', (e)=>{ e.stopPropagation(); handleView() })
-  const editBtn = div.querySelector('.edit-btn')
-  if(editBtn) editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); handleEdit() })
-  return div
-}
-
-function buildSectionsGrid(items, tag){
-  const grid = document.createElement('div')
-  grid.className = 'results-grid'
-  items.forEach(item=> grid.appendChild(renderSectionCard(item, tag)))
-  return grid
-}
-
-// Used when a county has no matching Sections organizations — shows the raw
-// Contacts for that county instead (as boxes, same as the Contacts tab), so
-// the filter isn't a dead end.
-function renderCountyContactsFallback(json, out, county){
-  out.innerHTML = ''
-  const rows = json.contacts || []
-  const note = document.createElement('div')
-  note.className = 'tag-meta'
-  note.textContent = `No sections found for ${county}. Showing ${rows.length} contact${rows.length===1?'':'s'} in this county.`
-  out.appendChild(note)
-  if(rows.length === 0) return
-  const grid = document.createElement('div')
-  grid.className = 'results-grid'
-  rows.forEach(c=> grid.appendChild(renderCard(c)))
-  out.appendChild(grid)
-}
-
-function renderSectionsSearchResults(json, out){
-  out.innerHTML = ''
-  const sections = json.sections || {}
-  const keys = Object.keys(sections)
-  if(keys.length === 0){ out.innerHTML = '<div>No sections found</div>'; return }
-  keys.forEach(tag=>{
-    const header = document.createElement('h3')
-    header.textContent = tag
-    out.appendChild(header)
-    out.appendChild(buildSectionsGrid(sections[tag]||[], tag))
-  })
-}
-
-async function loadTagPage(tag, page=1, limit=50){
-  const mySeq = ++rolesRenderSeq
-  const out = el('rolesResults')
-  out.innerHTML = '<div>Loading '+tag+' …</div>'
-  try{
-    const params = new URLSearchParams({tag, page, limit})
-    const county = el('countyFilter') ? el('countyFilter').value : ''
-    if(county) params.set('county', county)
-    const res = await fetch('/api/sections?'+params.toString())
-    const json = await res.json()
-    if(mySeq !== rolesRenderSeq) return
-    const sections = json.sections || {}
-    const meta = json.meta || {}
-    // sections should contain only the requested tag
-    const items = sections[tag] || []
-    out.innerHTML = ''
-    const headerRow = document.createElement('div')
-    headerRow.className = 'tag-header-row'
-    headerRow.innerHTML = `<h3>${tag}</h3><div class="tag-meta">Showing page ${meta.page||page} — ${meta.total||items.length} items</div>`
-    out.appendChild(headerRow)
-    out.appendChild(buildSectionsGrid(items, tag))
-
-    // pager
-    const pager = document.createElement('div')
-    pager.className = 'sections-pager'
-    const maxPage = Math.max(1, Math.ceil((meta.total||0)/limit))
-    const current = meta.page || page
-    // numeric page buttons (show window of pages)
-    const win = 7
-    const start = Math.max(1, current - Math.floor(win/2))
-    const end = Math.min(maxPage, start + win - 1)
-    if(current > 1){
-      const first = document.createElement('button'); first.textContent = '«'; first.addEventListener('click', ()=> loadTagPage(tag,1,limit)); pager.appendChild(first)
-    }
-    for(let p=start;p<=end;p++){
-      const b = document.createElement('button')
-      b.className = 'page-number'
-      b.textContent = p
-      if(p===current) b.style.fontWeight='700'
-      b.addEventListener('click', ()=> loadTagPage(tag,p,limit))
-      pager.appendChild(b)
-    }
-    if(current < maxPage){
-      const last = document.createElement('button'); last.textContent = '»'; last.addEventListener('click', ()=> loadTagPage(tag,maxPage,limit)); pager.appendChild(last)
-    }
-    out.appendChild(pager)
-  }catch(e){ if(mySeq === rolesRenderSeq){ out.innerHTML = '<div>Error loading tag</div>' } console.error(e) }
-}
 
 window.addEventListener('load', async ()=>{
   bind();
-  await fetchTags();
-  await fetchCategories();
   await fetchCounties();
-  await fetchStats();
-  // navigation: show home or search based on history state
   if(window.location.hash === '#search' || window.location.hash === '#search_roles'){
-    const mode = window.location.hash === '#search_roles' ? 'roles' : 'contacts'
-    showSearch(false, true, mode)
-    if(mode === 'roles') searchRoles('')
+    const view = window.location.hash === '#search_roles' ? 'organizations' : 'people'
+    showSearch(false, true, view)
   } else {
     showHome(false)
   }
@@ -756,75 +612,52 @@ window.addEventListener('load', async ()=>{
 function showHome(push=true){
   const hero = el('hero')
   const headerHidden = document.querySelectorAll('.header-hidden')
-  const roles = el('rolesSection')
   const results = el('results')
   const pagination = document.querySelector('.pagination')
   const detail = el('contactDetail')
   if(hero) hero.style.display = ''
   headerHidden.forEach(n=> { n.classList.add('header-hidden'); n.style.display = 'none' })
-  if(roles) roles.style.display = 'none'
   if(results) results.style.display = 'none'
   if(detail) detail.style.display = 'none'
   if(pagination) pagination.style.display = 'none'
   if(push) history.pushState({page:'home'}, '', '/')
 }
 
-// mode: 'contacts' shows the Contacts grid/pagination; 'roles' shows the
-// Sections/Roles area instead — they're mutually exclusive so stray results
-// from one don't show up underneath the other.
-function showSearch(push=true, focus=true, mode='contacts'){
+// One unified search screen for both People and Organizations -- `view`
+// just determines which dataset is fetched/rendered into the same grid.
+function showSearch(push=true, focus=true, view='people'){
   const hero = el('hero')
   const headerHidden = document.querySelectorAll('.header-hidden')
-  const roles = el('rolesSection')
   const results = el('results')
   const pagination = document.querySelector('.pagination')
   const detail = el('contactDetail')
-  const contactsSearchBar = document.querySelector('.search-large')
-  const roleSearchBar = document.querySelector('.role-search')
-  const showRoles = mode === 'roles'
   if(hero) hero.style.display = 'none'
   headerHidden.forEach(n=> { n.classList.remove('header-hidden'); n.style.display = '' })
-  if(roles) roles.style.display = showRoles ? '' : 'none'
-  if(results) results.style.display = showRoles ? 'none' : ''
-  if(pagination) pagination.style.display = showRoles ? 'none' : ''
+  if(results) results.style.display = ''
+  if(pagination) pagination.style.display = ''
   if(detail) detail.style.display = 'none'
-  // The generic .header-hidden sweep above shows both search bars at once --
-  // make them mode-exclusive so typing in one doesn't silently target a
-  // hidden grid on the other tab.
-  if(contactsSearchBar) contactsSearchBar.style.display = showRoles ? 'none' : ''
-  if(roleSearchBar) roleSearchBar.style.display = showRoles ? '' : 'none'
-  if(push) history.pushState({page: showRoles ? 'search_roles' : 'search'}, '', showRoles ? '#search_roles' : '#search')
-  if(focus){
-    if(showRoles){ const ri = el('roleSearchInput'); if(ri) ri.focus() }
-    else { const si = el('searchInput'); if(si) si.focus(); state.page = 1; search(); }
-  }
+  switchView(view, false)
+  if(push) history.pushState({page: view === 'organizations' ? 'search_roles' : 'search'}, '', view === 'organizations' ? '#search_roles' : '#search')
+  if(focus){ const si = el('searchInput'); if(si) si.focus() }
 }
 
 window.addEventListener('popstate', ()=>{
   const hash = window.location.hash
-  if(hash === '#search_roles'){ showSearch(false,false,'roles'); searchRoles('') }
-  else if(hash === '#search'){ showSearch(false,false,'contacts'); fetchStats() }
+  if(hash === '#search_roles'){ showSearch(false,false,'organizations') }
+  else if(hash === '#search'){ showSearch(false,false,'people') }
   else showHome(false)
 })
 
 // Support hash-based navigation fallback (used by inline hero buttons)
 window.addEventListener('hashchange', ()=>{
   if(window.location.hash === '#search' || window.location.hash === '#search_roles'){
-    const mode = window.location.hash === '#search_roles' ? 'roles' : 'contacts'
-    showSearch(false,false,mode)
-    if(mode === 'roles'){
-      const r = el('roleSearchInput'); if(r) r.focus()
-      searchRoles('')
-    } else {
-      const s = el('searchInput'); if(s) s.focus()
-      fetchStats()
-    }
+    const view = window.location.hash === '#search_roles' ? 'organizations' : 'people'
+    showSearch(false,false,view)
   }
 })
 
-// hook home tiles
 // Attach hero tile handlers immediately so they work without relying on DOMContentLoaded
 {
-  const c = el('homeContacts'); if(c) c.addEventListener('click', ()=> { showSearch(true, true, 'contacts'); fetchStats(); })
-  const r = el('homeRoles'); if(r) r.addEventListener('click', ()=> { showSearch(true, false, 'roles'); const rs = el('roleSearchInput'); if(rs) rs.focus(); searchRoles(''); })
+  const c = el('homeContacts'); if(c) c.addEventListener('click', ()=> { showSearch(true, true, 'people') })
+  const r = el('homeRoles'); if(r) r.addEventListener('click', ()=> { showSearch(true, true, 'organizations') })
 }

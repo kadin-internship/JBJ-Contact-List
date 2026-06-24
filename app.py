@@ -14,9 +14,16 @@ from sqlalchemy import or_, func
 load_dotenv()
 
 
-def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None):
+def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None):
     """Shared filter logic for /api/contacts and the export endpoints, so
-    exports always match what's currently shown on the Contacts page."""
+    exports always match what's currently shown on screen.
+
+    `tag` filters Contact.tag (People view categories). `org_tag` filters by
+    organizations whose OutreachOrg.tag matches (Organizations view categories)
+    -- the two category sets use different names for the same kind of group,
+    so org_tag is resolved to organization names first rather than treated as
+    a Contact.tag value.
+    """
     query = Contact.query
     if contact_id:
         query = query.filter(Contact.id == contact_id)
@@ -32,6 +39,11 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None):
         ))
     if tag:
         query = query.filter(Contact.tag == tag)
+    if org_tag:
+        org_names = [o[0].lower() for o in db.session.query(OutreachOrg.organization).filter(OutreachOrg.tag == org_tag).all() if o[0]]
+        if not org_names:
+            return query.filter(False)
+        query = query.filter(func.lower(Contact.organization).in_(org_names))
     if county:
         query = query.filter(Contact.county == county)
     return query
@@ -89,14 +101,16 @@ def create_app(config_class=Config):
     def update_contact(contact_id):
         c = Contact.query.get_or_404(contact_id)
         data = request.get_json() or {}
-        new_email = data.get('email')
+        new_email = (data.get('email') or '').strip() or None
         if 'email' in data and new_email and new_email != c.email:
             conflict = Contact.query.filter(Contact.email == new_email, Contact.id != contact_id).first()
             if conflict:
                 return jsonify({'error': 'email exists', 'id': conflict.id}), 409
-        for field in ['first_name','last_name','organization','title','phone_office','phone_cell','email','active','county','notes','tag']:
+        for field in ['first_name','last_name','organization','title','phone_office','phone_cell','active','county','notes','tag']:
             if field in data:
                 setattr(c, field, data.get(field))
+        if 'email' in data:
+            c.email = new_email
         if 'lists' in data:
             c.lists = data.get('lists') or []
         if 'data_complete' in data:
@@ -112,12 +126,11 @@ def create_app(config_class=Config):
     @app.route('/api/contacts', methods=['POST'])
     def create_contact():
         data = request.get_json() or {}
-        email = data.get('email')
-        if not email:
-            return jsonify({'error':'email required'}), 400
-        existing = Contact.query.filter_by(email=email).first()
-        if existing:
-            return jsonify({'error':'email exists', 'id': existing.id}), 409
+        email = (data.get('email') or '').strip() or None
+        if email:
+            existing = Contact.query.filter_by(email=email).first()
+            if existing:
+                return jsonify({'error':'email exists', 'id': existing.id}), 409
         c = Contact(
             email=email,
             first_name=data.get('first_name') or None,
@@ -244,19 +257,20 @@ def create_app(config_class=Config):
 
     @app.route('/api/sections', methods=['GET'])
     def sections():
-        """Return sections grouped by tag -> organization, sourced from the
-        outreach checklist (OutreachOrg: category, org, last-touched date, notes),
-        cross-referenced against the live Contact table by organization name for
-        contact_count / primary_contact.
+        """Organizations view: the outreach checklist (OutreachOrg: category,
+        org, last-touched date, notes) cross-referenced against the live
+        Contact table by organization name, returned as a flat paginated list
+        (same shape as /api/contacts) with every matching contact at that
+        organization -- not just one "primary" contact -- so coworkers who
+        share an organization show up together.
 
         Supports optional filters: q (text), tag (category), county, page, limit.
-        When `tag` is provided the response will include pagination meta for that tag.
         """
         q = request.args.get('q', type=str)
         tag_filter = request.args.get('tag', type=str)
         county = request.args.get('county', type=str)
         page = request.args.get('page', default=1, type=int)
-        limit = request.args.get('limit', default=50, type=int)
+        limit = request.args.get('limit', default=25, type=int)
 
         org_query = OutreachOrg.query
         if tag_filter:
@@ -268,82 +282,51 @@ def create_app(config_class=Config):
         rows = org_query.order_by(OutreachOrg.tag, OutreachOrg.organization).all()
 
         # Fetch every relevant contact in one query and group by lowercased
-        # organization name in Python, instead of issuing two queries per
-        # organization (count + primary) -- that N+1 pattern was the main
-        # reason this endpoint felt slow/unresponsive with ~280 organizations.
+        # organization name in Python, instead of issuing a query per
+        # organization -- that N+1 pattern was the main reason this endpoint
+        # felt slow/unresponsive with ~280 organizations.
         contacts_query = Contact.query
         if county:
             contacts_query = contacts_query.filter(Contact.county.ilike(f"%{county}%"))
         contacts_by_org = {}
-        for c in contacts_query.order_by(Contact.added.desc()).all():
+        for c in contacts_query.order_by(Contact.first_name, Contact.last_name).all():
             if not c.organization:
                 continue
             contacts_by_org.setdefault(c.organization.lower(), []).append(c)
 
-        # build flat list, cross-referencing contacts by organization name
         items = []
         for org_row in rows:
-            tag = org_row.tag
             org = org_row.organization
             org_contacts = contacts_by_org.get(org.lower(), [])
-            contact_count = len(org_contacts)
-            if county and contact_count == 0:
+            if county and not org_contacts:
                 # no contacts in the requested county for this org; skip it
                 continue
-            primary = org_contacts[0] if org_contacts else None
-            primary_info = None
-            if primary:
-                primary_info = {
-                    'id': primary.id,
-                    'name': f"{primary.first_name or ''} {primary.last_name or ''}".strip(),
-                    'title': primary.title or '',
-                    'email': primary.email or '',
-                    'phone_cell': primary.phone_cell or '',
-                    'phone_office': primary.phone_office or ''
-                }
-
             items.append({
-                'tag': tag or 'Other',
+                'tag': org_row.tag or 'Other',
                 'organization': org,
-                'contact_count': int(contact_count),
+                'contact_count': len(org_contacts),
                 'latest_updated': org_row.updated,
-                'primary_contact': primary_info,
+                'contacts': [{
+                    'id': c.id,
+                    'name': f"{c.first_name or ''} {c.last_name or ''}".strip(),
+                    'title': c.title or '',
+                    'email': c.email or '',
+                    'phone_cell': c.phone_cell or '',
+                    'phone_office': c.phone_office or '',
+                } for c in org_contacts],
                 'notes': org_row.notes or ''
             })
 
         # sort by last-touched date desc (untouched orgs sort last)
         items.sort(key=lambda it: it['latest_updated'] or date(1970, 1, 1), reverse=True)
 
-        # If a tag filter was provided, paginate within that tag
-        if tag_filter:
-            tag_items = [it for it in items if (it['tag'] == tag_filter or (it['tag'] is None and tag_filter == ''))]
-            total = len(tag_items)
-            start = (page - 1) * limit
-            end = start + limit
-            page_items = tag_items[start:end]
-            out = {tag_filter: [{
-                'organization': it['organization'],
-                'contact_count': it['contact_count'],
-                'latest_updated': it['latest_updated'].isoformat() if it['latest_updated'] else None,
-                'primary_contact': it['primary_contact'],
-                'notes': it['notes']
-            } for it in page_items]}
-            return jsonify({'meta': {'page': page, 'limit': limit, 'total': total}, 'sections': out})
+        total = len(items)
+        start = (page - 1) * limit
+        page_items = items[start:start + limit]
+        for it in page_items:
+            it['latest_updated'] = it['latest_updated'].isoformat() if it['latest_updated'] else None
 
-        # No specific tag: apply an overall limit (for performance) and group by tag
-        overall_limit = request.args.get('limit', default=305, type=int)
-        limited = items[:overall_limit]
-        out = {}
-        for it in limited:
-            key = it['tag']
-            out.setdefault(key, []).append({
-                'organization': it['organization'],
-                'contact_count': it['contact_count'],
-                'latest_updated': it['latest_updated'].isoformat() if it['latest_updated'] else None,
-                'primary_contact': it['primary_contact'],
-                'notes': it['notes']
-            })
-        return jsonify({'meta': {'page': 1, 'limit': overall_limit, 'total': len(items)}, 'sections': out})
+        return jsonify({'page': page, 'limit': limit, 'total': total, 'organizations': page_items})
 
     @app.route('/api/upload', methods=['POST'])
     def upload():
@@ -421,9 +404,10 @@ def create_app(config_class=Config):
     def export():
         q = request.args.get('q', type=str)
         tag = request.args.get('tag', type=str)
+        org_tag = request.args.get('org_tag', type=str)
         county = request.args.get('county', type=str)
         contact_id = request.args.get('id', type=int)
-        rows = filtered_contacts_query(q=q, tag=tag, county=county, contact_id=contact_id).order_by(Contact.added.desc()).all()
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, contact_id=contact_id).order_by(Contact.added.desc()).all()
 
         # stream CSV
         si = io.StringIO()
@@ -445,8 +429,9 @@ def create_app(config_class=Config):
         meant for pasting into the BCC field of a mass email."""
         q = request.args.get('q', type=str)
         tag = request.args.get('tag', type=str)
+        org_tag = request.args.get('org_tag', type=str)
         county = request.args.get('county', type=str)
-        rows = filtered_contacts_query(q=q, tag=tag, county=county).all()
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).all()
 
         emails = []
         seen = set()
@@ -468,11 +453,12 @@ def create_app(config_class=Config):
 
         q = request.args.get('q', type=str)
         tag = request.args.get('tag', type=str)
+        org_tag = request.args.get('org_tag', type=str)
         county = request.args.get('county', type=str)
-        rows = filtered_contacts_query(q=q, tag=tag, county=county).order_by(Contact.organization, Contact.last_name).all()
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).order_by(Contact.organization, Contact.last_name).all()
 
         doc = Document()
-        title = tag or 'Contacts'
+        title = tag or org_tag or 'Contacts'
         doc.add_heading(title, level=1)
         doc.add_paragraph(f'{len(rows)} contact(s)')
 
@@ -491,7 +477,7 @@ def create_app(config_class=Config):
         buf = io.BytesIO()
         doc.save(buf)
         buf.seek(0)
-        safe_name = (tag or 'contacts').replace('/', '-').replace(' ', '_')
+        safe_name = (tag or org_tag or 'contacts').replace('/', '-').replace(' ', '_')
         return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                           as_attachment=True, download_name=f'{safe_name}_export.docx')
 
@@ -510,13 +496,16 @@ def create_app(config_class=Config):
 
         q = data.get('q')
         tag = data.get('tag')
+        org_tag = data.get('org_tag')
         county = data.get('county')
-        rows = filtered_contacts_query(q=q, tag=tag, county=county).all()
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).all()
         orgs = sorted({r.organization for r in rows if r.organization})
 
         context_lines = [f"{len(rows)} recipient(s) in this group."]
         if tag:
             context_lines.append(f'Category/tag filter: {tag}.')
+        if org_tag:
+            context_lines.append(f'Organization category filter: {org_tag}.')
         if county:
             context_lines.append(f'County filter: {county}.')
         if q:

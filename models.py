@@ -15,7 +15,7 @@ class Contact(db.Model):
     title = db.Column(db.String(256), nullable=True)
     phone_office = db.Column(db.String(64), nullable=True)
     phone_cell = db.Column(db.String(64), nullable=True)
-    email = db.Column(db.String(320), unique=True, index=True, nullable=False)
+    email = db.Column(db.String(320), unique=True, index=True, nullable=True)
     added = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     active = db.Column(db.String(32), nullable=True)
     lists = db.Column(SQLITE_JSON, nullable=True)

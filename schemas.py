@@ -10,7 +10,7 @@ class ContactSchema(Schema):
     title = fields.Str(allow_none=True)
     phone_office = fields.Str(allow_none=True)
     phone_cell = fields.Str(allow_none=True)
-    email = fields.Email()
+    email = fields.Email(allow_none=True)
     added = fields.DateTime(dump_only=True)
     active = fields.Str(allow_none=True)
     lists = fields.List(fields.Str())

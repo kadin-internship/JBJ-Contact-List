@@ -15,7 +15,7 @@
         <h1>JBJ Management<br><span class="small">Contact Hub</span></h1>
         <div class="hero-buttons">
           <a id="homeContacts" class="btn btn-hero" href="#search">Contacts</a>
-          <a id="homeRoles" class="btn btn-hero" href="#search_roles">Sections</a>
+          <a id="homeRoles" class="btn btn-hero" href="#search_roles">Organizations</a>
         </div>
       </div>
     </div>
@@ -23,7 +23,7 @@
     <!-- Hidden search / header area — shown after navigating from hero -->
     <div class="container header-inner header-hidden" style="display:none;">
       <div class="brand">
-        <svg class="logo" width="52" height="52" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="4" fill="#800000"></rect><text x="12" y="16" text-anchor="middle" font-family="Arial" font-size="12" fill="#fff">JBJ</text></svg>
+        <svg class="logo" width="52" height="52" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="4" fill="#AD0304"></rect><text x="12" y="16" text-anchor="middle" font-family="Arial" font-size="12" fill="#fff">JBJ</text></svg>
         <div class="brand-text">
           <h1>JBJ Management</h1>
           <p class="sub">Contact Hub</p>
@@ -40,10 +40,14 @@
     <div class="container header-hidden" style="display:none;">
       <div class="search-large">
         <div class="search-left">
-          <label for="searchInput" class="sr-only">Search contacts</label>
-          <input id="searchInput" aria-label="Search contacts" placeholder="Search by Name, Organization, Title, or Email..." />
+          <label for="searchInput" class="sr-only">Search</label>
+          <input id="searchInput" aria-label="Search" placeholder="Search by Name, Organization, Title, or Email..." />
+          <div class="view-toggle" role="group" aria-label="View">
+            <button id="viewPeopleBtn" class="view-toggle-btn active" type="button">People</button>
+            <button id="viewOrgBtn" class="view-toggle-btn" type="button">Organizations</button>
+          </div>
           <div class="search-controls">
-            <select id="tagFilter" aria-label="Filter by tag"><option value="">All Tags</option></select>
+            <select id="tagFilter" aria-label="Filter by category"><option value="">All Tags</option></select>
             <select id="mainCountyFilter" aria-label="Filter by county"><option value="">All Counties</option></select>
             <button id="searchBtn" class="btn btn-primary">Search</button>
             <div class="export-wrap">
@@ -64,24 +68,6 @@
           </div>
         </div>
       </div>
-
-      <div class="role-search header-hidden" style="display:none;">
-        <h3>Roles</h3>
-        <input id="roleSearchInput" aria-label="Search roles" placeholder="Search by Role title or Organization..." />
-        <div class="role-filters">
-          <select id="roleTagFilter" aria-label="Filter by category"><option value="">All Categories</option></select>
-          <select id="countyFilter" aria-label="Filter by county"><option value="">All Counties</option></select>
-          <button id="roleSearchBtn" class="btn">Search Roles</button>
-          <div class="export-wrap">
-            <button id="roleExportMenuBtn" class="btn">Export ▾</button>
-            <div id="roleExportMenu" class="export-menu" style="display:none;">
-              <button id="roleExportCopyEmails" class="export-menu-item">Copy Emails (for mass email)</button>
-              <button id="roleExportCsvBtn" class="export-menu-item">Download CSV</button>
-              <button id="roleExportDocxBtn" class="export-menu-item">Download Word Doc</button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   </header>
 
@@ -96,11 +82,6 @@
         </div>
       </aside>
     </div>
-
-    <section id="rolesSection" class="roles-section">
-      <h2>Roles</h2>
-      <div id="rolesResults" class="roles-results" aria-live="polite"></div>
-    </section>
 
     <nav class="pagination" aria-label="Pagination">
       <button id="prevPage" class="page-btn">Previous</button>
@@ -140,25 +121,21 @@
       function showSearchFallback(){
         var hero = document.getElementById('hero');
         var headerHidden = document.querySelectorAll('.header-hidden');
-        var roles = document.getElementById('rolesSection');
         var results = document.getElementById('results');
         var pagination = document.querySelector('.pagination');
         if(hero) hero.style.display='none';
         headerHidden.forEach(function(n){ n.classList.remove('header-hidden'); n.style.display = '' });
-        if(roles) roles.style.display = '';
         if(results) results.style.display = '';
         if(pagination) pagination.style.display = '';
       }
       if(location.hash === '#search' || location.hash === '#search_roles'){
         showSearchFallback();
-        if(location.hash === '#search_roles'){
-          var r = document.getElementById('roleSearchInput'); if(r) r.focus();
-        } else { var s = document.getElementById('searchInput'); if(s) s.focus(); }
+        var s = document.getElementById('searchInput'); if(s) s.focus();
       }
       var hc = document.getElementById('homeContacts');
       if(hc) hc.addEventListener('click', function(){ showSearchFallback(); });
       var hr = document.getElementById('homeRoles');
-      if(hr) hr.addEventListener('click', function(){ showSearchFallback(); var r=document.getElementById('roleSearchInput'); if(r) r.focus(); });
+      if(hr) hr.addEventListener('click', function(){ showSearchFallback(); var s = document.getElementById('searchInput'); if(s) s.focus(); });
     })();
   </script>
 

@@ -6,6 +6,17 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-24 — Automated daily database backup
+
+`contacts.db` was removed from git the same day (see below), which meant
+it had zero backup coverage. Added `scripts/backup_db.sh`, scheduled
+daily via a macOS LaunchAgent (`com.jbjcontacts.backup`), which copies a
+timestamped snapshot to a local `backups/` folder and to iCloud Drive
+(so a copy exists off this machine), pruning anything older than 60 days.
+Verified end-to-end by triggering the LaunchAgent manually. See the
+Backup & Recovery section in `README.md` for how to check it's running
+or restore from a backup.
+
 ## 2026-06-24 — Repo cleanup: scrubbed contact data out of git history
 
 `contacts.db` and the raw import staging files (`data/`, `imports/`) had

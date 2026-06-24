@@ -84,23 +84,33 @@ pattern used.
 
 **`contacts.db` is not in git** (it holds real contact PII and, as of the
 login feature, password hashes — keeping it out of version control is
-intentional, not an oversight). That means **this file living only on
-this machine is the single point of failure** for all contact data. If
-this disk fails or the file gets corrupted, there is no other copy unless
-you've made one.
+intentional, not an oversight).
 
-Until something better is set up, back it up manually after any batch of
-real data entry:
+A daily automated backup is set up via a macOS LaunchAgent
+(`~/Library/LaunchAgents/com.jbjcontacts.backup.plist`, runs
+`scripts/backup_db.sh` every day at 8pm while this Mac is logged in):
+
+- Writes a timestamped copy to `backups/` (gitignored, local only) **and**
+  to iCloud Drive (`~/Library/Mobile Documents/com~apple~CloudDocs/JBJContacts-Backups/`),
+  so a copy exists off this machine.
+- Prunes backups older than 60 days in both locations.
+- Logs each run to `backups/backup.log`.
+
+To check it's running: `launchctl list | grep jbjcontacts`. To run a
+backup immediately: `launchctl start com.jbjcontacts.backup` or just
+`bash scripts/backup_db.sh`.
+
+**To restore**, stop the server, copy a backup over the live file, then
+restart:
 
 ```bash
-cp contacts.db "contacts.db.bak.$(date +%Y%m%d_%H%M%S)"
+cp backups/contacts_<timestamp>.db contacts.db
 ```
 
-These timestamped backups are also gitignored (`*.db.bak.*`) — copy them
-somewhere off this machine (cloud drive, external disk) to actually
-protect against hardware failure. A scheduled `cron`/launchd job running
-the line above, paired with syncing the backup folder to cloud storage,
-would close this gap; ask if you want that set up.
+This covers disk failure / accidental deletion on this machine, but it's
+still a single Mac running a single LaunchAgent — if this machine is
+retired or the user account changes, the schedule needs to be re-created
+on whatever replaces it.
 
 ## Project layout
 

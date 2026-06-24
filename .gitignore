@@ -8,3 +8,4 @@ instance/
 *.db.bak.*
 data/
 imports/
+backups/

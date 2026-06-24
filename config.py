@@ -8,3 +8,9 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JSON_SORT_KEYS = False
     SECRET_KEY = os.environ.get("SECRET_KEY", "change-me")
+
+    # Render sets RENDER=true on every deployed service; use that to harden
+    # session cookies in production without breaking local http:// dev.
+    SESSION_COOKIE_SECURE = bool(os.environ.get("RENDER"))
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"

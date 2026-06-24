@@ -112,6 +112,58 @@ still a single Mac running a single LaunchAgent — if this machine is
 retired or the user account changes, the schedule needs to be re-created
 on whatever replaces it.
 
+## Deploying so coworkers can access it from anywhere
+
+Right now the app only runs on this laptop (`python app.py`) — it's not
+reachable by anyone else, and it stops working the moment this Mac sleeps
+or the process is closed. The repo is already set up to deploy to
+[Render](https://render.com) (gunicorn as the production server,
+`render.yaml` defines the service + a **persistent disk** — without that
+disk, SQLite would get wiped on every redeploy). Render isn't the only
+option, but the project is ready for it; steps below.
+
+1. **Sign up at render.com** and connect your GitHub account.
+2. **New → Blueprint**, pick the `JBJ-Contact-List` repo. Render reads
+   `render.yaml` and proposes one web service with a 1GB persistent disk
+   on the Starter plan (~$7/mo + ~$0.25/GB/mo disk — check Render's
+   current pricing).
+3. Before deploying, it'll prompt for two environment variables
+   (`render.yaml` deliberately leaves these blank so they're never
+   committed to git):
+   - `SECRET_KEY` — generate a **new** one just for production:
+     `python3 -c "import secrets; print(secrets.token_hex(32))"`. Don't
+     reuse your local `.env` value.
+   - `ANTHROPIC_API_KEY` — same key used locally for Draft Email, or skip
+     it and add it later if that feature isn't needed yet.
+4. **Deploy.** Render builds and starts the service. It'll come up with
+   an *empty* database — `db.create_all()` only creates tables, it
+   doesn't import your existing contacts.
+5. **Move your existing data onto the persistent disk.** In the Render
+   dashboard, open the service → **Connect** → copy the SSH address
+   (looks like `srv-xxxxx@ssh.<region>.render.com`). From this machine:
+   ```bash
+   scp contacts.db srv-xxxxx@ssh.<region>.render.com:/data/contacts.db
+   ```
+   Then restart the service from the Render dashboard so it picks up the
+   copied file.
+6. **Create employee logins on the production database** — these are
+   separate from any local accounts. In the Render dashboard, open the
+   service's **Shell** tab and run:
+   ```bash
+   python create_user.py
+   ```
+7. Share the `https://<your-service-name>.onrender.com` URL Render gives
+   you. It has real HTTPS and works from anywhere — no dependence on this
+   laptop being on.
+
+After this, deploying a future code change is just `git push` — Render
+auto-deploys on push to `main`. The database on the persistent disk
+**isn't** touched by deploys, so it's safe to push code updates without
+re-doing step 5. New code changes still need their own backup plan on
+Render's side eventually (the local LaunchAgent above only backs up the
+copy on this laptop, not whatever's on Render) — worth a follow-up once
+this is live.
+
 ## Project layout
 
 - `app.py` — all Flask routes/API endpoints.

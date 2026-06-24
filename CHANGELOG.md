@@ -6,6 +6,19 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-24 — Made the app deployment-ready (Render)
+
+Until now the app only ran on one laptop via Flask's dev server, so no
+one else could use it. Added a production WSGI entrypoint (`wsgi.py` +
+gunicorn), a `render.yaml` Render Blueprint (web service + a **persistent
+disk** so SQLite survives redeploys), and hardened session cookies for
+production (`SESSION_COOKIE_SECURE` when running on Render). Did not
+actually deploy or create any production accounts/secrets — that
+requires the account holder's own Render sign-up, billing, and secrets,
+documented step-by-step in the new "Deploying" section of `README.md`,
+including how to move the existing database onto the persistent disk and
+create employee logins on production.
+
 ## 2026-06-24 — Automated daily database backup
 
 `contacts.db` was removed from git the same day (see below), which meant

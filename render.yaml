@@ -1,0 +1,22 @@
+# Render Blueprint -- https://render.com/docs/blueprint-spec
+# On render.com: New -> Blueprint -> connect this repo. Render reads this
+# file and creates the service below automatically.
+services:
+  - type: web
+    name: jbj-contact-hub
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app
+    healthCheckPath: /login
+    disk:
+      name: jbj-contact-hub-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:////data/contacts.db
+      - key: SECRET_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

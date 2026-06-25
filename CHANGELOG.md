@@ -6,6 +6,28 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-25 — Spreadsheet sync, now covering Organizations too
+
+Until the company formally approves this app, the spreadsheet stays the
+source of truth and gets re-uploaded here whenever it changes. The
+upload page already existed but was orphaned (no link to it anywhere)
+and only handled the People side. Added a visible **Sync Spreadsheet**
+link (admin-only, next to Manage Users), extended uploads to also
+accept an Organizations tab in the same Excel workbook (matching the
+original `OutreachListKey` sheet shape), and replaced the summary with
+a plain-language message — "Synced from spreadsheet — 2 new contacts,
+1 updated · 1 new organization" — instead of raw counts.
+
+Also fixed two real bugs found while building this: rows with no email
+were being silently dropped during import even though email is
+supposed to be optional, and a pandas quirk where round-tripping a mix
+of real values and blanks through a DataFrame silently turned the
+blanks into NaN, corrupting dates and crashing the import.
+
+Considered fully-automatic sync straight from OneDrive/SharePoint, but
+that needs an Azure app registration that may require company IT
+approval — shelved until after the app itself is approved.
+
 ## 2026-06-25 — Visual design pass (fonts, icons, pill buttons, avatars, toasts)
 
 Manager asked for a more polished look and provided a design system spec

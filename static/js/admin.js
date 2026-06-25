@@ -9,10 +9,21 @@ function setProgress(p){
   }
 }
 
+function summaryPhrase(label, result){
+  if(!result) return ''
+  const parts = []
+  if(result.inserted) parts.push(`${result.inserted} new ${label}${result.inserted===1?'':'s'}`)
+  if(result.updated) parts.push(`${result.updated} ${label}${result.updated===1?'':'s'} updated`)
+  if(!parts.length) return `No ${label} changes`
+  return parts.join(', ')
+}
+
 function showSummary(obj){
   const s = $('importSummary')
   if(s) s.style.display = ''
-  s.innerHTML = `<p>Imported: ${obj.inserted || 0}, Updated: ${obj.updated || 0}, Skipped: ${obj.skipped || 0}</p>`
+  const lines = [summaryPhrase('contact', obj.contacts), summaryPhrase('organization', obj.organizations)]
+    .filter(Boolean)
+  s.innerHTML = `<p><i class="fas fa-circle-check"></i> Synced from spreadsheet — ${lines.join(' · ')}</p>`
   // fetch categories breakdown
   fetch('/api/categories').then(r=>r.json()).then(cat=>{
     const list = cat.map(c=>`<div>${c.tag||'<none>'}: ${c.count}</div>`).join('')

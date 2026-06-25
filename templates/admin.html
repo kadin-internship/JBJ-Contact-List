@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin — JBJ Management</title>
+  <title>Sync Spreadsheet — JBJ Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
@@ -15,7 +15,7 @@
     <div class="container header-inner">
       <div class="brand">
         <a href="/" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
-        <h2>Admin</h2>
+        <h2>Sync Spreadsheet</h2>
       </div>
       <div>
         <button id="exportBtn" class="btn"><i class="fas fa-download"></i> Export CSV</button>
@@ -25,6 +25,13 @@
 
   <main class="container admin-area">
     <section class="card admin-upload">
+      <p class="muted" style="margin:0 0 12px;">
+        Upload your spreadsheet whenever you've made changes to it. New
+        people/organizations are added and existing ones are updated to
+        match — nothing is deleted. Works with a plain CSV (People only)
+        or an Excel workbook with a People tab and a separate
+        Organizations tab.
+      </p>
       <div id="dropZone" class="dropzone"><i class="fas fa-file-arrow-up"></i> Drop CSV/Excel here or <button id="pickFile" class="btn">Choose file</button></div>
       <input id="adminFile" type="file" accept=".csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;" />
       <div class="progress-wrap" style="display:none;">

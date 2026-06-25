@@ -9,7 +9,10 @@ from config import Config
 from db import db
 from models import Contact, OutreachOrg, Activity, User
 from schemas import ContactSchema
-from utils import read_uploaded_file, clean_dataframe
+from utils import (
+    read_uploaded_file, clean_dataframe, clean_outreach_orgs,
+    looks_like_contacts_sheet, looks_like_orgs_sheet,
+)
 from sqlalchemy import or_, func
 
 load_dotenv()
@@ -75,6 +78,89 @@ def _bootstrap_admin_user():
     db.session.commit()
 
 
+def _import_contacts(df, result):
+    """Upsert a People-sheet DataFrame into Contact, accumulating
+    inserted/updated/skipped counts into `result`. Matches existing rows
+    by email when present; rows without an email (allowed since
+    Contact.email is optional) are matched by name+organization instead,
+    since there's no other reliable natural key."""
+    cleaned = clean_dataframe(df)
+    for row in cleaned:
+        email = (row.get('email') or '').strip()
+        if email:
+            existing = Contact.query.filter_by(email=email).first()
+        else:
+            existing = Contact.query.filter(
+                func.lower(Contact.first_name) == (row.get('first_name') or '').lower(),
+                func.lower(Contact.last_name) == (row.get('last_name') or '').lower(),
+                func.lower(Contact.organization) == (row.get('organization') or '').lower(),
+            ).first()
+        if existing:
+            changed = False
+            for field in ['first_name', 'last_name', 'organization', 'title', 'phone_office', 'phone_cell', 'active', 'county', 'notes', 'tag']:
+                val = row.get(field)
+                if val and (getattr(existing, field) in (None, '', False)):
+                    setattr(existing, field, val)
+                    changed = True
+            existing_lists = existing.lists or []
+            new_lists = row.get('lists') or []
+            merged = list(dict.fromkeys(existing_lists + new_lists))
+            if merged != existing_lists:
+                existing.lists = merged
+                changed = True
+            if existing.data_complete != bool(row.get('data_complete')):
+                existing.data_complete = bool(row.get('data_complete'))
+                changed = True
+            if changed:
+                db.session.add(existing)
+                result['updated'] += 1
+            else:
+                result['skipped'] += 1
+        else:
+            c = Contact(
+                tag=row.get('tag') or None,
+                organization=row.get('organization') or None,
+                first_name=row.get('first_name') or None,
+                last_name=row.get('last_name') or None,
+                title=row.get('title') or None,
+                phone_office=row.get('phone_office') or None,
+                phone_cell=row.get('phone_cell') or None,
+                email=email or None,
+                active=row.get('active') or None,
+                lists=row.get('lists') or [],
+                county=row.get('county') or None,
+                notes=row.get('notes') or None,
+                data_complete=bool(row.get('data_complete')),
+            )
+            db.session.add(c)
+            result['inserted'] += 1
+
+
+def _import_orgs(df, result):
+    """Upsert an Organizations-sheet DataFrame into OutreachOrg, matching
+    existing rows by (tag, organization)."""
+    cleaned = clean_outreach_orgs(df)
+    for row in cleaned:
+        existing = OutreachOrg.query.filter_by(tag=row['tag'], organization=row['organization']).first()
+        if existing:
+            changed = False
+            if row.get('updated') and existing.updated != row['updated']:
+                existing.updated = row['updated']
+                changed = True
+            if row.get('notes') and existing.notes != row['notes']:
+                existing.notes = row['notes']
+                changed = True
+            if changed:
+                db.session.add(existing)
+                result['updated'] += 1
+            else:
+                result['skipped'] += 1
+        else:
+            rec = OutreachOrg(tag=row['tag'], organization=row['organization'], updated=row.get('updated'), notes=row.get('notes'))
+            db.session.add(rec)
+            result['inserted'] += 1
+
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -138,6 +224,8 @@ def create_app(config_class=Config):
 
     @app.route('/admin')
     def admin():
+        if not current_user.is_admin:
+            return redirect(url_for('index'))
         return render_template('admin.html')
 
     @app.route('/admin/users')
@@ -425,67 +513,32 @@ def create_app(config_class=Config):
 
     @app.route('/api/upload', methods=['POST'])
     def upload():
+        # Accepts a CSV (People only) or an Excel workbook -- a workbook
+        # can have a People tab and a separate Organizations tab (matching
+        # the original spreadsheet's shape); each sheet is classified by
+        # its columns and upserted with the matching importer.
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
         if 'file' not in request.files:
             return jsonify({'error': 'file is required (form field `file`)'}), 400
         f = request.files['file']
         try:
-            df = read_uploaded_file(f)
+            sheets = read_uploaded_file(f)
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
-        cleaned = clean_dataframe(df)
+        contacts_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
+        orgs_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
 
-        inserted = 0
-        updated = 0
-        skipped = 0
-        for _, row in cleaned.iterrows():
-            email = str(row['email']).strip()
-            if not email:
-                skipped += 1
+        for df in sheets.values():
+            if df is None or df.empty:
                 continue
-            existing = Contact.query.filter_by(email=email).first()
-            if existing:
-                # Update non-empty fields
-                changed = False
-                for field in ['first_name', 'last_name', 'organization', 'title', 'phone_office', 'phone_cell', 'active', 'county', 'notes', 'tag']:
-                    val = row.get(field)
-                    if val and (getattr(existing, field) in (None, '', False)):
-                        setattr(existing, field, val)
-                        changed = True
-                # merge lists
-                existing_lists = existing.lists or []
-                new_lists = row.get('lists') or []
-                merged = list(dict.fromkeys(existing_lists + new_lists))
-                if merged != existing_lists:
-                    existing.lists = merged
-                    changed = True
-                # data_complete update
-                if existing.data_complete != bool(row.get('data_complete')):
-                    existing.data_complete = bool(row.get('data_complete'))
-                    changed = True
-                if changed:
-                    db.session.add(existing)
-                    updated += 1
-                else:
-                    skipped += 1
-            else:
-                c = Contact(
-                    tag=row.get('tag') or None,
-                    organization=row.get('organization') or None,
-                    first_name=row.get('first_name') or None,
-                    last_name=row.get('last_name') or None,
-                    title=row.get('title') or None,
-                    phone_office=row.get('phone_office') or None,
-                    phone_cell=row.get('phone_cell') or None,
-                    email=email,
-                    active=row.get('active') or None,
-                    lists=row.get('lists') or [],
-                    county=row.get('county') or None,
-                    notes=row.get('notes') or None,
-                    data_complete=bool(row.get('data_complete')),
-                )
-                db.session.add(c)
-                inserted += 1
+            if looks_like_contacts_sheet(df):
+                _import_contacts(df, contacts_result)
+            elif looks_like_orgs_sheet(df):
+                _import_orgs(df, orgs_result)
+            # Sheets that match neither shape (e.g. an instructions tab)
+            # are silently ignored rather than guessed at.
 
         try:
             db.session.commit()
@@ -493,7 +546,7 @@ def create_app(config_class=Config):
             db.session.rollback()
             return jsonify({'error': 'database error', 'details': str(e)}), 500
 
-        return jsonify({'inserted': inserted, 'updated': updated, 'skipped': skipped, 'processed': len(cleaned)})
+        return jsonify({'contacts': contacts_result, 'organizations': orgs_result})
 
     @app.route('/api/export', methods=['GET'])
     def export():

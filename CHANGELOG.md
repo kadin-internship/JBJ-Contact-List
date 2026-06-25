@@ -6,6 +6,13 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-25 — Fixed Back link on Sync Spreadsheet / Manage Users
+
+Both pages' Back button went to the homepage instead of returning to
+the Contact Hub search view -- it was a hardcoded link to `/`. Pointed
+it at `/#search` instead, which the app already treats as "show the
+Contact Hub" on page load.
+
 ## 2026-06-25 — Detail panel redesign, dropdown fix
 
 Two follow-up fixes after the multi-select Tags rollout:

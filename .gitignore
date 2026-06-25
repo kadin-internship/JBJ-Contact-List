@@ -9,3 +9,4 @@ instance/
 data/
 imports/
 backups/
+.DS_Store

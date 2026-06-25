@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, send_file, render_template, render_te
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
 from db import db
-from models import Contact, OutreachOrg, Activity, User
+from models import Contact, OutreachOrg, Activity, User, AuditLog
 from schemas import ContactSchema
 from utils import (
     read_uploaded_file, clean_dataframe, clean_outreach_orgs,
@@ -99,6 +99,53 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
         if clause is not None:
             query = query.filter(clause)
     return query
+
+
+def log_audit(action, entity_type, entity_id=None, entity_label=None, details=None):
+    """Records who did what, for the admin-only Audit Log page. Commits on
+    its own -- callers should already have committed the actual change, so
+    a failure here never rolls back the change it's describing."""
+    entry = AuditLog(
+        user_id=current_user.id if current_user.is_authenticated else None,
+        actor_name=current_user.display_name if current_user.is_authenticated else 'System',
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        entity_label=entity_label,
+        details=details,
+    )
+    db.session.add(entry)
+    db.session.commit()
+
+
+ACTION_LABELS = {
+    'contact_created': 'Added contact',
+    'contact_updated': 'Edited contact',
+    'spreadsheet_sync': 'Synced spreadsheet',
+    'user_created': 'Created user login',
+}
+
+
+def format_audit_details(action, details):
+    """Turns an AuditLog row's raw `details` JSON into a one-line, readable
+    summary for the audit log page -- the shape of `details` differs per
+    action (a field-diff for edits, import counts for a sync, etc)."""
+    d = details or {}
+    if action == 'contact_updated':
+        parts = []
+        for field, change in d.items():
+            parts.append(f"{field}: \"{change.get('old') or ''}\" → \"{change.get('new') or ''}\"")
+        return '; '.join(parts)
+    if action == 'spreadsheet_sync':
+        c = d.get('contacts', {})
+        o = d.get('organizations', {})
+        return (
+            f"Contacts: {c.get('inserted', 0)} new, {c.get('updated', 0)} updated · "
+            f"Organizations: {o.get('inserted', 0)} new, {o.get('updated', 0)} updated"
+        )
+    if action == 'user_created':
+        return 'Admin access' if d.get('is_admin') else 'Standard access'
+    return ''
 
 
 def _bootstrap_admin_user():
@@ -280,6 +327,26 @@ def create_app(config_class=Config):
         users = User.query.order_by(User.username).all()
         return render_template('users.html', users=users)
 
+    @app.route('/admin/audit')
+    def audit_log():
+        if not current_user.is_admin:
+            return redirect(url_for('index'))
+        page = request.args.get('page', default=1, type=int)
+        limit = 50
+        query = AuditLog.query.order_by(AuditLog.created_at.desc())
+        total = query.count()
+        rows = query.offset((page - 1) * limit).limit(limit).all()
+        pages = max(1, (total + limit - 1) // limit)
+        entries = [{
+            'created_at': e.created_at,
+            'actor_name': e.actor_name,
+            'action_label': ACTION_LABELS.get(e.action, e.action),
+            'entity_type': e.entity_type,
+            'entity_label': e.entity_label,
+            'summary': format_audit_details(e.action, e.details),
+        } for e in rows]
+        return render_template('audit.html', entries=entries, page=page, pages=pages)
+
     @app.route('/api/users', methods=['POST'])
     def create_user_api():
         # Lets an admin create more employee logins from the browser, so
@@ -301,6 +368,7 @@ def create_app(config_class=Config):
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
+        log_audit('user_created', 'user', user.id, username, {'is_admin': is_admin})
         return jsonify(user.to_dict()), 201
 
     @app.route('/api/contacts', methods=['GET'])
@@ -336,21 +404,38 @@ def create_app(config_class=Config):
             conflict = Contact.query.filter(Contact.email == new_email, Contact.id != contact_id).first()
             if conflict:
                 return jsonify({'error': 'email exists', 'id': conflict.id}), 409
+
+        changes = {}
+        if 'email' in data and new_email != c.email:
+            changes['email'] = {'old': c.email, 'new': new_email}
         for field in ['first_name','last_name','organization','title','phone_office','phone_cell','active','county','notes','tag']:
             if field in data:
-                setattr(c, field, data.get(field))
+                old = getattr(c, field)
+                new = data.get(field)
+                if old != new:
+                    changes[field] = {'old': old, 'new': new}
+                setattr(c, field, new)
         if 'email' in data:
             c.email = new_email
         if 'lists' in data:
-            c.lists = data.get('lists') or []
+            new_lists = data.get('lists') or []
+            if (c.lists or []) != new_lists:
+                changes['lists'] = {'old': c.lists or [], 'new': new_lists}
+            c.lists = new_lists
         if 'data_complete' in data:
-            c.data_complete = bool(data.get('data_complete'))
+            new_dc = bool(data.get('data_complete'))
+            if bool(c.data_complete) != new_dc:
+                changes['data_complete'] = {'old': bool(c.data_complete), 'new': new_dc}
+            c.data_complete = new_dc
         db.session.add(c)
         try:
             db.session.commit()
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': 'database error', 'details': str(e)}), 500
+        if changes:
+            label = f"{c.first_name or ''} {c.last_name or ''}".strip() or c.email or f'#{c.id}'
+            log_audit('contact_updated', 'contact', c.id, label, changes)
         return jsonify(contact_schema.dump(c))
 
     @app.route('/api/contacts', methods=['POST'])
@@ -378,6 +463,8 @@ def create_app(config_class=Config):
         )
         db.session.add(c)
         db.session.commit()
+        label = f"{c.first_name or ''} {c.last_name or ''}".strip() or c.email or f'#{c.id}'
+        log_audit('contact_created', 'contact', c.id, label)
         return jsonify(contact_schema.dump(c)), 201
 
     @app.route('/api/contacts/<int:contact_id>/activity', methods=['GET'])
@@ -602,6 +689,10 @@ def create_app(config_class=Config):
             db.session.rollback()
             return jsonify({'error': 'database error', 'details': str(e)}), 500
 
+        log_audit('spreadsheet_sync', 'sync', None, f.filename, {
+            'contacts': contacts_result,
+            'organizations': orgs_result,
+        })
         return jsonify({'contacts': contacts_result, 'organizations': orgs_result})
 
     @app.route('/api/export', methods=['GET'])

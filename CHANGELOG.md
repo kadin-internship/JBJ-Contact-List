@@ -6,6 +6,16 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-25 — Audit Log
+
+Manager asked for a way to see who made changes -- added contacts,
+edited them, synced the spreadsheet, or created a user login. Added a
+new admin-only **Audit Log** page (linked from the header next to
+Manage Users) that lists every one of those actions with who did it,
+when, and a plain-language summary -- for edits, exactly which fields
+changed and their before/after values. Records are kept even if the
+user account that made the change is later renamed or removed.
+
 ## 2026-06-25 — Fixed Back link on Sync Spreadsheet / Manage Users
 
 Both pages' Back button went to the homepage instead of returning to

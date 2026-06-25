@@ -7,7 +7,7 @@ const API = {
   counties: '/api/counties',
 }
 
-let state = { page: 1, limit: 25, q: '', tag: '', county: '', total: 0, view: 'people' }
+let state = { page: 1, limit: 25, q: '', tag: '', counties: [], total: 0, view: 'people' }
 
 function el(id){return document.getElementById(id)}
 function initials(first, last, fallback){
@@ -57,13 +57,53 @@ async function fetchTagOptions(){
   }catch(e){console.warn(e)}
 }
 
+function updateCountyFilterLabel(){
+  const label = el('countyFilterLabel')
+  if(!label) return
+  if(state.counties.length === 0) label.textContent = 'All Counties'
+  else if(state.counties.length === 1) label.textContent = state.counties[0]
+  else label.textContent = `${state.counties.length} Counties`
+}
+
 async function fetchCounties(){
   try{
     const res = await fetch(API.counties)
-    const rows = await res.json()
-    const sel = el('mainCountyFilter')
-    if(sel) sel.innerHTML = '<option value="">All Counties</option>' + rows.map(r=>`<option value="${r.county}">${r.county||'Unknown'} (${r.count||0})</option>`).join('')
+    const names = await res.json()
+    const menu = el('countyFilterMenu')
+    if(!menu) return
+    if(!names.length){
+      menu.innerHTML = '<div class="county-menu-empty">No counties on file yet.</div>'
+      return
+    }
+    menu.innerHTML = names.map(name => `
+      <label class="county-option">
+        <input type="checkbox" value="${name}" ${state.counties.includes(name) ? 'checked' : ''}>
+        ${name}
+      </label>
+    `).join('')
+    menu.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', ()=>{
+        if(cb.checked){
+          if(!state.counties.includes(cb.value)) state.counties.push(cb.value)
+        } else {
+          state.counties = state.counties.filter(c => c !== cb.value)
+        }
+        updateCountyFilterLabel()
+        state.page = 1
+        search()
+      })
+    })
+    updateCountyFilterLabel()
   }catch(e){console.warn(e)}
+}
+
+function bindCountyFilter(){
+  const btn = el('countyFilterBtn')
+  const menu = el('countyFilterMenu')
+  if(!btn || !menu) return
+  btn.addEventListener('click', (e)=>{ e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? '' : 'none' })
+  menu.addEventListener('click', (e)=> e.stopPropagation())
+  document.addEventListener('click', ()=>{ menu.style.display = 'none' })
 }
 
 async function fetchStats(){
@@ -341,7 +381,7 @@ async function search(){
   const params = new URLSearchParams({page: state.page, limit: state.limit})
   if(state.q) params.set('q', state.q)
   if(state.tag) params.set('tag', state.tag)
-  if(state.county) params.set('county', state.county)
+  if(state.counties.length) params.set('county', state.counties.join(','))
   try{
     if(state.view === 'organizations'){
       const res = await fetch(API.sections + '?' + params.toString())
@@ -484,11 +524,9 @@ function switchView(view, userInitiated){
 }
 
 function bind(){
-  el('searchBtn').addEventListener('click', ()=>{ state.q = el('searchInput').value.trim(); state.tag = el('tagFilter').value; state.county = el('mainCountyFilter').value; state.page = 1; search() })
-  el('searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ state.q = el('searchInput').value.trim(); state.tag = el('tagFilter').value; state.county = el('mainCountyFilter').value; state.page = 1; search() } })
+  el('searchBtn').addEventListener('click', ()=>{ state.q = el('searchInput').value.trim(); state.tag = el('tagFilter').value; state.page = 1; search() })
+  el('searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ state.q = el('searchInput').value.trim(); state.tag = el('tagFilter').value; state.page = 1; search() } })
   el('tagFilter').addEventListener('change', ()=>{ state.tag = el('tagFilter').value; state.page=1; search() })
-  const mainCountySel = el('mainCountyFilter')
-  if(mainCountySel) mainCountySel.addEventListener('change', ()=>{ state.county = mainCountySel.value; state.page = 1; search() })
 
   const viewPeopleBtn = el('viewPeopleBtn')
   const viewOrgBtn = el('viewOrgBtn')
@@ -518,6 +556,7 @@ function bind(){
   if(backBtn) backBtn.addEventListener('click', ()=>{ showHome(true) })
   bindExportMenu()
   bindDraftEmail()
+  bindCountyFilter()
 }
 
 function currentExportParams(){
@@ -527,7 +566,7 @@ function currentExportParams(){
     if(state.view === 'organizations') params.set('org_tag', state.tag)
     else params.set('tag', state.tag)
   }
-  if(state.county) params.set('county', state.county)
+  if(state.counties.length) params.set('county', state.counties.join(','))
   return params
 }
 
@@ -571,7 +610,7 @@ function bindDraftEmail(){
   const describeAudience = ()=>{
     const parts = []
     if(state.tag) parts.push(`${state.view === 'organizations' ? 'organization category' : 'tag'} "${state.tag}"`)
-    if(state.county) parts.push(`county "${state.county}"`)
+    if(state.counties.length) parts.push(`count${state.counties.length===1?'y':'ies'} "${state.counties.join(', ')}"`)
     if(state.q) parts.push(`search "${state.q}"`)
     el('draftEmailAudience').textContent = parts.length
       ? 'Drafting for the current filter: ' + parts.join(', ')
@@ -606,7 +645,7 @@ function bindDraftEmail(){
         body: JSON.stringify({
           prompt,
           q: state.q,
-          county: state.county,
+          county: state.counties.join(','),
           tag: state.view === 'organizations' ? undefined : state.tag,
           org_tag: state.view === 'organizations' ? state.tag : undefined,
         })

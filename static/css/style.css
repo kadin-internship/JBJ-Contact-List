@@ -126,6 +126,11 @@ main{padding:24px 0}
 .export-menu-item{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:8px;border:0;background:transparent;color:var(--black);cursor:pointer;font-size:14px;transition:background 0.15s}
 .export-menu-item:hover{background:rgba(173,3,4,0.08)}
 .export-menu-item+.export-menu-item{border-top:1px solid rgba(148,153,156,0.15)}
+.county-menu{max-height:280px;overflow-y:auto}
+.county-option{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--black)}
+.county-option:hover{background:rgba(173,3,4,0.08)}
+.county-option input{margin:0;accent-color:var(--maroon)}
+.county-menu-empty{padding:10px 12px;font-size:13px;color:var(--muted)}
 .search-right{display:flex;align-items:center;gap:12px}
 .quick-stats{display:flex;gap:12px;align-items:center}
 .quick-stats .stat{background:rgba(173,3,4,0.06);padding:8px 14px;border-radius:10px;display:flex;flex-direction:column;align-items:flex-start;min-width:70px}

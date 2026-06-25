@@ -6,6 +6,21 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-25 — County filter: multi-select, one entry per county
+
+The county dropdown was listing every distinct *combination* of counties
+as its own option (e.g. "Dallas", "Dallas, Tarrant", "Dallas, Tarrant,
+Collin" all showed up separately, each with a contact count) because
+`Contact.county` can hold several comma-separated counties in one
+field. Selecting "Dallas" also only matched that exact combination, so
+contacts filed under "Dallas, Tarrant" never showed up — undercounting
+real results. Replaced it with a multi-select checkbox dropdown listing
+each county name exactly once (no counts), and fixed the underlying
+filter so selecting Dallas and Tarrant together correctly returns every
+contact tagged with *either* county, regardless of what else is in
+their county field. Applies everywhere county filtering happens:
+search, exports, Draft Email, and the Organizations view.
+
 ## 2026-06-25 — Spreadsheet sync, now covering Organizations too
 
 Until the company formally approves this app, the spreadsheet stays the

@@ -61,7 +61,12 @@
           </div>
           <div class="search-controls">
             <select id="tagFilter" aria-label="Filter by category"><option value="">All Tags</option></select>
-            <select id="mainCountyFilter" aria-label="Filter by county"><option value="">All Counties</option></select>
+            <div class="county-filter-wrap export-wrap">
+              <button id="countyFilterBtn" type="button" class="btn" aria-haspopup="true">
+                <i class="fas fa-map-location-dot"></i> <span id="countyFilterLabel">All Counties</span>
+              </button>
+              <div id="countyFilterMenu" class="export-menu county-menu" style="display:none;"></div>
+            </div>
             <button id="searchBtn" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
             <div class="export-wrap">
               <button id="exportMenuBtn" class="btn"><i class="fas fa-download"></i> Export <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>

@@ -21,6 +21,35 @@ login_manager = LoginManager()
 login_manager.login_view = 'login'
 
 
+def parse_counties_param(name='county'):
+    """Contact.county can hold several comma-separated counties in one
+    string (e.g. "Dallas, Tarrant, Collin"), and the county filter is
+    multi-select -- the frontend sends the chosen counties as a single
+    comma-joined query param (e.g. county=Dallas,Tarrant)."""
+    raw = request.args.get(name, type=str)
+    if not raw:
+        return []
+    return [c.strip() for c in raw.split(',') if c.strip()]
+
+
+def county_filter_clause(counties):
+    """Matches if ANY selected county appears as one of the comma-separated
+    entries in Contact.county, not just an exact whole-field match --
+    e.g. selecting "Dallas" should also match a contact filed under
+    "Dallas, Tarrant"."""
+    if not counties:
+        return None
+    clauses = []
+    for c in counties:
+        clauses.append(or_(
+            Contact.county.ilike(c),
+            Contact.county.ilike(f"{c}, %"),
+            Contact.county.ilike(f"%, {c}"),
+            Contact.county.ilike(f"%, {c}, %"),
+        ))
+    return or_(*clauses)
+
+
 def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None):
     """Shared filter logic for /api/contacts and the export endpoints, so
     exports always match what's currently shown on screen.
@@ -52,7 +81,13 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
             return query.filter(False)
         query = query.filter(func.lower(Contact.organization).in_(org_names))
     if county:
-        query = query.filter(Contact.county == county)
+        if isinstance(county, (list, tuple)):
+            counties = [c.strip() for c in county if c and c.strip()]
+        else:
+            counties = [c.strip() for c in str(county).split(',') if c.strip()]
+        clause = county_filter_clause(counties)
+        if clause is not None:
+            query = query.filter(clause)
     return query
 
 
@@ -262,7 +297,7 @@ def create_app(config_class=Config):
     def list_contacts():
         q = request.args.get('q', type=str)
         tag = request.args.get('tag', type=str)
-        county = request.args.get('county', type=str)
+        county = parse_counties_param()
         page = request.args.get('page', default=1, type=int)
         limit = request.args.get('limit', default=25, type=int)
 
@@ -435,8 +470,18 @@ def create_app(config_class=Config):
 
     @app.route('/api/counties', methods=['GET'])
     def counties():
-        rows = db.session.query(Contact.county, func.count(Contact.id)).group_by(Contact.county).all()
-        return jsonify([{'county': r[0] or '', 'count': r[1]} for r in rows])
+        # Contact.county can hold several comma-separated counties in one
+        # string (e.g. "Dallas, Tarrant, Collin") -- split those apart so
+        # each county name is offered exactly once in the filter, instead
+        # of every distinct combination showing up as its own option.
+        rows = db.session.query(Contact.county).filter(Contact.county.isnot(None), Contact.county != '').distinct().all()
+        names = set()
+        for (val,) in rows:
+            for part in (val or '').split(','):
+                part = part.strip()
+                if part:
+                    names.add(part)
+        return jsonify(sorted(names))
 
     @app.route('/api/sections', methods=['GET'])
     def sections():
@@ -451,7 +496,7 @@ def create_app(config_class=Config):
         """
         q = request.args.get('q', type=str)
         tag_filter = request.args.get('tag', type=str)
-        county = request.args.get('county', type=str)
+        county = parse_counties_param()
         page = request.args.get('page', default=1, type=int)
         limit = request.args.get('limit', default=25, type=int)
 
@@ -469,8 +514,9 @@ def create_app(config_class=Config):
         # organization -- that N+1 pattern was the main reason this endpoint
         # felt slow/unresponsive with ~280 organizations.
         contacts_query = Contact.query
-        if county:
-            contacts_query = contacts_query.filter(Contact.county.ilike(f"%{county}%"))
+        county_clause = county_filter_clause(county)
+        if county_clause is not None:
+            contacts_query = contacts_query.filter(county_clause)
         contacts_by_org = {}
         for c in contacts_query.order_by(Contact.first_name, Contact.last_name).all():
             if not c.organization:
@@ -553,7 +599,7 @@ def create_app(config_class=Config):
         q = request.args.get('q', type=str)
         tag = request.args.get('tag', type=str)
         org_tag = request.args.get('org_tag', type=str)
-        county = request.args.get('county', type=str)
+        county = parse_counties_param()
         contact_id = request.args.get('id', type=int)
         rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, contact_id=contact_id).order_by(Contact.added.desc()).all()
 
@@ -578,7 +624,7 @@ def create_app(config_class=Config):
         q = request.args.get('q', type=str)
         tag = request.args.get('tag', type=str)
         org_tag = request.args.get('org_tag', type=str)
-        county = request.args.get('county', type=str)
+        county = parse_counties_param()
         rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).all()
 
         emails = []
@@ -602,7 +648,7 @@ def create_app(config_class=Config):
         q = request.args.get('q', type=str)
         tag = request.args.get('tag', type=str)
         org_tag = request.args.get('org_tag', type=str)
-        county = request.args.get('county', type=str)
+        county = parse_counties_param()
         rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).order_by(Contact.organization, Contact.last_name).all()
 
         doc = Document()

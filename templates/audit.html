@@ -22,22 +22,16 @@
 
   <main class="container admin-area">
     <section class="card">
-      <h3>Who changed what</h3>
+      <h3>Changes that were made</h3>
       {% if entries %}
-      <table>
-        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Record</th><th>Details</th></tr></thead>
-        <tbody>
-          {% for e in entries %}
-          <tr>
-            <td>{{ e.created_at.strftime('%Y-%m-%d %I:%M %p') }}</td>
-            <td>{{ e.actor_name }}</td>
-            <td>{{ e.action_label }}</td>
-            <td>{{ e.entity_label or '' }}</td>
-            <td>{{ e.summary }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="activity-list">
+        {% for e in entries %}
+        <div class="activity-item">
+          <div class="activity-meta"><strong>{{ e.created_at.strftime('%b %d, %Y %I:%M %p') }}</strong></div>
+          <div class="activity-summary">{{ e.summary }} — by {{ e.actor_name }}</div>
+        </div>
+        {% endfor %}
+      </div>
       <div class="pagination" style="margin-top:14px">
         {% if page > 1 %}<a class="page-btn btn" href="/admin/audit?page={{ page - 1 }}"><i class="fas fa-chevron-left"></i> Previous</a>{% endif %}
         <span class="muted" style="padding:0 10px">Page {{ page }} of {{ pages }}</span>

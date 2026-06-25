@@ -148,6 +148,15 @@ def format_audit_details(action, details):
     return ''
 
 
+def format_audit_summary(entry):
+    """Builds the one-line "what happened" summary shown per row on the
+    Audit Log page, e.g. 'Edited contact Jane Doe -- title: "" -> "Mayor"'."""
+    action_label = ACTION_LABELS.get(entry.action, entry.action)
+    line = f"{action_label} {entry.entity_label}" if entry.entity_label else action_label
+    detail = format_audit_details(entry.action, entry.details)
+    return f"{line} — {detail}" if detail else line
+
+
 def _bootstrap_admin_user():
     """Create one admin account from env vars if no user exists yet.
 
@@ -340,10 +349,7 @@ def create_app(config_class=Config):
         entries = [{
             'created_at': e.created_at,
             'actor_name': e.actor_name,
-            'action_label': ACTION_LABELS.get(e.action, e.action),
-            'entity_type': e.entity_type,
-            'entity_label': e.entity_label,
-            'summary': format_audit_details(e.action, e.details),
+            'summary': format_audit_summary(e),
         } for e in rows]
         return render_template('audit.html', entries=entries, page=page, pages=pages)
 

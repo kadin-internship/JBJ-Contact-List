@@ -6,6 +6,25 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-25 — Automated production (Postgres) database backups
+
+Manager asked for automated backups of the production database, on top
+of the existing local SQLite backup. Production already commits every
+write straight to Postgres with no caching layer, so a nightly
+`pg_dump` covers every change. Added a GitHub Actions workflow
+(`.github/workflows/backup-postgres.yml`) that dumps the production
+database nightly and stores it as a 90-day workflow artifact, plus a
+second local LaunchAgent + script (`scripts/fetch_postgres_backup.sh`,
+installed via `scripts/install_postgres_backup_schedule.sh`) that pulls
+the latest one down into the same iCloud Drive folder as the SQLite
+backups the next morning. The GitHub Actions side runs independent of
+this laptop, so the backup happens even if this Mac is off.
+
+Also found and flagged a GitHub personal access token that had been
+embedded in this repo's git remote URL (`.git/config`, not tracked by
+git itself, but still a live exposed credential) -- removed it from
+the remote URL and recommended revoking it on GitHub.
+
 ## 2026-06-25 — Audit Log
 
 Manager asked for a way to see who made changes -- added contacts,

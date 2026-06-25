@@ -113,6 +113,45 @@ still a single Mac running a single LaunchAgent — if this machine is
 retired or the user account changes, the schedule needs to be re-created
 on whatever replaces it.
 
+### Production database (Postgres) backups
+
+The above only backs up this laptop's local SQLite file -- it has nothing
+to do with the live production data, which lives in Postgres (see
+"Switched production database to free external Postgres" in
+`CHANGELOG.md`). Every write the app makes in production (adding a
+contact, editing one, syncing the spreadsheet, etc.) commits straight to
+that Postgres database with no caching layer in between, so backing it up
+covers everything.
+
+Production Postgres is backed up nightly by two pieces working together:
+
+1. **`.github/workflows/backup-postgres.yml`** — a GitHub Actions
+   workflow that runs `pg_dump` against the production database every
+   night and uploads the result as a workflow artifact (kept 90 days by
+   GitHub). Runs in the cloud, independent of this laptop or Render's
+   plan. Requires a repository secret named `PRODUCTION_DATABASE_URL`
+   (Settings → Secrets and variables → Actions on GitHub), set to the
+   same connection string as Render's `DATABASE_URL` environment
+   variable — add it directly on GitHub's site, never in a commit or chat.
+2. **`scripts/fetch_postgres_backup.sh`**, run daily at 9am by a second
+   LaunchAgent (`com.jbjcontacts.pgbackup.plist`, installed via
+   `bash scripts/install_postgres_backup_schedule.sh`) — downloads that
+   night's artifact via the `gh` CLI and copies it into
+   `~/Library/Mobile Documents/com~apple~CloudDocs/JBJContacts-Backups/postgres/`,
+   so a copy also ends up in iCloud Drive alongside the SQLite backups,
+   pruned after 90 days. Requires the `gh` CLI to be installed and
+   authenticated once (`gh auth login`).
+
+If this Mac is ever off, the GitHub Actions side still runs and the
+backup is safely sitting in GitHub regardless — the LaunchAgent just
+catches it up into iCloud the next time it runs.
+
+**To restore** a Postgres backup:
+
+```bash
+pg_restore --no-owner --clean --dbname="$DATABASE_URL" postgres_<timestamp>.dump
+```
+
 ## Deploying so coworkers can access it from anywhere
 
 Right now the app only runs on this laptop (`python app.py`) — it's not

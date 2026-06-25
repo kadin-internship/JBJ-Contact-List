@@ -1,0 +1,45 @@
+name: Backup production Postgres database
+
+# Nightly snapshot of the production database (Contact Hub's live data on
+# Render). Stored as a workflow artifact since this repo never holds real
+# contact data -- a local LaunchAgent (scripts/fetch_postgres_backup.sh)
+# separately pulls the latest one of these down into iCloud Drive, so the
+# backup survives even if GitHub's artifact retention window passes.
+#
+# Requires a repository secret named PRODUCTION_DATABASE_URL, set to the
+# same Postgres connection string configured in Render's DATABASE_URL
+# environment variable. Add it under Settings -> Secrets and variables ->
+# Actions -> New repository secret. Never put that value in a commit, an
+# issue, or a chat message -- only paste it directly into GitHub's secret
+# field.
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC daily (overnight Central time)
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install postgresql-client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+
+      - name: Dump production database
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "PRODUCTION_DATABASE_URL secret is not set -- see workflow comments." >&2
+            exit 1
+          fi
+          STAMP="$(date -u +%Y%m%d_%H%M%S)"
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          pg_dump "$DATABASE_URL" --no-owner --no-privileges --format=custom --file="postgres_${STAMP}.dump"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-backup-${{ env.STAMP }}
+          path: postgres_${{ env.STAMP }}.dump
+          retention-days: 90

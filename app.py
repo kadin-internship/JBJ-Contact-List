@@ -21,15 +21,25 @@ login_manager = LoginManager()
 login_manager.login_view = 'login'
 
 
-def parse_counties_param(name='county'):
-    """Contact.county can hold several comma-separated counties in one
-    string (e.g. "Dallas, Tarrant, Collin"), and the county filter is
-    multi-select -- the frontend sends the chosen counties as a single
-    comma-joined query param (e.g. county=Dallas,Tarrant)."""
+def parse_multi_param(name):
+    """Several filters (county, tag, org_tag) are multi-select -- the
+    frontend sends the chosen values as a single comma-joined query param
+    (e.g. county=Dallas,Tarrant or tag=Chamber,Clergy)."""
     raw = request.args.get(name, type=str)
     if not raw:
         return []
-    return [c.strip() for c in raw.split(',') if c.strip()]
+    return [v.strip() for v in raw.split(',') if v.strip()]
+
+
+def split_multi(value):
+    """Normalizes a tag/org_tag/county value that may arrive as a list, a
+    comma-joined string, or a single plain string (e.g. from a JSON body)
+    into a list."""
+    if not value:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(v).strip() for v in value if v and str(v).strip()]
+    return [v.strip() for v in str(value).split(',') if v.strip()]
 
 
 def county_filter_clause(counties):
@@ -74,17 +84,17 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
             Contact.county.ilike(like),
         ))
     if tag:
-        query = query.filter(Contact.tag == tag)
+        tags = split_multi(tag)
+        if tags:
+            query = query.filter(Contact.tag.in_(tags))
     if org_tag:
-        org_names = [o[0].lower() for o in db.session.query(OutreachOrg.organization).filter(OutreachOrg.tag == org_tag).all() if o[0]]
+        org_tags = split_multi(org_tag)
+        org_names = [o[0].lower() for o in db.session.query(OutreachOrg.organization).filter(OutreachOrg.tag.in_(org_tags)).all() if o[0]]
         if not org_names:
             return query.filter(False)
         query = query.filter(func.lower(Contact.organization).in_(org_names))
     if county:
-        if isinstance(county, (list, tuple)):
-            counties = [c.strip() for c in county if c and c.strip()]
-        else:
-            counties = [c.strip() for c in str(county).split(',') if c.strip()]
+        counties = split_multi(county)
         clause = county_filter_clause(counties)
         if clause is not None:
             query = query.filter(clause)
@@ -296,8 +306,8 @@ def create_app(config_class=Config):
     @app.route('/api/contacts', methods=['GET'])
     def list_contacts():
         q = request.args.get('q', type=str)
-        tag = request.args.get('tag', type=str)
-        county = parse_counties_param()
+        tag = parse_multi_param('tag')
+        county = parse_multi_param('county')
         page = request.args.get('page', default=1, type=int)
         limit = request.args.get('limit', default=25, type=int)
 
@@ -455,8 +465,8 @@ def create_app(config_class=Config):
     def section_categories():
         # Categories for the Sections/outreach-checklist page (its own tag set,
         # separate from Contact.tag since the two sheets label categories differently).
-        rows = db.session.query(OutreachOrg.tag, func.count(OutreachOrg.id)).group_by(OutreachOrg.tag).all()
-        return jsonify([{'tag': r[0], 'count': r[1]} for r in rows])
+        tags = [t[0] for t in db.session.query(OutreachOrg.tag).distinct().all()]
+        return jsonify(sorted([t for t in tags if t]))
 
     @app.route('/api/section-stats', methods=['GET'])
     def section_stats():
@@ -495,14 +505,14 @@ def create_app(config_class=Config):
         Supports optional filters: q (text), tag (category), county, page, limit.
         """
         q = request.args.get('q', type=str)
-        tag_filter = request.args.get('tag', type=str)
-        county = parse_counties_param()
+        tag_filter = parse_multi_param('tag')
+        county = parse_multi_param('county')
         page = request.args.get('page', default=1, type=int)
         limit = request.args.get('limit', default=25, type=int)
 
         org_query = OutreachOrg.query
         if tag_filter:
-            org_query = org_query.filter(OutreachOrg.tag == tag_filter)
+            org_query = org_query.filter(OutreachOrg.tag.in_(tag_filter))
         if q:
             like = f"%{q}%"
             org_query = org_query.filter(or_(OutreachOrg.organization.ilike(like), OutreachOrg.tag.ilike(like), OutreachOrg.notes.ilike(like)))
@@ -597,9 +607,9 @@ def create_app(config_class=Config):
     @app.route('/api/export', methods=['GET'])
     def export():
         q = request.args.get('q', type=str)
-        tag = request.args.get('tag', type=str)
-        org_tag = request.args.get('org_tag', type=str)
-        county = parse_counties_param()
+        tag = parse_multi_param('tag')
+        org_tag = parse_multi_param('org_tag')
+        county = parse_multi_param('county')
         contact_id = request.args.get('id', type=int)
         rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, contact_id=contact_id).order_by(Contact.added.desc()).all()
 
@@ -622,9 +632,9 @@ def create_app(config_class=Config):
         """Flat, de-duplicated list of email addresses for the current filter,
         meant for pasting into the BCC field of a mass email."""
         q = request.args.get('q', type=str)
-        tag = request.args.get('tag', type=str)
-        org_tag = request.args.get('org_tag', type=str)
-        county = parse_counties_param()
+        tag = parse_multi_param('tag')
+        org_tag = parse_multi_param('org_tag')
+        county = parse_multi_param('county')
         rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).all()
 
         emails = []
@@ -646,13 +656,13 @@ def create_app(config_class=Config):
         from docx import Document
 
         q = request.args.get('q', type=str)
-        tag = request.args.get('tag', type=str)
-        org_tag = request.args.get('org_tag', type=str)
-        county = parse_counties_param()
+        tag = parse_multi_param('tag')
+        org_tag = parse_multi_param('org_tag')
+        county = parse_multi_param('county')
         rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).order_by(Contact.organization, Contact.last_name).all()
 
         doc = Document()
-        title = tag or org_tag or 'Contacts'
+        title = ', '.join(tag) if tag else (', '.join(org_tag) if org_tag else 'Contacts')
         doc.add_heading(title, level=1)
         doc.add_paragraph(f'{len(rows)} contact(s)')
 

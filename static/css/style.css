@@ -126,11 +126,14 @@ main{padding:24px 0}
 .export-menu-item{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:8px;border:0;background:transparent;color:var(--black);cursor:pointer;font-size:14px;transition:background 0.15s}
 .export-menu-item:hover{background:rgba(173,3,4,0.08)}
 .export-menu-item+.export-menu-item{border-top:1px solid rgba(148,153,156,0.15)}
-.county-menu{max-height:280px;overflow-y:auto}
-.county-option{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--black)}
-.county-option:hover{background:rgba(173,3,4,0.08)}
-.county-option input{margin:0;accent-color:var(--maroon)}
-.county-menu-empty{padding:10px 12px;font-size:13px;color:var(--muted)}
+/* Shared by the County and Tag multi-select dropdowns -- same markup,
+   same classes, so the two always line up identically. */
+.filter-menu{max-height:280px;overflow-y:auto}
+.filter-option{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--black);text-align:left}
+.filter-option:hover{background:rgba(173,3,4,0.08)}
+.filter-option input{flex-shrink:0;margin:0;width:16px;height:16px;accent-color:var(--maroon)}
+.filter-option span{flex:1;min-width:0;overflow-wrap:anywhere}
+.filter-menu-empty{padding:10px 12px;font-size:13px;color:var(--muted)}
 .search-right{display:flex;align-items:center;gap:12px}
 .quick-stats{display:flex;gap:12px;align-items:center}
 .quick-stats .stat{background:rgba(173,3,4,0.06);padding:8px 14px;border-radius:10px;display:flex;flex-direction:column;align-items:flex-start;min-width:70px}
@@ -191,8 +194,8 @@ main{padding:24px 0}
 .toast i{color:var(--rose)}
 .toast.toast-error i{color:#ff8a8a}
 
-.pc-name{font-weight:600}
-.pc-meta{color:var(--muted);font-size:13px}
+.pc-name{font-weight:600;overflow-wrap:anywhere}
+.pc-meta{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
 
 /* Organizations view: every contact at an org, listed together */
 .org-contacts{display:flex;flex-direction:column;gap:4px}
@@ -200,8 +203,10 @@ main{padding:24px 0}
 .org-contact-row:last-child{border-bottom:0}
 .org-contact-row:hover{color:var(--maroon)}
 .org-contact-list{display:flex;flex-direction:column;gap:8px;margin:8px 0}
-.org-contact-item{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fafafa;border-radius:8px;padding:8px 10px;border-left:3px solid var(--rose);transition:background 0.15s}
+.org-contact-item{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;background:#fafafa;border-radius:8px;padding:8px 10px;border-left:3px solid var(--rose);transition:background 0.15s}
 .org-contact-item:hover{background:rgba(173,3,4,0.05)}
+.org-contact-info{display:flex;gap:10px;align-items:center;min-width:0;flex:1 1 140px}
+.org-contact-text{min-width:0;overflow:hidden}
 .org-contact-actions{display:flex;gap:6px;flex-shrink:0}
 
 @media (max-width:900px){
@@ -214,11 +219,12 @@ main{padding:24px 0}
 .contact-detail{background:#fff;border-radius:18px;box-shadow:var(--card-shadow);padding:16px;border-top:4px solid var(--maroon)}
 .detail-card{display:flex;gap:12px}
 .detail-photo{width:120px;height:120px;border-radius:50%;background:linear-gradient(180deg,var(--maroon),var(--maroon-dark));color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;font-family:var(--font-display);flex-shrink:0}
-.detail-main h2{margin:0 0 6px 0;font-family:var(--font-display);font-weight:400;color:var(--maroon-dark)}
-.detail-sub{color:var(--muted);margin-bottom:8px}
-.detail-row{font-size:14px;color:var(--black);margin:6px 0}
+.detail-main{flex:1;min-width:0}
+.detail-main h2{margin:0 0 6px 0;font-family:var(--font-display);font-weight:400;color:var(--maroon-dark);overflow-wrap:anywhere}
+.detail-sub{color:var(--muted);margin-bottom:8px;overflow-wrap:anywhere}
+.detail-row{font-size:14px;color:var(--black);margin:6px 0;overflow-wrap:anywhere}
 .detail-row a{color:var(--maroon);text-decoration:none}
-.detail-notes .notes{background:#fafafa;padding:8px;border-radius:8px;margin-top:6px}
+.detail-notes .notes{background:#fafafa;padding:8px;border-radius:8px;margin-top:6px;overflow-wrap:anywhere}
 .flag{padding:6px 8px;border-radius:8px;font-size:13px}
 .flag-warn{background:rgba(214,129,130,0.25);color:var(--maroon-dark)}
 .flag-info{background:rgba(148,153,156,0.18);color:var(--charcoal)}

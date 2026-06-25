@@ -6,6 +6,28 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-25 — Tag/category filter: multi-select, plus an overflow fix
+
+Gave the Tags/Categories filter the same treatment as County: it's now a
+multi-select checkbox dropdown (no counts) instead of a single-choice
+`<select>`, so staff can pull, say, every Clergy *and* Chamber of
+Commerce contact in one search. Applies in both People (`Contact.tag`)
+and Organizations (`OutreachOrg.tag`) view, and everywhere a category
+filter is used: search, exports, and Draft Email. Renamed the County
+dropdown's CSS classes to generic shared names so County and Tags are
+guaranteed to look identical (same checkbox size, same left alignment).
+
+Also fixed two overflow bugs in the contact/organization detail panel:
+long unbroken text (emails, org names) could push past the edge of the
+panel because `.detail-main` was missing `min-width:0` (a classic
+flexbox sizing trap). The organization detail panel's per-contact rows
+had the same trap one level deeper — fixing it then exposed a second
+bug, where the View/Edit buttons squeezed the name/title/email down to
+nearly zero width in the narrow sidebar, making the text wrap one
+character per line and balloon the row height. Fixed by letting the
+buttons wrap to their own line when the row is too narrow to fit
+everything side by side.
+
 ## 2026-06-25 — County filter: multi-select, one entry per county
 
 The county dropdown was listing every distinct *combination* of counties

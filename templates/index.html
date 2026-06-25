@@ -60,12 +60,17 @@
             <button id="viewOrgBtn" class="view-toggle-btn" type="button"><i class="fas fa-building"></i> Organizations</button>
           </div>
           <div class="search-controls">
-            <select id="tagFilter" aria-label="Filter by category"><option value="">All Tags</option></select>
+            <div class="tag-filter-wrap export-wrap">
+              <button id="tagFilterBtn" type="button" class="btn" aria-haspopup="true">
+                <i class="fas fa-tag"></i> <span id="tagFilterLabel">All Tags</span>
+              </button>
+              <div id="tagFilterMenu" class="export-menu filter-menu" style="display:none;"></div>
+            </div>
             <div class="county-filter-wrap export-wrap">
               <button id="countyFilterBtn" type="button" class="btn" aria-haspopup="true">
                 <i class="fas fa-map-location-dot"></i> <span id="countyFilterLabel">All Counties</span>
               </button>
-              <div id="countyFilterMenu" class="export-menu county-menu" style="display:none;"></div>
+              <div id="countyFilterMenu" class="export-menu filter-menu" style="display:none;"></div>
             </div>
             <button id="searchBtn" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
             <div class="export-wrap">

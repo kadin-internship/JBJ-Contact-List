@@ -7,7 +7,7 @@ const API = {
   counties: '/api/counties',
 }
 
-let state = { page: 1, limit: 25, q: '', tag: '', counties: [], total: 0, view: 'people' }
+let state = { page: 1, limit: 25, q: '', tags: [], counties: [], total: 0, view: 'people' }
 
 function el(id){return document.getElementById(id)}
 function initials(first, last, fallback){
@@ -37,24 +37,60 @@ function toast(message, type){
 }
 console.debug('app.js loaded')
 
+function updateTagFilterLabel(){
+  const label = el('tagFilterLabel')
+  if(!label) return
+  const noun = state.view === 'organizations' ? 'Categories' : 'Tags'
+  if(state.tags.length === 0) label.textContent = `All ${noun}`
+  else if(state.tags.length === 1) label.textContent = state.tags[0]
+  else label.textContent = `${state.tags.length} ${noun}`
+}
+
 // The category dropdown is shared by both views, but People (Contact.tag)
 // and Organizations (OutreachOrg.tag) use different category names for the
 // same kind of grouping -- so it's repopulated from a different endpoint
 // whenever the view changes, rather than trying to merge the two lists.
 async function fetchTagOptions(){
-  const sel = el('tagFilter')
-  if(!sel) return
+  const menu = el('tagFilterMenu')
+  if(!menu) return
   try{
-    if(state.view === 'organizations'){
-      const res = await fetch(API.sectionCategories)
-      const cats = await res.json()
-      sel.innerHTML = '<option value="">All Categories</option>' + cats.map(t=>`<option value="${t.tag}">${t.tag} (${t.count||0})</option>`).join('')
-    } else {
-      const res = await fetch(API.tags)
-      const tags = await res.json()
-      sel.innerHTML = '<option value="">All Tags</option>' + tags.map(t=>`<option value="${t}">${t}</option>`).join('')
+    const url = state.view === 'organizations' ? API.sectionCategories : API.tags
+    const res = await fetch(url)
+    const names = await res.json()
+    if(!names.length){
+      menu.innerHTML = '<div class="filter-menu-empty">No tags on file yet.</div>'
+      updateTagFilterLabel()
+      return
     }
+    menu.innerHTML = names.map(name => `
+      <label class="filter-option">
+        <input type="checkbox" value="${name}" ${state.tags.includes(name) ? 'checked' : ''}>
+        <span>${name}</span>
+      </label>
+    `).join('')
+    menu.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', ()=>{
+        if(cb.checked){
+          if(!state.tags.includes(cb.value)) state.tags.push(cb.value)
+        } else {
+          state.tags = state.tags.filter(t => t !== cb.value)
+        }
+        updateTagFilterLabel()
+        state.page = 1
+        search()
+      })
+    })
+    updateTagFilterLabel()
   }catch(e){console.warn(e)}
+}
+
+function bindTagFilter(){
+  const btn = el('tagFilterBtn')
+  const menu = el('tagFilterMenu')
+  if(!btn || !menu) return
+  btn.addEventListener('click', (e)=>{ e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? '' : 'none' })
+  menu.addEventListener('click', (e)=> e.stopPropagation())
+  document.addEventListener('click', ()=>{ menu.style.display = 'none' })
 }
 
 function updateCountyFilterLabel(){
@@ -72,13 +108,13 @@ async function fetchCounties(){
     const menu = el('countyFilterMenu')
     if(!menu) return
     if(!names.length){
-      menu.innerHTML = '<div class="county-menu-empty">No counties on file yet.</div>'
+      menu.innerHTML = '<div class="filter-menu-empty">No counties on file yet.</div>'
       return
     }
     menu.innerHTML = names.map(name => `
-      <label class="county-option">
+      <label class="filter-option">
         <input type="checkbox" value="${name}" ${state.counties.includes(name) ? 'checked' : ''}>
-        ${name}
+        <span>${name}</span>
       </label>
     `).join('')
     menu.querySelectorAll('input[type=checkbox]').forEach(cb => {
@@ -239,9 +275,9 @@ function showOrgDetail(item){
   const contactsHtml = contacts.length
     ? `<div class="detail-row"><strong>Contacts:</strong></div><div class="org-contact-list">${contacts.map(c=>`
         <div class="org-contact-item">
-          <div style="display:flex;gap:10px;align-items:center;">
+          <div class="org-contact-info">
             <div class="avatar sm">${c.name ? c.name.split(' ').filter(Boolean).map(s=>s.charAt(0)).slice(0,2).join('') : '—'}</div>
-            <div>
+            <div class="org-contact-text">
               <div class="pc-name">${c.name||'(no name)'}</div>
               <div class="pc-meta">${c.title||''}${c.email? ' • '+c.email : ''}</div>
             </div>
@@ -380,7 +416,7 @@ async function search(){
   if(state.view === 'organizations') fetchSectionStats(); else fetchStats()
   const params = new URLSearchParams({page: state.page, limit: state.limit})
   if(state.q) params.set('q', state.q)
-  if(state.tag) params.set('tag', state.tag)
+  if(state.tags.length) params.set('tag', state.tags.join(','))
   if(state.counties.length) params.set('county', state.counties.join(','))
   try{
     if(state.view === 'organizations'){
@@ -506,8 +542,7 @@ function switchView(view, userInitiated){
   state.view = view
   if(changed){
     state.page = 1
-    state.tag = ''
-    const tagSel = el('tagFilter'); if(tagSel) tagSel.value = ''
+    state.tags = []
   }
   const peopleBtn = el('viewPeopleBtn'); const orgBtn = el('viewOrgBtn')
   if(peopleBtn) peopleBtn.classList.toggle('active', view === 'people')
@@ -524,9 +559,8 @@ function switchView(view, userInitiated){
 }
 
 function bind(){
-  el('searchBtn').addEventListener('click', ()=>{ state.q = el('searchInput').value.trim(); state.tag = el('tagFilter').value; state.page = 1; search() })
-  el('searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ state.q = el('searchInput').value.trim(); state.tag = el('tagFilter').value; state.page = 1; search() } })
-  el('tagFilter').addEventListener('change', ()=>{ state.tag = el('tagFilter').value; state.page=1; search() })
+  el('searchBtn').addEventListener('click', ()=>{ state.q = el('searchInput').value.trim(); state.page = 1; search() })
+  el('searchInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ state.q = el('searchInput').value.trim(); state.page = 1; search() } })
 
   const viewPeopleBtn = el('viewPeopleBtn')
   const viewOrgBtn = el('viewOrgBtn')
@@ -557,14 +591,15 @@ function bind(){
   bindExportMenu()
   bindDraftEmail()
   bindCountyFilter()
+  bindTagFilter()
 }
 
 function currentExportParams(){
   const params = new URLSearchParams()
   if(state.q) params.set('q', state.q)
-  if(state.tag){
-    if(state.view === 'organizations') params.set('org_tag', state.tag)
-    else params.set('tag', state.tag)
+  if(state.tags.length){
+    if(state.view === 'organizations') params.set('org_tag', state.tags.join(','))
+    else params.set('tag', state.tags.join(','))
   }
   if(state.counties.length) params.set('county', state.counties.join(','))
   return params
@@ -609,7 +644,10 @@ function bindDraftEmail(){
 
   const describeAudience = ()=>{
     const parts = []
-    if(state.tag) parts.push(`${state.view === 'organizations' ? 'organization category' : 'tag'} "${state.tag}"`)
+    if(state.tags.length){
+      const noun = state.view === 'organizations' ? (state.tags.length===1?'organization category':'organization categories') : (state.tags.length===1?'tag':'tags')
+      parts.push(`${noun} "${state.tags.join(', ')}"`)
+    }
     if(state.counties.length) parts.push(`count${state.counties.length===1?'y':'ies'} "${state.counties.join(', ')}"`)
     if(state.q) parts.push(`search "${state.q}"`)
     el('draftEmailAudience').textContent = parts.length
@@ -646,8 +684,8 @@ function bindDraftEmail(){
           prompt,
           q: state.q,
           county: state.counties.join(','),
-          tag: state.view === 'organizations' ? undefined : state.tag,
-          org_tag: state.view === 'organizations' ? state.tag : undefined,
+          tag: state.view === 'organizations' ? undefined : state.tags.join(','),
+          org_tag: state.view === 'organizations' ? state.tags.join(',') : undefined,
         })
       })
       const j = await res.json()

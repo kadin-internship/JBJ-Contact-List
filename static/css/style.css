@@ -228,7 +228,7 @@ main{padding:24px 0}
 .activity-summary{font-size:14px;margin-top:4px;white-space:pre-wrap}
 .activity-item .activity-delete{margin-top:6px}
 .activity-form{display:flex;flex-direction:column;gap:6px;margin-top:10px}
-.activity-form input,.activity-form select,.activity-form textarea{padding:9px 13px;border-radius:12px;border:1px solid rgba(148,153,156,0.4);font-family:inherit;font-size:14px}
+.activity-form input,.activity-form select,.activity-form textarea{width:100%;box-sizing:border-box;padding:9px 13px;border-radius:12px;border:1px solid rgba(148,153,156,0.4);font-family:inherit;font-size:14px}
 .activity-form .activity-log-btn{align-self:flex-start;margin-top:4px}
 
 @media (max-width:900px){

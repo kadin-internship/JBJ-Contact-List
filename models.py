@@ -1,6 +1,5 @@
 from datetime import datetime, date
 from sqlalchemy import Index
-from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from db import db
@@ -47,7 +46,7 @@ class Contact(db.Model):
     email = db.Column(db.String(320), unique=True, index=True, nullable=True)
     added = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     active = db.Column(db.String(32), nullable=True)
-    lists = db.Column(SQLITE_JSON, nullable=True)
+    lists = db.Column(db.JSON, nullable=True)
     county = db.Column(db.String(128), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     data_complete = db.Column(db.Boolean, default=False, nullable=False)

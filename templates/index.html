@@ -37,6 +37,9 @@
           <span class="current-user">{{ current_user.display_name }}</span>
           <a id="backHomeBtn" class="btn" href="/">Back to Home</a>
           <button id="addContactBtn" class="btn btn-primary">Add Contact</button>
+          {% if current_user.is_admin %}
+          <a class="btn" href="/admin/users">Manage Users</a>
+          {% endif %}
           <a class="btn" href="/logout">Logout</a>
         </div>
       </div>

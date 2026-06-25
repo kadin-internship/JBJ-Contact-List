@@ -6,6 +6,36 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-24 — Switched production database to free external Postgres
+
+Render's free plan (which is what's actually in use) doesn't include a
+persistent disk, so the `render.yaml` disk-based SQLite setup from
+earlier today would have silently lost contacts and user accounts on
+every restart or redeploy. Removed the disk dependency: production now
+points `DATABASE_URL` at an external free Postgres database (Neon or
+Supabase — both have a free tier that doesn't expire). Local development
+is unaffected (still plain SQLite by default). Required dropping a
+SQLite-only column type (`Contact.lists` was using
+`sqlalchemy.dialects.sqlite.JSON`, which doesn't work on Postgres — moved
+to the generic, dialect-agnostic `db.JSON`). Added
+`scripts/migrate_sqlite_to_postgres.py` to copy existing local data
+(contacts, organizations, activities, user accounts) into the new
+database, and `psycopg2-binary` to `requirements.txt`. Updated `render.yaml`
+and the "Deploying" section of `README.md` to match.
+
+## 2026-06-24 — Shell-free account creation for Render
+
+Turned out Render's Shell tab (the documented way to run `create_user.py`
+in production) requires a paid plan, which blocked creating the first
+login after deploying. Added two ways around it that don't need Shell on
+any plan: (1) the app auto-creates one admin account on startup from
+`BOOTSTRAP_ADMIN_USERNAME`/`BOOTSTRAP_ADMIN_PASSWORD` env vars if the
+users table is still empty (set these for free in Render's dashboard,
+under Environment), and (2) a new admin-only **Manage Users** page
+(`/admin/users`, linked from the header for admins) so that first account
+can create everyone else's login from the browser afterward. Updated the
+"Deploying" section of `README.md` to match.
+
 ## 2026-06-24 — Made the app deployment-ready (Render)
 
 Until now the app only ran on one laptop via Flask's dev server, so no

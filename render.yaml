@@ -5,18 +5,30 @@ services:
   - type: web
     name: jbj-contact-hub
     runtime: python
-    plan: starter
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn wsgi:app
     healthCheckPath: /login
-    disk:
-      name: jbj-contact-hub-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
+      # Free Render web services don't get a persistent disk, so the
+      # database lives in an external free Postgres (e.g. Neon, Supabase)
+      # instead of a local SQLite file. Set this directly in the
+      # dashboard's Environment tab -- it's a credential, never put it
+      # in this file or in chat. See README's "Deploying" section for
+      # how to create the database and migrate existing data into it.
       - key: DATABASE_URL
-        value: sqlite:////data/contacts.db
+        sync: false
       - key: SECRET_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
+        sync: false
+      # One-time use: creates the first admin login on startup if the users
+      # table is empty, since Render's Shell tab needs a paid plan. Set these
+      # in the dashboard's Environment tab, deploy once, then they can be
+      # cleared -- the app won't run this again once any user exists.
+      - key: BOOTSTRAP_ADMIN_USERNAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: BOOTSTRAP_ADMIN_DISPLAY_NAME
         sync: false

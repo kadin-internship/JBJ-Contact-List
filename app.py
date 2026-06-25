@@ -53,6 +53,28 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
     return query
 
 
+def _bootstrap_admin_user():
+    """Create one admin account from env vars if no user exists yet.
+
+    Render's Shell tab (the obvious way to run create_user.py against the
+    production database) needs a paid plan. This lets the very first
+    account get created from env vars set in Render's free Environment
+    tab instead. Only fires while the users table is empty, so it can't
+    be replayed later to reset someone's password.
+    """
+    if User.query.count() > 0:
+        return
+    username = os.environ.get('BOOTSTRAP_ADMIN_USERNAME')
+    password = os.environ.get('BOOTSTRAP_ADMIN_PASSWORD')
+    if not username or not password:
+        return
+    display_name = os.environ.get('BOOTSTRAP_ADMIN_DISPLAY_NAME', username)
+    user = User(username=username, display_name=display_name, is_admin=True)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -61,6 +83,7 @@ def create_app(config_class=Config):
 
     with app.app_context():
         db.create_all()
+        _bootstrap_admin_user()
 
     contact_schema = ContactSchema()
     contacts_schema = ContactSchema(many=True)
@@ -116,6 +139,36 @@ def create_app(config_class=Config):
     @app.route('/admin')
     def admin():
         return render_template('admin.html')
+
+    @app.route('/admin/users')
+    def manage_users():
+        if not current_user.is_admin:
+            return redirect(url_for('index'))
+        users = User.query.order_by(User.username).all()
+        return render_template('users.html', users=users)
+
+    @app.route('/api/users', methods=['POST'])
+    def create_user_api():
+        # Lets an admin create more employee logins from the browser, so
+        # only the very first account ever needs the env-var bootstrap above.
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        data = request.get_json(force=True) or {}
+        username = (data.get('username') or '').strip()
+        password = data.get('password') or ''
+        display_name = (data.get('display_name') or '').strip() or username
+        is_admin = bool(data.get('is_admin'))
+        if not username or not password:
+            return jsonify({'error': 'username and password are required'}), 400
+        if len(password) < 8:
+            return jsonify({'error': 'password must be at least 8 characters'}), 400
+        if User.query.filter_by(username=username).first():
+            return jsonify({'error': 'that username is already taken'}), 409
+        user = User(username=username, display_name=display_name, is_admin=is_admin)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        return jsonify(user.to_dict()), 201
 
     @app.route('/api/contacts', methods=['GET'])
     def list_contacts():

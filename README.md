@@ -73,12 +73,13 @@ every outreach-activity entry), and password.
 - `User` — employee logins. Passwords are hashed (Werkzeug), never stored
   in plain text.
 
-The database is SQLite (`contacts.db` in the project root). There's no
-migration framework — `db.create_all()` creates missing tables on
-startup, but it will **not** alter an existing table's columns. Schema
-changes to existing tables (e.g. making a column nullable) need a manual
-migration; see the "email made optional" entry in `CHANGELOG.md` for the
-pattern used.
+Locally the database is SQLite (`contacts.db` in the project root); in
+production it's Postgres (see "Deploying" below) — `DATABASE_URL` decides
+which. There's no migration framework — `db.create_all()` creates missing
+tables on startup, but it will **not** alter an existing table's columns.
+Schema changes to existing tables (e.g. making a column nullable) need a
+manual migration; see the "email made optional" entry in `CHANGELOG.md`
+for the pattern used.
 
 ## Backup & recovery
 
@@ -116,53 +117,71 @@ on whatever replaces it.
 
 Right now the app only runs on this laptop (`python app.py`) — it's not
 reachable by anyone else, and it stops working the moment this Mac sleeps
-or the process is closed. The repo is already set up to deploy to
+or the process is closed. The repo is set up to deploy to
 [Render](https://render.com) (gunicorn as the production server,
-`render.yaml` defines the service + a **persistent disk** — without that
-disk, SQLite would get wiped on every redeploy). Render isn't the only
-option, but the project is ready for it; steps below.
+`render.yaml` defines the service) on Render's **free** plan. Render isn't
+the only option, but the project is ready for it; steps below.
 
-1. **Sign up at render.com** and connect your GitHub account.
-2. **New → Blueprint**, pick the `JBJ-Contact-List` repo. Render reads
-   `render.yaml` and proposes one web service with a 1GB persistent disk
-   on the Starter plan (~$7/mo + ~$0.25/GB/mo disk — check Render's
-   current pricing).
-3. Before deploying, it'll prompt for two environment variables
+**Free plan tradeoff:** free Render web services don't have a persistent
+disk — anything written to local disk is wiped on every restart/redeploy
+and whenever the service spins down from inactivity. That's a problem for
+SQLite specifically, since it's a local file. So in production the app
+talks to an external free Postgres database instead (e.g.
+[Neon](https://neon.tech) or [Supabase](https://supabase.com) — both have
+a free tier that doesn't expire, unlike Render's own free Postgres which
+auto-deletes after 30 days). Locally, nothing changes — `python app.py`
+still uses the local `contacts.db` SQLite file by default.
+
+1. **Create a free Postgres database** at neon.tech (or supabase.com).
+   Copy the connection string it gives you (looks like
+   `postgresql://user:password@host/dbname`) — treat this like a
+   password, don't paste it into chat or commit it anywhere.
+2. **Move your existing data into it**, run from this machine (paste the
+   connection string directly into your own terminal, not here):
+   ```bash
+   TARGET_DATABASE_URL=<your Postgres connection string> \
+     .venv/bin/python scripts/migrate_sqlite_to_postgres.py
+   ```
+   This copies every contact, organization, activity, and any local user
+   accounts into the new database. Safe to re-run only against an empty
+   target — it refuses to run if the target already has rows, so it can't
+   double-insert.
+3. **Sign up at render.com** and connect your GitHub account.
+4. **New → Blueprint**, pick the `JBJ-Contact-List` repo. Render reads
+   `render.yaml` and proposes one web service on the free plan.
+5. Before deploying, it'll prompt for environment variables
    (`render.yaml` deliberately leaves these blank so they're never
    committed to git):
+   - `DATABASE_URL` — the same Postgres connection string from step 1.
    - `SECRET_KEY` — generate a **new** one just for production:
      `python3 -c "import secrets; print(secrets.token_hex(32))"`. Don't
      reuse your local `.env` value.
    - `ANTHROPIC_API_KEY` — same key used locally for Draft Email, or skip
      it and add it later if that feature isn't needed yet.
-4. **Deploy.** Render builds and starts the service. It'll come up with
-   an *empty* database — `db.create_all()` only creates tables, it
-   doesn't import your existing contacts.
-5. **Move your existing data onto the persistent disk.** In the Render
-   dashboard, open the service → **Connect** → copy the SSH address
-   (looks like `srv-xxxxx@ssh.<region>.render.com`). From this machine:
-   ```bash
-   scp contacts.db srv-xxxxx@ssh.<region>.render.com:/data/contacts.db
-   ```
-   Then restart the service from the Render dashboard so it picks up the
-   copied file.
-6. **Create employee logins on the production database** — these are
-   separate from any local accounts. In the Render dashboard, open the
-   service's **Shell** tab and run:
-   ```bash
-   python create_user.py
-   ```
-7. Share the `https://<your-service-name>.onrender.com` URL Render gives
+   - `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` (8+
+     characters) / optionally `BOOTSTRAP_ADMIN_DISPLAY_NAME` — not needed
+     if you migrated existing local user accounts in step 2 (they came
+     across already); otherwise, set these to create the first
+     production login. Render's **Shell** tab (the obvious way to run
+     `create_user.py`) needs a paid plan, so the app creates this one
+     account itself on startup **only if the users table is still
+     empty** — safe to leave the variables in place afterward, or delete
+     them once you've logged in.
+6. **Deploy.** Render builds and starts the service, connecting to the
+   Postgres database from step 1.
+7. Log in (using a migrated account, or the bootstrap admin account from
+   step 5). Once logged in as an admin, create everyone else's account
+   from the browser — no Shell needed: **Manage Users** (top right,
+   admin accounts only) → fill in username/display name/password.
+8. Share the `https://<your-service-name>.onrender.com` URL Render gives
    you. It has real HTTPS and works from anywhere — no dependence on this
    laptop being on.
 
 After this, deploying a future code change is just `git push` — Render
-auto-deploys on push to `main`. The database on the persistent disk
-**isn't** touched by deploys, so it's safe to push code updates without
-re-doing step 5. New code changes still need their own backup plan on
-Render's side eventually (the local LaunchAgent above only backs up the
-copy on this laptop, not whatever's on Render) — worth a follow-up once
-this is live.
+auto-deploys on push to `main`. The Postgres database isn't touched by
+code deploys. It's still worth checking whatever backup options Neon/
+Supabase's free tier offers — the local LaunchAgent above only backs up
+the copy on this laptop, not the production database.
 
 ## Project layout
 
@@ -174,5 +193,5 @@ this is live.
 - `static/css/style.css` — styling, including the JBJ brand palette (see
   the `:root` variables at the top).
 - `create_user.py` — CLI for creating employee logins.
-- `scripts/` — one-off data-import scripts used to load the original
-  contact spreadsheets.
+- `scripts/` — one-off scripts: the original contact-spreadsheet imports,
+  `backup_db.sh`, and `migrate_sqlite_to_postgres.py`.

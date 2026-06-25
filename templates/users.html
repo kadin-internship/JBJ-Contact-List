@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Manage Users — JBJ Management</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/" class="btn">← Back</a>
+        <h2>Manage Users</h2>
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-area">
+    <section class="card" style="max-width:420px">
+      <h3>Add an employee login</h3>
+      <form id="newUserForm" style="display:flex;flex-direction:column;gap:10px">
+        <label>Username<br><input id="nuUsername" type="text" required autocomplete="off"></label>
+        <label>Display name (shown in the app)<br><input id="nuDisplayName" type="text"></label>
+        <label>Password<br><input id="nuPassword" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label><input id="nuIsAdmin" type="checkbox"> Admin (can create other logins)</label>
+        <button type="submit" class="btn btn-primary">Create user</button>
+      </form>
+      <div id="newUserError" class="login-error" style="display:none;color:#9b1c1c;background:rgba(173,3,4,0.08);border-color:rgba(173,3,4,0.3)"></div>
+    </section>
+
+    <section class="card">
+      <h3>Existing users</h3>
+      <table>
+        <thead><tr><th>Username</th><th>Display name</th><th>Admin</th><th>Created</th></tr></thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td>{{ u.username }}</td>
+            <td>{{ u.display_name }}</td>
+            <td>{{ 'Yes' if u.is_admin else '' }}</td>
+            <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    document.getElementById('newUserForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('newUserError');
+      errEl.style.display = 'none';
+      const body = {
+        username: document.getElementById('nuUsername').value.trim(),
+        display_name: document.getElementById('nuDisplayName').value.trim(),
+        password: document.getElementById('nuPassword').value,
+        is_admin: document.getElementById('nuIsAdmin').checked,
+      };
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        location.reload();
+      } else {
+        const j = await res.json().catch(() => ({}));
+        errEl.textContent = j.error || 'Could not create user.';
+        errEl.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

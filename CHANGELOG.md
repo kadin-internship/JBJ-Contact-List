@@ -6,6 +6,20 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-25 — Detail panel redesign, dropdown fix
+
+Two follow-up fixes after the multi-select Tags rollout:
+- The Tag and County dropdowns could end up open at the same time,
+  overlapping each other, because each one's click handler stopped the
+  click from reaching the *other* dropdown's "click outside closes it"
+  listener. Opening any one of Tag/County/Export now explicitly closes
+  the other two first.
+- The contact/organization detail panel's side-by-side layout (avatar
+  next to text) only left about 196px for names, titles, emails, and
+  the View/Edit buttons in the narrow sidebar — too tight, causing text
+  to wrap badly or run past the edge. Moved the avatar to the top of
+  the panel, centered, so the text below gets the panel's full width.
+
 ## 2026-06-25 — Tag/category filter: multi-select, plus an overflow fix
 
 Gave the Tags/Categories filter the same treatment as County: it's now a

@@ -37,6 +37,20 @@ function toast(message, type){
 }
 console.debug('app.js loaded')
 
+// The Tag, County, and Export dropdowns are independent toggle buttons, but
+// each one's own click handler calls stopPropagation() (so opening it
+// doesn't immediately trigger its own "click outside closes it" listener) --
+// which also stops that click from reaching the *other* dropdowns'
+// outside-click listeners, so they never close. Closing every other menu
+// before opening one keeps only one open at a time.
+function closeOtherFilterMenus(exceptId){
+  ;['tagFilterMenu', 'countyFilterMenu', 'exportMenu'].forEach(id => {
+    if(id === exceptId) return
+    const m = el(id)
+    if(m) m.style.display = 'none'
+  })
+}
+
 function updateTagFilterLabel(){
   const label = el('tagFilterLabel')
   if(!label) return
@@ -88,7 +102,12 @@ function bindTagFilter(){
   const btn = el('tagFilterBtn')
   const menu = el('tagFilterMenu')
   if(!btn || !menu) return
-  btn.addEventListener('click', (e)=>{ e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? '' : 'none' })
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation()
+    const opening = menu.style.display === 'none'
+    closeOtherFilterMenus('tagFilterMenu')
+    menu.style.display = opening ? '' : 'none'
+  })
   menu.addEventListener('click', (e)=> e.stopPropagation())
   document.addEventListener('click', ()=>{ menu.style.display = 'none' })
 }
@@ -137,7 +156,12 @@ function bindCountyFilter(){
   const btn = el('countyFilterBtn')
   const menu = el('countyFilterMenu')
   if(!btn || !menu) return
-  btn.addEventListener('click', (e)=>{ e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? '' : 'none' })
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation()
+    const opening = menu.style.display === 'none'
+    closeOtherFilterMenus('countyFilterMenu')
+    menu.style.display = opening ? '' : 'none'
+  })
   menu.addEventListener('click', (e)=> e.stopPropagation())
   document.addEventListener('click', ()=>{ menu.style.display = 'none' })
 }
@@ -609,7 +633,12 @@ function bindExportMenu(){
   const btn = el('exportMenuBtn')
   const menu = el('exportMenu')
   if(!btn || !menu) return
-  btn.addEventListener('click', (e)=>{ e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? '' : 'none' })
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation()
+    const opening = menu.style.display === 'none'
+    closeOtherFilterMenus('exportMenu')
+    menu.style.display = opening ? '' : 'none'
+  })
   document.addEventListener('click', ()=>{ menu.style.display = 'none' })
 
   const copyBtn = el('exportCopyEmails')

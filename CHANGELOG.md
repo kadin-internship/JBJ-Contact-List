@@ -6,6 +6,22 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-25 — Visual design pass (fonts, icons, pill buttons, avatars, toasts)
+
+Manager asked for a more polished look and provided a design system spec
+(Archivo Black + Inter type, Font Awesome icons, pill-shaped buttons/
+inputs, avatars, toast notifications). Applied it across every screen:
+- Added Google Fonts (Archivo Black for headings, Inter for body) and
+  Font Awesome icons site-wide.
+- Buttons and single-line inputs are now pill-shaped, with new outline/
+  ghost button variants available; multi-field forms (contact editor,
+  outreach log) use a softer rounded-rect radius instead of full pill,
+  since pill didn't read well on stacked label/input grids.
+- Contact and organization cards now show a circular initials avatar.
+- Replaced every blocking `alert()` popup (save/delete/error feedback)
+  with a non-blocking toast notification.
+- Bumped card/modal corner radii to match the design system's scale.
+
 ## 2026-06-24 — Switched production database to free external Postgres
 
 Render's free plan (which is what's actually in use) doesn't include a

@@ -4,24 +4,28 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Admin — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <header class="site-header">
     <div class="container header-inner">
       <div class="brand">
-        <a href="/" class="btn">← Back</a>
+        <a href="/" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
         <h2>Admin</h2>
       </div>
       <div>
-        <button id="exportBtn" class="btn">Export CSV</button>
+        <button id="exportBtn" class="btn"><i class="fas fa-download"></i> Export CSV</button>
       </div>
     </div>
   </header>
 
   <main class="container admin-area">
     <section class="card admin-upload">
-      <div id="dropZone" class="dropzone">Drop CSV/Excel here or <button id="pickFile" class="btn">Choose file</button></div>
+      <div id="dropZone" class="dropzone"><i class="fas fa-file-arrow-up"></i> Drop CSV/Excel here or <button id="pickFile" class="btn">Choose file</button></div>
       <input id="adminFile" type="file" accept=".csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;" />
       <div class="progress-wrap" style="display:none;">
         <label>Import progress</label>

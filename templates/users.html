@@ -4,13 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Manage Users — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <header class="site-header">
     <div class="container header-inner">
       <div class="brand">
-        <a href="/" class="btn">← Back</a>
+        <a href="/" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
         <h2>Manage Users</h2>
       </div>
     </div>
@@ -24,7 +28,7 @@
         <label>Display name (shown in the app)<br><input id="nuDisplayName" type="text"></label>
         <label>Password<br><input id="nuPassword" type="password" required minlength="8" autocomplete="new-password"></label>
         <label><input id="nuIsAdmin" type="checkbox"> Admin (can create other logins)</label>
-        <button type="submit" class="btn btn-primary">Create user</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-user-plus"></i> Create user</button>
       </form>
       <div id="newUserError" class="login-error" style="display:none;color:#9b1c1c;background:rgba(173,3,4,0.08);border-color:rgba(173,3,4,0.3)"></div>
     </section>

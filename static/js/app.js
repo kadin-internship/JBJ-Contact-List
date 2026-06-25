@@ -10,6 +10,31 @@ const API = {
 let state = { page: 1, limit: 25, q: '', tag: '', county: '', total: 0, view: 'people' }
 
 function el(id){return document.getElementById(id)}
+function initials(first, last, fallback){
+  const text = (first||'').charAt(0) + (last||'').charAt(0)
+  return text || (fallback || '—')
+}
+
+// Lightweight toast notification -- replaces native alert() for save/
+// delete/error feedback, since alert() blocks the whole page.
+function toast(message, type){
+  let stack = document.querySelector('.toast-stack')
+  if(!stack){
+    stack = document.createElement('div')
+    stack.className = 'toast-stack'
+    document.body.appendChild(stack)
+  }
+  const icon = type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'
+  const t = document.createElement('div')
+  t.className = 'toast' + (type === 'error' ? ' toast-error' : '')
+  t.innerHTML = `<i class="fas ${icon}"></i> ${message}`
+  stack.appendChild(t)
+  requestAnimationFrame(()=> t.classList.add('show'))
+  setTimeout(()=>{
+    t.classList.remove('show')
+    setTimeout(()=> t.remove(), 250)
+  }, 3200)
+}
 console.debug('app.js loaded')
 
 // The category dropdown is shared by both views, but People (Contact.tag)
@@ -64,13 +89,18 @@ function renderCard(c){
   div.className = 'card'
   div.tabIndex = 0
   div.innerHTML = `
-    <h3>${c.first_name||''} ${c.last_name||''}</h3>
-    <div class="meta">${c.organization||''} — ${c.title||''}</div>
+    <div class="card-top">
+      <div class="avatar md">${initials(c.first_name, c.last_name)}</div>
+      <div>
+        <h3>${c.first_name||''} ${c.last_name||''}</h3>
+        <div class="meta">${c.organization||''} — ${c.title||''}</div>
+      </div>
+    </div>
     <div class="pills">${(c.lists||[]).slice(0,3).map(p=>`<span class="pill">${p}</span>`).join('')}</div>
     <div class="category">${c.tag||''}</div>
     <div class="card-actions" style="margin-top:8px;display:flex;gap:8px;">
-      <button class="btn btn-sm view-btn">View</button>
-      <button class="btn btn-sm edit-btn">Edit</button>
+      <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button>
+      <button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i> Edit</button>
     </div>
   `
   div.addEventListener('click', (ev)=>{ if(ev.target && (ev.target.classList && (ev.target.classList.contains('view-btn')||ev.target.classList.contains('edit-btn')))){ return } showContactDetail(c) })
@@ -93,13 +123,18 @@ function renderOrgCard(item){
     ? `<div class="org-contacts">${contacts.map(c=>`<div class="org-contact-row" data-id="${c.id}"><span class="pc-name">${c.name||'(no name)'}</span><span class="pc-meta">${c.title? ' — '+c.title : ''}</span></div>`).join('')}</div>`
     : '<div class="muted">No contact on file</div>'
   div.innerHTML = `
-    <h3>${item.organization||''}</h3>
-    <div class="meta">${item.contact_count||0} contact${item.contact_count===1?'':'s'}${item.latest_updated? ' • Updated '+new Date(item.latest_updated+'T00:00:00').toLocaleDateString() : ''}</div>
+    <div class="card-top">
+      <div class="avatar md">${(item.organization||'?').charAt(0).toUpperCase()}</div>
+      <div>
+        <h3>${item.organization||''}</h3>
+        <div class="meta">${item.contact_count||0} contact${item.contact_count===1?'':'s'}${item.latest_updated? ' • Updated '+new Date(item.latest_updated+'T00:00:00').toLocaleDateString() : ''}</div>
+      </div>
+    </div>
     ${contactsHtml}
     ${item.notes ? `<div class="category">${item.notes.replace(/\|\|/g,', ')}</div>` : ''}
     <div class="card-actions" style="margin-top:8px;display:flex;gap:8px;">
-      <button class="btn btn-sm view-btn">View</button>
-      <button class="btn btn-sm add-btn">+ Add Contact</button>
+      <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button>
+      <button class="btn btn-sm add-btn"><i class="fas fa-plus"></i> Add Contact</button>
     </div>
   `
   div.addEventListener('click', (ev)=>{
@@ -140,8 +175,8 @@ async function showContactDetail(contact){
           <div class="detail-flags" style="margin-top:10px;display:flex;gap:8px;align-items:center">
             ${incomplete? '<span class="flag flag-warn">Incomplete</span>' : '<span class="flag flag-ok">Complete</span>'}
             ${hasNotes? '<span class="flag flag-info">Has notes</span>' : ''}
-            <button id="detailEditBtn" class="btn">Edit</button>
-            <a id="detailExport" class="btn" href="/api/export?id=${encodeURIComponent(c.id||'')}">Export</a>
+            <button id="detailEditBtn" class="btn"><i class="fas fa-pen"></i> Edit</button>
+            <a id="detailExport" class="btn" href="/api/export?id=${encodeURIComponent(c.id||'')}"><i class="fas fa-download"></i> Export</a>
           </div>
           ${activitySectionHtml()}
         </div>
@@ -164,13 +199,16 @@ function showOrgDetail(item){
   const contactsHtml = contacts.length
     ? `<div class="detail-row"><strong>Contacts:</strong></div><div class="org-contact-list">${contacts.map(c=>`
         <div class="org-contact-item">
-          <div>
-            <div class="pc-name">${c.name||'(no name)'}</div>
-            <div class="pc-meta">${c.title||''}${c.email? ' • '+c.email : ''}</div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <div class="avatar sm">${c.name ? c.name.split(' ').filter(Boolean).map(s=>s.charAt(0)).slice(0,2).join('') : '—'}</div>
+            <div>
+              <div class="pc-name">${c.name||'(no name)'}</div>
+              <div class="pc-meta">${c.title||''}${c.email? ' • '+c.email : ''}</div>
+            </div>
           </div>
           <div class="org-contact-actions">
-            <button class="btn btn-sm view-person-btn" data-id="${c.id}">View</button>
-            <button class="btn btn-sm edit-person-btn" data-id="${c.id}">Edit</button>
+            <button class="btn btn-sm view-person-btn" data-id="${c.id}"><i class="fas fa-eye"></i> View</button>
+            <button class="btn btn-sm edit-person-btn" data-id="${c.id}"><i class="fas fa-pen"></i> Edit</button>
           </div>
         </div>
       `).join('')}</div>`
@@ -185,7 +223,7 @@ function showOrgDetail(item){
         <div class="detail-notes">${item.notes? `<h4>Notes</h4><div class="notes">${item.notes.replace(/\|\|/g,', ')}</div>` : ''}</div>
         ${contactsHtml}
         <div class="detail-flags" style="margin-top:10px;display:flex;gap:8px;align-items:center">
-          <button id="detailAddContactBtn" class="btn btn-primary">+ Add Contact</button>
+          <button id="detailAddContactBtn" class="btn btn-primary"><i class="fas fa-plus"></i> Add Contact</button>
         </div>
         ${activitySectionHtml()}
       </div>
@@ -220,7 +258,7 @@ function activitySectionHtml(){
         </select>
         <input type="date" class="activity-date" value="${today}">
         <textarea class="activity-summary" rows="2" placeholder="What was discussed / details"></textarea>
-        <button class="btn btn-primary activity-log-btn">Log Outreach</button>
+        <button class="btn btn-primary activity-log-btn"><i class="fas fa-phone"></i> Log Outreach</button>
       </div>
     </div>
   `
@@ -238,7 +276,7 @@ function activityListHtml(activity){
     <div class="activity-item">
       <div class="activity-meta"><strong>${new Date(a.contacted_on+'T00:00:00').toLocaleDateString()}</strong> — ${a.employee_name}${a.channel? ' via '+a.channel : ''}</div>
       <div class="activity-summary">${(a.summary||'').replace(/\n/g,'<br>')}</div>
-      <button class="btn btn-sm activity-delete" data-id="${a.id}">Delete</button>
+      <button class="btn btn-sm activity-delete" data-id="${a.id}"><i class="fas fa-trash"></i> Delete</button>
     </div>
   `).join('')
 }
@@ -277,17 +315,18 @@ function bindActivityForm(container, scopeType, scopeId){
     const summary = container.querySelector('.activity-summary').value.trim()
     const channel = container.querySelector('.activity-channel').value
     const contacted_on = container.querySelector('.activity-date').value
-    if(!summary){ alert('A short summary is required.'); return }
+    if(!summary){ toast('A short summary is required.', 'error'); return }
     try{
       const res = await fetch(activityUrl(scopeType, scopeId), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ summary, channel, contacted_on })
       })
-      if(!res.ok){ alert('Could not log outreach.'); return }
+      if(!res.ok){ toast('Could not log outreach.', 'error'); return }
       container.querySelector('.activity-summary').value = ''
       loadActivitySection(container, scopeType, scopeId)
-    }catch(e){ alert('Could not log outreach.'); console.error(e) }
+      toast('Outreach logged')
+    }catch(e){ toast('Could not log outreach.', 'error'); console.error(e) }
   })
 }
 
@@ -366,7 +405,7 @@ async function openProfile(id, defaults={}){
         <label>County<br><input id="cf_county" value="${c.county||''}" /></label>
         <label>Notes<br><textarea id="cf_notes">${c.notes||''}</textarea></label>
         <div style="margin-top:10px">
-          <button id="saveContactBtn" type="button" class="btn btn-primary">Save</button>
+          <button id="saveContactBtn" type="button" class="btn btn-primary"><i class="fas fa-check"></i> Save</button>
           <button id="closeModalBtn" type="button" class="btn">Close</button>
         </div>
       </form>
@@ -403,7 +442,7 @@ async function saveContact(){
     const j = await res.json()
     if(!res.ok){
       const msg = j.error === 'email exists' ? 'That email is already used by another contact.' : (j.error || 'Save failed')
-      alert(msg)
+      toast(msg, 'error')
       return
     }
     closeModal()
@@ -411,8 +450,8 @@ async function saveContact(){
     state.page = 1
     search()
     if(j && j.id) showContactDetail(j.id)
-    alert('Saved')
-  }catch(e){alert('Save failed'); console.error(e)}
+    toast('Saved')
+  }catch(e){toast('Save failed', 'error'); console.error(e)}
 }
 
 function closeModal(){ const m = el('profileModal'); if(m) m.style.display = 'none' }
@@ -505,10 +544,10 @@ function bindExportMenu(){
     try{
       const res = await fetch('/api/export/emails?' + currentExportParams().toString())
       const j = await res.json()
-      if(!j.emails || j.emails.length === 0){ alert('No emails found for the current filter.'); return }
+      if(!j.emails || j.emails.length === 0){ toast('No emails found for the current filter.', 'error'); return }
       await navigator.clipboard.writeText(j.joined)
-      alert(`Copied ${j.count} email address${j.count===1?'':'es'} to clipboard — paste into BCC.`)
-    }catch(e){ alert('Could not copy emails'); console.error(e) }
+      toast(`Copied ${j.count} email address${j.count===1?'':'es'} to clipboard`)
+    }catch(e){ toast('Could not copy emails', 'error'); console.error(e) }
   })
 
   const csvBtn = el('exportCsvBtn')

@@ -67,11 +67,6 @@ def standard_id(app):
     return _make_user(app, 'standard@test.com', 'Standard Test', 'standardpassword123', False)
 
 
-@pytest.fixture
-def standard2_id(app):
-    return _make_user(app, 'standard2@test.com', 'Standard Two', 'standardpassword123', False)
-
-
 def _login_as(client, user_id):
     with client.session_transaction() as sess:
         sess['_user_id'] = str(user_id)
@@ -79,25 +74,12 @@ def _login_as(client, user_id):
 
 
 @pytest.fixture
-def admin_client(app, admin_id):
-    # Each *_client fixture gets its own app.test_client() rather than
-    # sharing the `client` fixture -- test clients carry session state via
-    # cookies, so two fixtures sharing one client would silently log each
-    # other out whenever a test uses more than one actor at once.
-    c = app.test_client()
-    _login_as(c, admin_id)
-    return c
+def admin_client(client, admin_id):
+    _login_as(client, admin_id)
+    return client
 
 
 @pytest.fixture
-def standard_client(app, standard_id):
-    c = app.test_client()
-    _login_as(c, standard_id)
-    return c
-
-
-@pytest.fixture
-def standard2_client(app, standard2_id):
-    c = app.test_client()
-    _login_as(c, standard2_id)
-    return c
+def standard_client(client, standard_id):
+    _login_as(client, standard_id)
+    return client

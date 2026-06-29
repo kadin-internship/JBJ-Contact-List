@@ -152,13 +152,6 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
     return query
 
 
-def can_edit_contact(contact):
-    """Admins can edit anything. Everyone else can only edit contacts they
-    personally created -- imported/legacy contacts (created_by_id is None)
-    are admin-only, since there's no real owner to attribute them to."""
-    return current_user.is_admin or contact.created_by_id == current_user.id
-
-
 def log_audit(action, entity_type, entity_id=None, entity_label=None, details=None):
     """Records who did what, for the admin-only Audit Log page. Commits on
     its own -- callers should already have committed the actual change, so
@@ -649,8 +642,6 @@ def create_app(config_class=Config):
         total = query.count()
         results = query.order_by(Contact.added.desc()).offset((page - 1) * limit).limit(limit).all()
         contacts = contacts_schema.dump(results)
-        for c_dict, c_obj in zip(contacts, results):
-            c_dict['can_edit'] = can_edit_contact(c_obj)
 
         # Batched per-page lookup of outreach recency, not per-contact --
         # this page has at most `limit` rows, so one extra query here is
@@ -686,15 +677,11 @@ def create_app(config_class=Config):
     @app.route('/api/contacts/<int:contact_id>', methods=['GET'])
     def get_contact(contact_id):
         c = Contact.query.get_or_404(contact_id)
-        data = contact_schema.dump(c)
-        data['can_edit'] = can_edit_contact(c)
-        return jsonify(data)
+        return jsonify(contact_schema.dump(c))
 
     @app.route('/api/contacts/<int:contact_id>', methods=['PUT'])
     def update_contact(contact_id):
         c = Contact.query.get_or_404(contact_id)
-        if not can_edit_contact(c):
-            return jsonify({'error': 'You can only edit contacts you added. Ask an admin to make this change.'}), 403
         data = request.get_json() or {}
         new_email = (data.get('email') or '').strip() or None
         if 'email' in data and new_email and new_email != c.email:
@@ -733,9 +720,7 @@ def create_app(config_class=Config):
         if changes:
             label = f"{c.first_name or ''} {c.last_name or ''}".strip() or c.email or f'#{c.id}'
             log_audit('contact_updated', 'contact', c.id, label, changes)
-        result = contact_schema.dump(c)
-        result['can_edit'] = can_edit_contact(c)
-        return jsonify(result)
+        return jsonify(contact_schema.dump(c))
 
     @app.route('/api/contacts/<int:contact_id>/favorite', methods=['PUT'])
     def toggle_contact_favorite(contact_id):
@@ -787,15 +772,12 @@ def create_app(config_class=Config):
             notes=data.get('notes') or None,
             tag=data.get('tag') or None,
             data_complete=bool(data.get('data_complete')),
-            created_by_id=current_user.id,
         )
         db.session.add(c)
         db.session.commit()
         label = f"{c.first_name or ''} {c.last_name or ''}".strip() or c.email or f'#{c.id}'
         log_audit('contact_created', 'contact', c.id, label)
-        result = contact_schema.dump(c)
-        result['can_edit'] = True
-        return jsonify(result), 201
+        return jsonify(contact_schema.dump(c)), 201
 
     @app.route('/api/contacts/<int:contact_id>/activity', methods=['GET'])
     def list_contact_activity(contact_id):
@@ -973,7 +955,6 @@ def create_app(config_class=Config):
                     'email': c.email or '',
                     'phone_cell': c.phone_cell or '',
                     'phone_office': c.phone_office or '',
-                    'can_edit': can_edit_contact(c),
                 } for c in org_contacts],
                 'notes': org_row.notes or ''
             })

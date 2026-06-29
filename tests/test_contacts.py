@@ -159,64 +159,6 @@ def test_contact_list_includes_last_contacted_and_last_emailed(standard_client):
     assert contact['last_emailed_on'] is not None
 
 
-def test_creator_can_edit_own_contact(standard_client):
-    res = standard_client.post('/api/contacts', json={'first_name': 'Owned', 'last_name': 'ByMe'})
-    assert res.get_json()['can_edit'] is True
-    contact_id = res.get_json()['id']
-
-    res = standard_client.put(f'/api/contacts/{contact_id}', json={'title': 'New Title'})
-    assert res.status_code == 200
-
-
-def test_standard_user_cannot_edit_someone_elses_contact(standard_client, standard2_client):
-    res = standard_client.post('/api/contacts', json={'first_name': 'Mine', 'last_name': 'NotYours'})
-    contact_id = res.get_json()['id']
-
-    res = standard2_client.get(f'/api/contacts/{contact_id}')
-    assert res.get_json()['can_edit'] is False
-
-    res = standard2_client.put(f'/api/contacts/{contact_id}', json={'title': 'Hijacked'})
-    assert res.status_code == 403
-
-
-def test_admin_can_edit_any_contact(standard_client, admin_client):
-    res = standard_client.post('/api/contacts', json={'first_name': 'Created', 'last_name': 'ByStandard'})
-    contact_id = res.get_json()['id']
-
-    res = admin_client.put(f'/api/contacts/{contact_id}', json={'title': 'Admin Edit'})
-    assert res.status_code == 200
-
-
-def test_legacy_contact_with_no_creator_is_admin_only_to_edit(app, standard_client, admin_client):
-    with app.app_context():
-        from models import Contact
-        from db import db
-        c = Contact(first_name='Legacy', last_name='Import')
-        db.session.add(c)
-        db.session.commit()
-        contact_id = c.id
-
-    res = standard_client.get(f'/api/contacts/{contact_id}')
-    assert res.get_json()['can_edit'] is False
-    res = standard_client.put(f'/api/contacts/{contact_id}', json={'title': 'Should fail'})
-    assert res.status_code == 403
-
-    res = admin_client.put(f'/api/contacts/{contact_id}', json={'title': 'Admin fixed it'})
-    assert res.status_code == 200
-
-
-def test_contact_list_includes_can_edit_flag(standard_client, standard2_client):
-    standard_client.post('/api/contacts', json={'first_name': 'ListCanEdit', 'last_name': 'Mine'})
-
-    res = standard_client.get('/api/contacts?q=ListCanEdit')
-    contact = res.get_json()['contacts'][0]
-    assert contact['can_edit'] is True
-
-    res = standard2_client.get('/api/contacts?q=ListCanEdit')
-    contact = res.get_json()['contacts'][0]
-    assert contact['can_edit'] is False
-
-
 def test_contact_list_last_emailed_is_none_when_no_email_logged(standard_client):
     res = standard_client.post('/api/contacts', json={'first_name': 'Called', 'last_name': 'Only'})
     contact_id = res.get_json()['id']

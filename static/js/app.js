@@ -276,7 +276,7 @@ function renderCard(c){
     ${recencyHtml}
     <div class="card-actions" style="margin-top:8px;display:flex;gap:8px;">
       <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button>
-      ${c.can_edit ? '<button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i> Edit</button>' : ''}
+      <button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i> Edit</button>
     </div>
   `
   div.addEventListener('click', (ev)=>{
@@ -370,7 +370,7 @@ async function showContactDetail(contact){
           <div class="detail-flags" style="margin-top:10px;display:flex;gap:8px;align-items:center">
             ${incomplete? '<span class="flag flag-warn">Incomplete</span>' : '<span class="flag flag-ok">Complete</span>'}
             ${hasNotes? '<span class="flag flag-info">Has notes</span>' : ''}
-            ${c.can_edit ? '<button id="detailEditBtn" class="btn"><i class="fas fa-pen"></i> Edit</button>' : ''}
+            <button id="detailEditBtn" class="btn"><i class="fas fa-pen"></i> Edit</button>
             <a id="detailExport" class="btn" href="/api/export?id=${encodeURIComponent(c.id||'')}"><i class="fas fa-download"></i> Export</a>
           </div>
           ${activitySectionHtml()}
@@ -404,7 +404,7 @@ function showOrgDetail(item){
           </div>
           <div class="org-contact-actions">
             <button class="btn btn-sm view-person-btn" data-id="${c.id}"><i class="fas fa-eye"></i> View</button>
-            ${c.can_edit ? `<button class="btn btn-sm edit-person-btn" data-id="${c.id}"><i class="fas fa-pen"></i> Edit</button>` : ''}
+            <button class="btn btn-sm edit-person-btn" data-id="${c.id}"><i class="fas fa-pen"></i> Edit</button>
           </div>
         </div>
       `).join('')}</div>`

@@ -18,4 +18,3 @@ class ContactSchema(Schema):
     notes = fields.Str(allow_none=True)
     data_complete = fields.Bool()
     is_favorite = fields.Bool()
-    created_by_id = fields.Int(dump_only=True, allow_none=True)

@@ -81,6 +81,7 @@
               <option value="60">No Contact in 60+ Days</option>
               <option value="90">No Contact in 90+ Days</option>
             </select>
+            <button id="favoritesOnlyBtn" type="button" class="btn" aria-pressed="false" title="Show only starred contacts"><i class="far fa-star"></i> Favorites</button>
             <button id="searchBtn" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
             <div class="export-wrap">
               <button id="exportMenuBtn" class="btn"><i class="fas fa-download"></i> Export <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
@@ -96,8 +97,10 @@
         </div>
         <div class="search-right">
           <div class="quick-stats" id="quickStats">
-            <div class="stat"><span class="num" id="statTotal">—</span><span class="label">Total</span></div>
-            <div class="stat"><span class="num" id="statIncomplete">—</span><span class="label">Incomplete</span></div>
+            <div class="stat-card stat-neutral"><span class="num" id="statTotal">—</span><span class="label" id="statTotalLabel">Total Contacts</span></div>
+            <div class="stat-card stat-amber"><span class="num" id="statIncomplete">—</span><span class="label" id="statIncompleteLabel">Need Review</span></div>
+            <div class="stat-card stat-blue" id="statOrgsCard"><span class="num" id="statOrgs">—</span><span class="label">Organizations</span></div>
+            <div class="stat-card stat-green" id="statCompleteCard"><span class="num" id="statComplete">—</span><span class="label">% Complete</span></div>
           </div>
         </div>
       </div>

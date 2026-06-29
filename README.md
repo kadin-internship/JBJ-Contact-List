@@ -18,6 +18,13 @@ See `CHANGELOG.md` for a running history of what's changed and why.
 - **"Needs Follow-up" filter** — narrow the People view to contacts never
   contacted, or not contacted in 30/60/90+ days; works with search,
   exports, and Draft Email like any other filter.
+- **Favorites** — star a contact to flag it for the whole team (a shared
+  flag, not personal/per-login); a "Favorites" toggle in the toolbar
+  filters down to just those, same as the other filters.
+- **Outreach recency on cards** — each card in the People view shows how
+  long it's been since the last outreach of any kind, and separately
+  since the last one logged as "Email," without opening the full detail
+  panel.
 - **Analytics dashboard** (admin-only) — outreach trends, breakdowns by
   employee/channel/county, and admin activity, built from the activity
   and audit logs already being collected.
@@ -114,7 +121,10 @@ which. There's no migration framework — `db.create_all()` creates missing
 tables on startup, but it will **not** alter an existing table's columns.
 Schema changes to existing tables (e.g. making a column nullable) need a
 manual migration; see the "email made optional" entry in `CHANGELOG.md`
-for the pattern used.
+for the pattern used, or `scripts/add_favorite_column.py` for a small,
+self-contained example (adds the `is_favorite` column to an existing
+database, safe to run more than once). Run a script like this **before**
+deploying code that depends on the new column.
 
 ## Backup & recovery
 

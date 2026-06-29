@@ -17,3 +17,4 @@ class ContactSchema(Schema):
     county = fields.Str(allow_none=True)
     notes = fields.Str(allow_none=True)
     data_complete = fields.Bool()
+    is_favorite = fields.Bool()

@@ -50,6 +50,7 @@ class Contact(db.Model):
     county = db.Column(db.String(128), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     data_complete = db.Column(db.Boolean, default=False, nullable=False)
+    is_favorite = db.Column(db.Boolean, default=False, nullable=False, index=True)
 
     __table_args__ = (
         Index('ix_contacts_name', 'first_name', 'last_name'),
@@ -72,6 +73,7 @@ class Contact(db.Model):
             'county': self.county,
             'notes': self.notes,
             'data_complete': bool(self.data_complete),
+            'is_favorite': bool(self.is_favorite),
         }
 
 

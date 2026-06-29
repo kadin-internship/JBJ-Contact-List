@@ -7,12 +7,65 @@ const API = {
   counties: '/api/counties',
 }
 
-let state = { page: 1, limit: 25, q: '', tags: [], counties: [], followup: '', total: 0, view: 'people' }
+let state = { page: 1, limit: 25, q: '', tags: [], counties: [], followup: '', favoritesOnly: false, total: 0, view: 'people', selectedKey: null }
+
+// Clicking a card a second time hides the detail panel instead of leaving
+// it open forever -- this is also what drives the "selected card" highlight
+// (Gmail-style) since both need to track which card is currently open.
+function selectCard(key, cardEl, openFn){
+  const panel = el('contactDetail')
+  if(state.selectedKey === key){
+    state.selectedKey = null
+    if(panel) panel.style.display = 'none'
+    document.querySelectorAll('.card.selected').forEach(c=>c.classList.remove('selected'))
+    return
+  }
+  state.selectedKey = key
+  document.querySelectorAll('.card.selected').forEach(c=>c.classList.remove('selected'))
+  if(cardEl) cardEl.classList.add('selected')
+  openFn()
+}
 
 function el(id){return document.getElementById(id)}
 function initials(first, last, fallback){
   const text = (first||'').charAt(0) + (last||'').charAt(0)
   return text || (fallback || '—')
+}
+
+// Deterministic, varied colors for tag/list pills -- same label always
+// gets the same color, so they stay easy to visually scan/group by, and
+// it spreads the page's color use out instead of everything being a
+// shade of brand red.
+const TAG_PALETTE = [
+  {bg:'#E3EDF7', text:'#1F4E79'},
+  {bg:'#E0F2F1', text:'#00695C'},
+  {bg:'#F1E9F9', text:'#6A3D9A'},
+  {bg:'#FDF1DC', text:'#8A5A00'},
+  {bg:'#E6F4EA', text:'#1E7B34'},
+  {bg:'#E8EAED', text:'#3D4041'},
+  {bg:'#FBE7E7', text:'#9B3B3C'},
+  {bg:'#E8EAF6', text:'#303F9F'},
+]
+function tagColor(label){
+  const s = String(label||'')
+  let hash = 0
+  for(let i=0;i<s.length;i++){ hash = (hash * 31 + s.charCodeAt(i)) >>> 0 }
+  return TAG_PALETTE[hash % TAG_PALETTE.length]
+}
+function pillHtml(label, extraClass){
+  const c = tagColor(label)
+  return `<span class="pill${extraClass? ' '+extraClass : ''}" style="background:${c.bg};color:${c.text}">${label}</span>`
+}
+
+// "3d ago" / "Today" -- compact, for card-level outreach indicators where
+// a full date+name (like the detail panel's badge) would be too much text.
+function relativeDays(dateStr){
+  if(!dateStr) return null
+  const then = new Date(dateStr + 'T00:00:00')
+  const days = Math.round((new Date().setHours(0,0,0,0) - then.getTime()) / 86400000)
+  if(days <= 0) return 'Today'
+  if(days === 1) return '1 day ago'
+  return `${days} days ago`
 }
 
 // Lightweight toast notification -- replaces native alert() for save/
@@ -170,8 +223,14 @@ async function fetchStats(){
   try{
     const res = await fetch(API.stats)
     const json = await res.json()
-    el('statTotal').textContent = json.total ?? '0'
-    if(el('statIncomplete')) el('statIncomplete').textContent = json.incomplete ?? '0'
+    if(el('statTotalLabel')) el('statTotalLabel').textContent = 'Total Contacts'
+    if(el('statIncompleteLabel')) el('statIncompleteLabel').textContent = 'Need Review'
+    el('statTotal').textContent = (json.total ?? 0).toLocaleString()
+    if(el('statIncomplete')) el('statIncomplete').textContent = (json.incomplete ?? 0).toLocaleString()
+    if(el('statOrgsCard')) el('statOrgsCard').style.display = ''
+    if(el('statCompleteCard')) el('statCompleteCard').style.display = ''
+    if(el('statOrgs')) el('statOrgs').textContent = (json.organizations ?? 0).toLocaleString()
+    if(el('statComplete')) el('statComplete').textContent = (json.complete_pct ?? 0) + '%'
   }catch(e){console.warn(e)}
 }
 
@@ -179,36 +238,73 @@ async function fetchSectionStats(){
   try{
     const res = await fetch('/api/section-stats')
     const json = await res.json()
-    el('statTotal').textContent = json.total ?? '0'
-    if(el('statIncomplete')) el('statIncomplete').textContent = json.no_contact ?? '0'
+    if(el('statTotalLabel')) el('statTotalLabel').textContent = 'Total Organizations'
+    if(el('statIncompleteLabel')) el('statIncompleteLabel').textContent = 'No Contact on File'
+    el('statTotal').textContent = (json.total ?? 0).toLocaleString()
+    if(el('statIncomplete')) el('statIncomplete').textContent = (json.no_contact ?? 0).toLocaleString()
+    if(el('statOrgsCard')) el('statOrgsCard').style.display = 'none'
+    if(el('statCompleteCard')) el('statCompleteCard').style.display = 'none'
   }catch(e){console.warn(e)}
 }
 
 function renderCard(c){
   const div = document.createElement('div')
-  div.className = 'card'
+  const key = 'contact:'+c.id
+  div.className = 'card' + (state.selectedKey === key ? ' selected' : '')
   div.tabIndex = 0
+
+  const recencyBits = []
+  const lastContacted = relativeDays(c.last_contacted_on)
+  const lastEmailed = relativeDays(c.last_emailed_on)
+  if(lastContacted) recencyBits.push(`<i class="fas fa-comment-dots"></i> Last contact: ${lastContacted}`)
+  if(lastEmailed) recencyBits.push(`<i class="fas fa-envelope"></i> Last email: ${lastEmailed}`)
+  const recencyHtml = recencyBits.length ? `<div class="card-recency">${recencyBits.join(' &nbsp;•&nbsp; ')}</div>` : ''
+
   div.innerHTML = `
     <div class="card-top">
       <div class="avatar md">${initials(c.first_name, c.last_name)}</div>
-      <div>
+      <div style="flex:1;min-width:0">
         <h3>${c.first_name||''} ${c.last_name||''}</h3>
         <div class="meta">${c.organization||''} — ${c.title||''}</div>
       </div>
+      <button class="favorite-btn${c.is_favorite? ' is-favorite':''}" title="${c.is_favorite? 'Unstar' : 'Star this contact'}" aria-pressed="${c.is_favorite? 'true':'false'}">
+        <i class="${c.is_favorite? 'fas':'far'} fa-star"></i>
+      </button>
     </div>
-    <div class="pills">${(c.lists||[]).slice(0,3).map(p=>`<span class="pill">${p}</span>`).join('')}</div>
-    <div class="category">${c.tag||''}</div>
+    <div class="pills">${(c.lists||[]).slice(0,3).map(p=>pillHtml(p)).join('')}</div>
+    ${c.tag ? `<div class="category">${pillHtml(c.tag)}</div>` : ''}
+    ${recencyHtml}
     <div class="card-actions" style="margin-top:8px;display:flex;gap:8px;">
       <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button>
       <button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i> Edit</button>
     </div>
   `
-  div.addEventListener('click', (ev)=>{ if(ev.target && (ev.target.classList && (ev.target.classList.contains('view-btn')||ev.target.classList.contains('edit-btn')))){ return } showContactDetail(c) })
-  const viewBtn = div.querySelector('.view-btn')
-  if(viewBtn) viewBtn.addEventListener('click', (e)=>{ e.stopPropagation(); showContactDetail(c) })
+  div.addEventListener('click', (ev)=>{
+    if(ev.target && ev.target.closest('.edit-btn, .favorite-btn')) return
+    selectCard(key, div, ()=> showContactDetail(c))
+  })
   const editBtn = div.querySelector('.edit-btn')
   if(editBtn) editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openProfile(c.id) })
+  const favoriteBtn = div.querySelector('.favorite-btn')
+  if(favoriteBtn) favoriteBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleFavorite(c, favoriteBtn) })
   return div
+}
+
+async function toggleFavorite(c, btnEl){
+  const next = !c.is_favorite
+  try{
+    const res = await fetch(`/api/contacts/${c.id}/favorite`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({is_favorite: next})
+    })
+    if(!res.ok){ toast('Could not update favorite.', 'error'); return }
+    c.is_favorite = next
+    btnEl.classList.toggle('is-favorite', next)
+    btnEl.querySelector('i').className = next ? 'fas fa-star' : 'far fa-star'
+    btnEl.title = next ? 'Unstar' : 'Star this contact'
+    btnEl.setAttribute('aria-pressed', next ? 'true' : 'false')
+    const card = btnEl.closest('.card')
+    if(state.favoritesOnly && !next && card) card.remove()
+  }catch(e){ toast('Could not reach the server.', 'error'); console.error(e) }
 }
 
 // Organizations view card -- lists every contact at the organization (not
@@ -216,7 +312,8 @@ function renderCard(c){
 // should show up together.
 function renderOrgCard(item){
   const div = document.createElement('div')
-  div.className = 'card'
+  const key = 'org:'+item.organization
+  div.className = 'card' + (state.selectedKey === key ? ' selected' : '')
   div.tabIndex = 0
   const contacts = item.contacts || []
   const contactsHtml = contacts.length
@@ -239,12 +336,10 @@ function renderOrgCard(item){
   `
   div.addEventListener('click', (ev)=>{
     const row = ev.target.closest('.org-contact-row')
-    if(row){ ev.stopPropagation(); showContactDetail(parseInt(row.dataset.id,10)); return }
-    if(ev.target && ev.target.classList && (ev.target.classList.contains('view-btn')||ev.target.classList.contains('add-btn'))){ return }
-    showOrgDetail(item)
+    if(row){ ev.stopPropagation(); selectCard('contact:'+row.dataset.id, null, ()=> showContactDetail(parseInt(row.dataset.id,10))); return }
+    if(ev.target && ev.target.closest('.add-btn')) return
+    selectCard(key, div, ()=> showOrgDetail(item))
   })
-  const viewBtn = div.querySelector('.view-btn')
-  if(viewBtn) viewBtn.addEventListener('click', (e)=>{ e.stopPropagation(); showOrgDetail(item) })
   const addBtn = div.querySelector('.add-btn')
   if(addBtn) addBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openProfile(null, {organization: item.organization, tag: item.tag||''}) })
   return div
@@ -265,12 +360,12 @@ async function showContactDetail(contact){
       <div class="detail-card">
         <div class="detail-photo photo-placeholder">${(c.first_name||c.last_name)? (c.first_name||'').charAt(0) + (c.last_name||'').charAt(0) : '—'}</div>
         <div class="detail-main">
-          <h2>${(c.first_name||'') + ' ' + (c.last_name||'')}</h2>
+          <h2>${(c.first_name||'') + ' ' + (c.last_name||'')} <button id="detailFavoriteBtn" class="favorite-btn${c.is_favorite? ' is-favorite':''}" title="${c.is_favorite? 'Unstar' : 'Star this contact'}" aria-pressed="${c.is_favorite? 'true':'false'}"><i class="${c.is_favorite? 'fas':'far'} fa-star"></i></button></h2>
           <div class="detail-sub">${c.title||''} ${c.organization? ' • '+c.organization : ''}</div>
           <div class="detail-row"><strong>Email:</strong> ${c.email? `<a href="mailto:${c.email}">${c.email}</a>` : '<span class="muted">No email</span>'}</div>
           <div class="detail-row"><strong>Phone:</strong> ${c.phone_office? `<a href="tel:${c.phone_office}">${c.phone_office}</a>` : (c.phone_cell? `<a href="tel:${c.phone_cell}">${c.phone_cell}</a>` : '<span class="muted">No phone</span>')}</div>
           <div class="detail-row"><strong>County:</strong> ${c.county || '<span class="muted">Unknown</span>'}</div>
-          <div class="detail-row"><strong>Tags:</strong> ${(c.lists||[]).map(x=>`<span class="pill small">${x}</span>`).join(' ') } ${c.tag? `<span class="pill small">${c.tag}</span>`: ''}</div>
+          <div class="detail-row"><strong>Tags:</strong> ${(c.lists||[]).map(x=>pillHtml(x,'small')).join(' ') } ${c.tag? pillHtml(c.tag,'small'): ''}</div>
           <div class="detail-notes">${hasNotes? `<h4>Notes</h4><div class="notes">${(c.notes||'').replace(/\n/g,'<br>')}</div>` : ''}</div>
           <div class="detail-flags" style="margin-top:10px;display:flex;gap:8px;align-items:center">
             ${incomplete? '<span class="flag flag-warn">Incomplete</span>' : '<span class="flag flag-ok">Complete</span>'}
@@ -284,6 +379,7 @@ async function showContactDetail(contact){
     `
     panel.style.display = ''
     const edit = el('detailEditBtn'); if(edit) edit.addEventListener('click', ()=> openProfile(c.id))
+    const favBtn = el('detailFavoriteBtn'); if(favBtn) favBtn.addEventListener('click', ()=> toggleFavorite(c, favBtn))
     const activityContainer = panel.querySelector('.activity-section')
     loadActivitySection(activityContainer, 'contact', c.id)
     bindActivityForm(activityContainer, 'contact', c.id)
@@ -443,6 +539,7 @@ async function search(){
   if(state.tags.length) params.set('tag', state.tags.join(','))
   if(state.counties.length) params.set('county', state.counties.join(','))
   if(state.view !== 'organizations' && state.followup) params.set('followup', state.followup)
+  if(state.view !== 'organizations' && state.favoritesOnly) params.set('favorites_only', '1')
   try{
     if(state.view === 'organizations'){
       const res = await fetch(API.sections + '?' + params.toString())
@@ -587,6 +684,8 @@ function switchView(view, userInitiated){
   // filter doesn't apply (but isn't reset) when browsing Organizations.
   const followupFilter = el('followupFilter')
   if(followupFilter) followupFilter.disabled = (view === 'organizations')
+  const favoritesOnlyBtn = el('favoritesOnlyBtn')
+  if(favoritesOnlyBtn) favoritesOnlyBtn.disabled = (view === 'organizations')
   const si = el('searchInput')
   if(si) si.placeholder = view === 'people'
     ? 'Search by Name, Organization, Title, or Email...'
@@ -610,6 +709,16 @@ function bind(){
   const followupFilter = el('followupFilter')
   if(followupFilter) followupFilter.addEventListener('change', ()=>{
     state.followup = followupFilter.value
+    state.page = 1
+    search()
+  })
+
+  const favoritesOnlyBtn = el('favoritesOnlyBtn')
+  if(favoritesOnlyBtn) favoritesOnlyBtn.addEventListener('click', ()=>{
+    state.favoritesOnly = !state.favoritesOnly
+    favoritesOnlyBtn.classList.toggle('btn-primary', state.favoritesOnly)
+    favoritesOnlyBtn.setAttribute('aria-pressed', state.favoritesOnly ? 'true' : 'false')
+    favoritesOnlyBtn.querySelector('i').className = state.favoritesOnly ? 'fas fa-star' : 'far fa-star'
     state.page = 1
     search()
   })
@@ -651,6 +760,7 @@ function currentExportParams(){
   }
   if(state.counties.length) params.set('county', state.counties.join(','))
   if(state.view !== 'organizations' && state.followup) params.set('followup', state.followup)
+  if(state.view !== 'organizations' && state.favoritesOnly) params.set('favorites_only', '1')
   return params
 }
 
@@ -707,6 +817,7 @@ function bindDraftEmail(){
     if(state.view !== 'organizations' && state.followup){
       parts.push(state.followup === 'never' ? 'never contacted' : `no contact in ${state.followup}+ days`)
     }
+    if(state.view !== 'organizations' && state.favoritesOnly) parts.push('favorites only')
     el('draftEmailAudience').textContent = parts.length
       ? 'Drafting for the current filter: ' + parts.join(', ')
       : 'Drafting for all contacts (no filter applied).'
@@ -744,6 +855,7 @@ function bindDraftEmail(){
           tag: state.view === 'organizations' ? undefined : state.tags.join(','),
           org_tag: state.view === 'organizations' ? state.tags.join(',') : undefined,
           followup: state.view === 'organizations' ? undefined : (state.followup || undefined),
+          favorites_only: state.view === 'organizations' ? undefined : (state.favoritesOnly || undefined),
         })
       })
       const j = await res.json()

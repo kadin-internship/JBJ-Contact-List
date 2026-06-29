@@ -6,6 +6,47 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-29 — UI feedback round: card design, favorites, colorful tags, outreach recency
+
+Manager collected feedback from the team on the look and feel of the
+Contact Hub. Addressed all of it:
+
+- **Click to close** — clicking a card a second time now closes the
+  detail panel instead of leaving it open with no way to dismiss it.
+- **Obvious selection** — the selected card gets a thicker maroon
+  border, a light pink tint, and a subtle shadow (Gmail-style), so it's
+  clear at a glance which one is open.
+- **Less red overall** — avatars, the detail panel's photo circle, the
+  per-card top accent, and several headings moved from brand maroon to
+  neutral charcoal/black; maroon is now reserved for primary actions,
+  the header, and the new selected-card highlight, instead of being on
+  every repeated element on the page. Added three new functional accent
+  colors (amber/blue/green) for status, used sparingly on the stat cards
+  and the "incomplete" flag.
+- **More breathing room** — increased the gap between cards and the
+  padding inside each one; the team felt the grid was cramped.
+- **Dashboard-style stats** — "14007 Total / 14005 Incomplete" became
+  four labeled cards: Total Contacts, Need Review, Organizations, %
+  Complete (backed by a small `/api/stats` addition for the org count
+  and completeness percentage).
+- **Colorful tags** — every tag/category pill now gets one of eight
+  fixed colors based on a hash of its own text, so the same tag is
+  always the same color and they're easier to tell apart at a glance,
+  instead of every pill being the same shade of red.
+- **Favorites** — a shared, team-wide star (not personal/per-login,
+  since nothing else in the app is per-user yet) on every contact card
+  and in the detail panel, plus a "Favorites" toggle in the toolbar that
+  filters down to just those -- works everywhere the other filters do
+  (search, exports, Draft Email). New `Contact.is_favorite` column;
+  since `db.create_all()` doesn't alter existing tables, this needed a
+  small one-off migration script (`scripts/add_favorite_column.py`) run
+  against the database before deploying.
+- **Outreach recency on cards** — each card now shows how long it's
+  been since the last outreach (any channel) and, separately, since the
+  last one logged as "Email" -- without opening the detail panel. Computed
+  with one batched query per page of results (not per contact), so it
+  doesn't add load even with 14,000+ contacts.
+
 ## 2026-06-29 — Security/reliability hardening: rate limiting, password reset, error monitoring, duplicate detection, automated tests
 
 A batch of "make it stronger" fixes:

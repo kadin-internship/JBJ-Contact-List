@@ -85,7 +85,7 @@ def county_filter_clause(counties):
     return or_(*clauses)
 
 
-def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None, followup=None):
+def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None, followup=None, favorites_only=False):
     """Shared filter logic for /api/contacts and the export endpoints, so
     exports always match what's currently shown on screen.
 
@@ -147,6 +147,8 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
                     last_contacted.c.last_contacted.is_(None),
                     last_contacted.c.last_contacted < cutoff,
                 ))
+    if favorites_only:
+        query = query.filter(Contact.is_favorite == True)
     return query
 
 
@@ -609,18 +611,45 @@ def create_app(config_class=Config):
         tag = parse_multi_param('tag')
         county = parse_multi_param('county')
         followup = request.args.get('followup', type=str)
+        favorites_only = request.args.get('favorites_only', type=str) in ('1', 'true', 'True')
         page = request.args.get('page', default=1, type=int)
         limit = request.args.get('limit', default=25, type=int)
 
-        query = filtered_contacts_query(q=q, tag=tag, county=county, followup=followup)
+        query = filtered_contacts_query(q=q, tag=tag, county=county, followup=followup, favorites_only=favorites_only)
 
         total = query.count()
         results = query.order_by(Contact.added.desc()).offset((page - 1) * limit).limit(limit).all()
+        contacts = contacts_schema.dump(results)
+
+        # Batched per-page lookup of outreach recency, not per-contact --
+        # this page has at most `limit` rows, so one extra query here is
+        # cheap regardless of how many contacts exist in total.
+        contact_ids = [c.id for c in results]
+        if contact_ids:
+            rows = (
+                db.session.query(Activity.contact_id, Activity.channel, func.max(Activity.contacted_on))
+                .filter(Activity.contact_id.in_(contact_ids))
+                .group_by(Activity.contact_id, Activity.channel)
+                .all()
+            )
+            last_contacted = {}
+            last_emailed = {}
+            for cid, channel, latest in rows:
+                if latest and (cid not in last_contacted or latest > last_contacted[cid]):
+                    last_contacted[cid] = latest
+                if channel == 'Email' and latest and (cid not in last_emailed or latest > last_emailed[cid]):
+                    last_emailed[cid] = latest
+            for c in contacts:
+                lc = last_contacted.get(c['id'])
+                le = last_emailed.get(c['id'])
+                c['last_contacted_on'] = lc.isoformat() if lc else None
+                c['last_emailed_on'] = le.isoformat() if le else None
+
         return jsonify({
             'page': page,
             'limit': limit,
             'total': total,
-            'contacts': contacts_schema.dump(results)
+            'contacts': contacts
         })
 
     @app.route('/api/contacts/<int:contact_id>', methods=['GET'])
@@ -670,6 +699,17 @@ def create_app(config_class=Config):
             label = f"{c.first_name or ''} {c.last_name or ''}".strip() or c.email or f'#{c.id}'
             log_audit('contact_updated', 'contact', c.id, label, changes)
         return jsonify(contact_schema.dump(c))
+
+    @app.route('/api/contacts/<int:contact_id>/favorite', methods=['PUT'])
+    def toggle_contact_favorite(contact_id):
+        # Deliberately not run through update_contact()'s change-diffing --
+        # starring something is a personal/team organizing action, not a
+        # data edit worth cluttering the Audit Log over.
+        c = Contact.query.get_or_404(contact_id)
+        data = request.get_json(silent=True) or {}
+        c.is_favorite = bool(data.get('is_favorite'))
+        db.session.commit()
+        return jsonify({'id': c.id, 'is_favorite': c.is_favorite})
 
     @app.route('/api/contacts', methods=['POST'])
     def create_contact():
@@ -778,11 +818,15 @@ def create_app(config_class=Config):
     def stats():
         total = Contact.query.count()
         incomplete = Contact.query.filter(Contact.data_complete == False).count()
+        organizations = OutreachOrg.query.count()
+        complete_pct = round(100 * (total - incomplete) / total) if total else 0
         per_tag = db.session.query(Contact.tag, func.count(Contact.id)).group_by(Contact.tag).all()
         per_county = db.session.query(Contact.county, func.count(Contact.id)).group_by(Contact.county).all()
         return jsonify({
             'total': total,
             'incomplete': incomplete,
+            'organizations': organizations,
+            'complete_pct': complete_pct,
             'by_tag': {k if k else '': v for k, v in per_tag},
             'by_county': {k if k else '': v for k, v in per_county}
         })
@@ -952,8 +996,9 @@ def create_app(config_class=Config):
         org_tag = parse_multi_param('org_tag')
         county = parse_multi_param('county')
         followup = request.args.get('followup', type=str)
+        favorites_only = request.args.get('favorites_only', type=str) in ('1', 'true', 'True')
         contact_id = request.args.get('id', type=int)
-        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, contact_id=contact_id, followup=followup).order_by(Contact.added.desc()).all()
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, contact_id=contact_id, followup=followup, favorites_only=favorites_only).order_by(Contact.added.desc()).all()
 
         # stream CSV
         si = io.StringIO()
@@ -978,7 +1023,8 @@ def create_app(config_class=Config):
         org_tag = parse_multi_param('org_tag')
         county = parse_multi_param('county')
         followup = request.args.get('followup', type=str)
-        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, followup=followup).all()
+        favorites_only = request.args.get('favorites_only', type=str) in ('1', 'true', 'True')
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, followup=followup, favorites_only=favorites_only).all()
 
         emails = []
         seen = set()
@@ -1003,7 +1049,8 @@ def create_app(config_class=Config):
         org_tag = parse_multi_param('org_tag')
         county = parse_multi_param('county')
         followup = request.args.get('followup', type=str)
-        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, followup=followup).order_by(Contact.organization, Contact.last_name).all()
+        favorites_only = request.args.get('favorites_only', type=str) in ('1', 'true', 'True')
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, followup=followup, favorites_only=favorites_only).order_by(Contact.organization, Contact.last_name).all()
 
         doc = Document()
         title = ', '.join(tag) if tag else (', '.join(org_tag) if org_tag else 'Contacts')
@@ -1047,7 +1094,8 @@ def create_app(config_class=Config):
         org_tag = data.get('org_tag')
         county = data.get('county')
         followup = data.get('followup')
-        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, followup=followup).all()
+        favorites_only = bool(data.get('favorites_only'))
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, followup=followup, favorites_only=favorites_only).all()
         orgs = sorted({r.organization for r in rows if r.organization})
 
         context_lines = [f"{len(rows)} recipient(s) in this group."]

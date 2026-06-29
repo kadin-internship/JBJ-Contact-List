@@ -6,6 +6,15 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-29 — Click-to-drill-down on the Analytics dashboard
+
+The Analytics dashboard's breakdowns (by employee, by channel, by
+county) and the weekly trend chart were summary-only -- a manager could
+see *that* 12 outreach touches happened, but not which ones. Every bar
+is now clickable and opens the actual outreach entries behind that
+number: who logged it, which contact (name + email) or organization it
+was about, the channel, the date, and the summary.
+
 ## 2026-06-29 — Analytics dashboard, and "needs follow-up" filter
 
 Two manager-facing additions:

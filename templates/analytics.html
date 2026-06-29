@@ -35,13 +35,13 @@
       {% if weekly_trend|sum(attribute='count') %}
       <div class="weekly-chart">
         {% for w in weekly_trend %}
-        <div class="week-col">
+        <div class="week-col{% if w.count %} bar-row-clickable{% endif %}" {% if w.count %}data-week-start="{{ w.week_start }}" data-week-end="{{ w.week_end }}" title="Click to see who/what"{% endif %}>
           <div class="week-bar-track"><div class="week-bar" style="height:{{ w.pct }}%" title="{{ w.count }} logged"></div></div>
           <span class="week-count">{{ w.count }}</span>
         </div>
         {% endfor %}
       </div>
-      <p class="muted" style="margin-top:6px">Oldest week on the left, most recent on the right.</p>
+      <p class="muted" style="margin-top:6px">Oldest week on the left, most recent on the right. Click a bar to see who logged what.</p>
       {% else %}
       <p class="muted">No outreach logged in the last 12 weeks.</p>
       {% endif %}
@@ -53,7 +53,7 @@
         {% if by_employee %}
         <div class="bar-list">
           {% for row in by_employee %}
-          <div class="bar-row">
+          <div class="bar-row bar-row-clickable" data-employee="{{ row.label }}" title="Click to see these entries">
             <span class="bar-label">{{ row.label or 'Unknown' }}</span>
             <div class="bar-track"><div class="bar-fill" style="width:{{ row.pct }}%"></div></div>
             <span class="bar-count">{{ row.count }}</span>
@@ -70,7 +70,7 @@
         {% if by_channel %}
         <div class="bar-list">
           {% for row in by_channel %}
-          <div class="bar-row">
+          <div class="bar-row bar-row-clickable" data-channel="{{ row.label }}" title="Click to see these entries">
             <span class="bar-label">{{ row.label }}</span>
             <div class="bar-track"><div class="bar-fill" style="width:{{ row.pct }}%"></div></div>
             <span class="bar-count">{{ row.count }}</span>
@@ -87,7 +87,7 @@
         {% if by_county %}
         <div class="bar-list">
           {% for row in by_county %}
-          <div class="bar-row">
+          <div class="bar-row bar-row-clickable" data-county="{{ row.label }}" title="Click to see these entries">
             <span class="bar-label">{{ row.label }}</span>
             <div class="bar-track"><div class="bar-fill" style="width:{{ row.pct }}%"></div></div>
             <span class="bar-count">{{ row.count }}</span>
@@ -117,5 +117,53 @@
       </section>
     </div>
   </main>
+
+  <div id="detailModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle">
+      <button id="closeDetailModal" class="close">×</button>
+      <h3 id="detailModalTitle">Outreach details</h3>
+      <div id="detailModalBody" class="activity-list">Loading…</div>
+    </div>
+  </div>
+
+  <script>
+    function el(id){ return document.getElementById(id) }
+
+    async function showDetail(title, params){
+      const modal = el('detailModal')
+      const body = el('detailModalBody')
+      el('detailModalTitle').textContent = title
+      body.innerHTML = 'Loading…'
+      modal.style.display = ''
+      try{
+        const res = await fetch('/api/analytics/activities?' + new URLSearchParams(params).toString())
+        const j = await res.json()
+        if(!res.ok){ body.innerHTML = '<p class="muted">' + (j.error || 'Could not load details.') + '</p>'; return }
+        if(!j.activities.length){ body.innerHTML = '<p class="muted">No matching outreach entries.</p>'; return }
+        body.innerHTML = j.activities.map(a => `
+          <div class="activity-item">
+            <div class="activity-meta"><strong>${a.contacted_on || 'No date'}</strong> — ${a.employee_name}${a.channel ? ' via ' + a.channel : ''}</div>
+            <div class="activity-summary">${a.contact_name || a.organization || 'Unknown contact'}${a.contact_email ? ' (' + a.contact_email + ')' : ''}${a.summary ? ' — ' + a.summary : ''}</div>
+          </div>
+        `).join('')
+      }catch(e){
+        body.innerHTML = '<p class="muted">Could not reach the server.</p>'
+      }
+    }
+
+    document.querySelectorAll('.bar-row[data-employee]').forEach(row=>{
+      row.addEventListener('click', ()=> showDetail('Outreach by ' + row.dataset.employee, {employee: row.dataset.employee}))
+    })
+    document.querySelectorAll('.bar-row[data-channel]').forEach(row=>{
+      row.addEventListener('click', ()=> showDetail('Outreach via ' + row.dataset.channel, {channel: row.dataset.channel}))
+    })
+    document.querySelectorAll('.bar-row[data-county]').forEach(row=>{
+      row.addEventListener('click', ()=> showDetail('Outreach in ' + row.dataset.county, {county: row.dataset.county}))
+    })
+    document.querySelectorAll('.week-col[data-week-start]').forEach(col=>{
+      col.addEventListener('click', ()=> showDetail('Outreach: week of ' + col.dataset.weekStart, {week_start: col.dataset.weekStart, week_end: col.dataset.weekEnd}))
+    })
+    el('closeDetailModal').addEventListener('click', ()=>{ el('detailModal').style.display = 'none' })
+  </script>
 </body>
 </html>

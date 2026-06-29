@@ -414,7 +414,17 @@ def create_app(config_class=Config):
             if 0 <= idx < weeks_back:
                 week_counts[idx] += 1
         max_week = max(week_counts) if week_counts else 0
-        weekly_trend = [{'count': c, 'pct': round(100 * c / max_week) if max_week else 0} for c in week_counts]
+        weekly_trend = []
+        for idx, c in enumerate(week_counts):
+            weeks_ago = weeks_back - 1 - idx
+            week_end = today - timedelta(days=weeks_ago * 7)
+            week_start = week_end - timedelta(days=6)
+            weekly_trend.append({
+                'count': c,
+                'pct': round(100 * c / max_week) if max_week else 0,
+                'week_start': week_start.isoformat(),
+                'week_end': week_end.isoformat(),
+            })
 
         by_employee = ranked(
             db.session.query(Activity.employee_name, func.count(Activity.id))
@@ -470,6 +480,50 @@ def create_app(config_class=Config):
             by_county=by_county,
             by_action=by_action,
         )
+
+    @app.route('/api/analytics/activities', methods=['GET'])
+    def analytics_activities():
+        """Backs the click-to-drill-down on the Analytics dashboard --
+        given one of the breakdown dimensions (employee/channel/county) or a
+        week range from the trend chart, returns the actual outreach entries
+        behind that number, including who the contact was."""
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+
+        employee = request.args.get('employee', type=str)
+        channel = request.args.get('channel', type=str)
+        county = request.args.get('county', type=str)
+        week_start = request.args.get('week_start', type=str)
+        week_end = request.args.get('week_end', type=str)
+
+        query = Activity.query.options(db.joinedload(Activity.contact))
+        if employee:
+            query = query.filter(Activity.employee_name == employee)
+        if channel:
+            if channel == 'Unspecified':
+                query = query.filter(or_(Activity.channel.is_(None), Activity.channel == ''))
+            else:
+                query = query.filter(Activity.channel == channel)
+        if county:
+            query = query.join(Contact, Activity.contact_id == Contact.id).filter(Contact.county.ilike(f'%{county}%'))
+        if week_start and week_end:
+            query = query.filter(Activity.contacted_on >= week_start, Activity.contacted_on <= week_end)
+
+        rows = query.order_by(Activity.contacted_on.desc()).limit(200).all()
+        activities = []
+        for a in rows:
+            contact = a.contact
+            contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() if contact else ''
+            activities.append({
+                'employee_name': a.employee_name,
+                'channel': a.channel,
+                'contacted_on': a.contacted_on.isoformat() if a.contacted_on else None,
+                'summary': a.summary,
+                'contact_name': contact_name or None,
+                'contact_email': contact.email if contact else None,
+                'organization': a.organization or (contact.organization if contact else None),
+            })
+        return jsonify({'count': len(activities), 'activities': activities})
 
     @app.route('/api/users', methods=['POST'])
     def create_user_api():

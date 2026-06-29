@@ -7,7 +7,14 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT
+    # Gunicorn defaults to a single sync worker, which handles one request
+    # at a time -- fine for one person testing, but it queues up and stalls
+    # under real concurrent traffic regardless of how big the paid plan is.
+    # --workers 5 --threads 4 gives 20 requests' worth of headroom (most of
+    # this app's work is waiting on the database or the Anthropic API, which
+    # threads handle well); see docs/scaling-and-costs.md for the reasoning
+    # and the instance-size tradeoffs.
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 5 --threads 4 --worker-class gthread --timeout 60
     healthCheckPath: /login
     envVars:
       # Free Render web services don't get a persistent disk, so the

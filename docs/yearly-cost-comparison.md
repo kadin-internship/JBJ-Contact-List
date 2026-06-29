@@ -25,12 +25,39 @@ This is the core decision — how much breathing room to pay for. The
 **Free** row is included to show why it isn't a real option for daily
 office use, not because it's a recommendation.
 
-| Option | What you get | Render | Database | **Monthly** | **Yearly** |
+| Option | Render plan | Database plan | What you get | **Monthly** | **Yearly** |
 |---|---|---|---|---|---|
-| ❌ Free | Falls asleep after 15 minutes of no one using it, and takes up to a minute to "wake up" on the next visit. Runs out of included database usage within days of real office use. **Not usable for a daily-use office app.** | $0 | $0 | **$0** | **$0** |
-| 💰 Cheapest workable | Always-on, no waking-up delay. Handles a full office's daily use, with less room to grow before needing to upgrade again. | $25 | ~$22 | **~$47** | **~$564** |
-| ✅ Recommended | Always-on, noticeably more breathing room — comfortably handles growth in staff or contacts for a while without revisiting this decision. | $85 | ~$42 | **~$127** | **~$1,524** |
-| 🚀 Premium | Maximum headroom and speed. Worth it only if the team or contact list is expected to grow significantly, or speed under heavy use matters a lot. | $175 | ~$100 | **~$275** | **~$3,300** |
+| ❌ Free | Render **Free** | Neon **Free** | Falls asleep after 15 minutes of no one using it, and takes up to a minute to "wake up" on the next visit. Runs out of included database usage within days of real office use. **Not usable for a daily-use office app.** | **$0** | **$0** |
+| 💰 Cheapest workable | Render **Standard** | Neon **Launch** | Always-on, no waking-up delay. Handles a full office's daily use, with less room to grow before needing to upgrade again. | **~$47** | **~$564** |
+| ✅ Recommended | Render **Pro** | Neon **Launch** | Always-on, noticeably more breathing room — comfortably handles growth in staff or contacts for a while without revisiting this decision. | **~$127** | **~$1,524** |
+| 🚀 Premium | Render **Pro Plus** | Neon **Scale** | Maximum headroom and speed. Worth it only if the team or contact list is expected to grow significantly, or speed under heavy use matters a lot. | **~$275** | **~$3,300** |
+
+### What each plan name actually means
+
+| Plan | What it physically gives you | Listed price |
+|---|---|---|
+| Render Free | Shared, basic computer; pauses when unused | $0/month |
+| Render Standard | A dedicated, always-on computer — moderate power | $25/month flat |
+| Render Pro | A dedicated, always-on computer — roughly 4x the power of Standard | $85/month flat |
+| Render Pro Plus | A dedicated, always-on computer — roughly 8x the power of Standard | $175/month flat |
+| Neon Free | Small shared database, pauses when unused, capped usage | $0/month |
+| Neon Launch | Full-size database, no pausing issues, billed by actual use | usage-based (~$22-42/month here) |
+| Neon Scale | Same as Launch but with more built-in room to grow and priority support | usage-based, ~2x Launch's rate (~$100/month here) |
+
+### How to actually get each one
+
+1. **Render** (the website hosting): log into the Render dashboard at
+   render.com → open the **jbj-contact-hub** service → **Settings** →
+   **Instance Type** → choose Standard, Pro, or Pro Plus → confirm. No
+   code changes needed; takes effect on the next restart.
+2. **Neon** (the database): log into the Neon dashboard at neon.com →
+   open the project → **Billing** → upgrade from Free to **Launch** (or
+   **Scale**) → set the autoscale maximum (how big it's allowed to grow
+   automatically — higher for Recommended/Premium, lower for Cheapest
+   Workable).
+
+Both of these are billing decisions made directly in each company's own
+dashboard — not something that requires touching the app's code.
 
 ---
 
@@ -40,14 +67,22 @@ This cost is billed by how much it's actually used — it doesn't change
 based on which option above is chosen. There are two quality/price
 levels to choose from:
 
-| AI Option | Quality | Monthly (heavy daily use) | Yearly |
-|---|---|---|---|
-| 💰 Haiku (cheaper) | Good — fine for routine drafts | ~$7–9 | ~$84–108 |
-| ✅ Sonnet (current setting) | Better writing quality | ~$20–27 | ~$240–324 |
+| AI Option | Exact model | Quality | Monthly (heavy daily use) | Yearly |
+|---|---|---|---|---|
+| 💰 Haiku (cheaper) | Claude Haiku 4.5 | Good — fine for routine drafts | ~$7–9 | ~$84–108 |
+| ✅ Sonnet (current setting) | Claude Sonnet 4.6 | Better writing quality | ~$20–27 | ~$240–324 |
 
 "Heavy use" here means someone clicks "Draft Email" about 100 times a
 day across the whole office — realistically most offices will use it
 far less, so actual cost is likely lower than shown.
+
+**How to get/switch this:** unlike Render and Neon, this isn't a
+dashboard setting — it's one line in the app's code (which AI model
+name it asks for). The billing account (Anthropic) is already set up
+and already in use; switching between Haiku and Sonnet just changes
+which model that account is billed for per request. This is a quick
+change for whoever maintains the app's code, not something done in a
+billing dashboard.
 
 ---
 

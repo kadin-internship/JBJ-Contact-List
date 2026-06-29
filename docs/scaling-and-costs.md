@@ -83,27 +83,33 @@ cost is negligible by comparison (a few dollars even at several GB).
 
 ## Anthropic API cost (Draft Email)
 
-The "Draft Email" feature calls Claude (Sonnet 4.6: $3 / $15 per million
-input/output tokens). A typical drafted email is roughly 1,000-1,500
-total tokens (~800 input, ~450 output), costing about $0.009 -- under a
-cent -- each.
+The "Draft Email" feature calls Claude. There are two reasonable model
+choices for this task -- drafting a templated outreach email from given
+context isn't a heavy reasoning task, so the cheaper model is a real
+option, not just a downgrade. Currently using Sonnet 4.6; Haiku 4.5 is
+the cheaper alternative. Open discussion point for the team:
 
-**Heavy-use example:** even at 100 drafts every single day (a high
-estimate -- that's one every few minutes across an 8-hour day):
+| Model | Price (input/output per million tokens) | Cost per draft* | 100 drafts/day |
+|---|---|---|---|
+| **Sonnet 4.6** (current) | $3 / $15 | ~$0.009 | ~$20-27/month |
+| **Haiku 4.5** | $1 / $5 | ~$0.003 | ~$7-9/month |
+
+\* Based on a typical drafted email (~800 input tokens of context, ~450
+output tokens of drafted text).
 
 ```
-100 drafts/day x $0.009 = ~$0.90/day
-~$0.90/day x 30 days     = ~$27/month
-~$0.90/day x 22 business days = ~$20/month
+Sonnet: 100/day x $0.009 = ~$0.90/day -> ~$27/mo (30 days) or ~$20/mo (22 business days)
+Haiku:  100/day x $0.003 = ~$0.30/day -> ~$9/mo  (30 days) or ~$7/mo  (22 business days)
 ```
 
-So heavy use across the whole team still lands around **$20-30/month**
--- not a number that meaningfully changes the overall budget. It's the
-one feature here with no usage cap, so it's worth keeping an eye on the
-Anthropic billing dashboard if adoption is much heavier than expected.
-If cost certainty matters more than convenience, a simple per-user
-daily cap could be added later; not done here since current usage
-doesn't justify the added complexity.
+Even the more expensive option (Sonnet) isn't a number that meaningfully
+changes the overall budget -- this is a discussion about whether the
+extra polish is worth ~$15-20/month at heavy use, not about whether the
+feature is affordable. It's also the one feature here with no usage
+cap, so it's worth keeping an eye on the Anthropic billing dashboard if
+adoption is much heavier than expected. If cost certainty matters more
+than convenience, a simple per-user daily cap could be added later; not
+done here since current usage doesn't justify the added complexity.
 
 ## What you need to actually do
 

@@ -6,6 +6,42 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-29 — Security/reliability hardening: rate limiting, password reset, error monitoring, duplicate detection, automated tests
+
+A batch of "make it stronger" fixes:
+
+- **Login rate-limiting** — 10 attempts/minute against `/login`, since
+  there was previously nothing stopping repeated password guessing.
+- **Admin-initiated password reset** — Manage Users now has a "Reset
+  Password" action per user. Previously, a forgotten password had no
+  fix short of editing the database directly; there's still no
+  self-service reset since no email service is configured.
+- **Optional error monitoring** — set a `SENTRY_DSN` env var (free
+  Sentry project) and the app reports server errors there automatically
+  instead of relying on a user noticing and reporting them. Entirely
+  opt-in; the app behaves exactly as before if it's left unset.
+- **Duplicate detection** — fixed a real bug: email-matching during
+  manual add, spreadsheet sync, and edits was case-sensitive, so
+  `Jane@x.com` and `jane@x.com` were treated as different people. Also
+  added a same-name+organization check on manual add (not caught by
+  the email check when emails differ or are missing) that warns with
+  an "Add Anyway?" option rather than silently creating a duplicate.
+- **Automated test suite** (`tests/`, run with `pytest`) — 26 tests
+  covering login/rate-limiting/password reset, contact CRUD and
+  duplicate detection, the Needs Follow-up filter, audit logging, and
+  the Analytics dashboard's access control and drill-down. Runs against
+  a throwaway SQLite file. Test-only dependencies live in
+  `requirements-dev.txt`, not the production `requirements.txt`.
+
+Considered and deliberately skipped: auto-logging outreach from sent
+emails (would need a Gmail/Outlook OAuth app, which needs Google/
+Microsoft's app-verification process — same blocker that shelved the
+OneDrive sync idea earlier). Also still outstanding: the Render web
+service is still on the free plan, which undercuts the gunicorn
+worker fix from June 24 (free plan spins down after 15 minutes idle) —
+upgrading is a billing decision in Render's dashboard, not something
+fixable from here.
+
 ## 2026-06-29 — Click-to-drill-down on the Analytics dashboard
 
 The Analytics dashboard's breakdowns (by employee, by channel, by

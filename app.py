@@ -5,6 +5,8 @@ from datetime import date, datetime, timedelta
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_file, render_template, render_template_string, redirect, url_for
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from config import Config
 from db import db
 from models import Contact, OutreachOrg, Activity, User, AuditLog
@@ -17,8 +19,31 @@ from sqlalchemy import or_, func
 
 load_dotenv()
 
+# Error monitoring is opt-in: only initializes if SENTRY_DSN is set, so the
+# app runs exactly as before for local dev or anyone who hasn't created a
+# Sentry account. Without this, the only way to learn about a production
+# error is a user reporting it.
+_sentry_dsn = os.environ.get('SENTRY_DSN')
+if _sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.flask import FlaskIntegration
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[FlaskIntegration()],
+        traces_sample_rate=0.0,  # error tracking only, not performance tracing
+        send_default_pii=False,  # this app holds contact PII -- don't forward any of it
+    )
+
 login_manager = LoginManager()
 login_manager.login_view = 'login'
+
+# In-memory storage -- fine for brute-force protection on a single login
+# form, but each gunicorn worker process counts independently (no shared
+# Redis), so the effective limit across the whole fleet is up to
+# (per-worker limit x worker count), not a hard global ceiling. Good
+# enough to stop naive password guessing; revisit with a shared store
+# (e.g. Redis) if that gap ever matters.
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
 
 def parse_multi_param(name):
@@ -147,6 +172,7 @@ ACTION_LABELS = {
     'contact_updated': 'Edited contact',
     'spreadsheet_sync': 'Synced spreadsheet',
     'user_created': 'Created user login',
+    'password_reset': 'Reset password for',
 }
 
 
@@ -213,7 +239,7 @@ def _import_contacts(df, result):
     for row in cleaned:
         email = (row.get('email') or '').strip()
         if email:
-            existing = Contact.query.filter_by(email=email).first()
+            existing = Contact.query.filter(func.lower(Contact.email) == email.lower()).first()
         else:
             existing = Contact.query.filter(
                 func.lower(Contact.first_name) == (row.get('first_name') or '').lower(),
@@ -291,6 +317,7 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
     db.init_app(app)
     login_manager.init_app(app)
+    limiter.init_app(app)
 
     with app.app_context():
         db.create_all()
@@ -317,6 +344,7 @@ def create_app(config_class=Config):
             return redirect(url_for('login', next=request.path))
 
     @app.route('/login', methods=['GET', 'POST'])
+    @limiter.limit("10 per minute", methods=["POST"])
     def login():
         if current_user.is_authenticated:
             return redirect(url_for('index'))
@@ -332,6 +360,16 @@ def create_app(config_class=Config):
                 return redirect(next_path or url_for('index'))
             error = 'Invalid username or password.'
         return render_template('login.html', error=error, username=username)
+
+    @app.errorhandler(429)
+    def too_many_login_attempts(e):
+        # Only /login is rate-limited today, so a generic handler is safe;
+        # revisit this if another route ever gets its own limit.
+        return render_template(
+            'login.html',
+            error='Too many login attempts. Please wait a minute and try again.',
+            username=''
+        ), 429
 
     @app.route('/logout')
     def logout():
@@ -549,6 +587,22 @@ def create_app(config_class=Config):
         log_audit('user_created', 'user', user.id, username, {'is_admin': is_admin})
         return jsonify(user.to_dict()), 201
 
+    @app.route('/api/users/<int:user_id>/reset-password', methods=['POST'])
+    def reset_user_password(user_id):
+        # There's no self-service "forgot password" flow (no email service
+        # configured) -- an admin resetting it here is the only path today.
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        data = request.get_json(silent=True) or {}
+        password = data.get('password') or ''
+        if len(password) < 8:
+            return jsonify({'error': 'password must be at least 8 characters'}), 400
+        user = User.query.get_or_404(user_id)
+        user.set_password(password)
+        db.session.commit()
+        log_audit('password_reset', 'user', user.id, user.username)
+        return jsonify({'ok': True})
+
     @app.route('/api/contacts', methods=['GET'])
     def list_contacts():
         q = request.args.get('q', type=str)
@@ -580,7 +634,7 @@ def create_app(config_class=Config):
         data = request.get_json() or {}
         new_email = (data.get('email') or '').strip() or None
         if 'email' in data and new_email and new_email != c.email:
-            conflict = Contact.query.filter(Contact.email == new_email, Contact.id != contact_id).first()
+            conflict = Contact.query.filter(func.lower(Contact.email) == new_email.lower(), Contact.id != contact_id).first()
             if conflict:
                 return jsonify({'error': 'email exists', 'id': conflict.id}), 409
 
@@ -621,10 +675,27 @@ def create_app(config_class=Config):
     def create_contact():
         data = request.get_json() or {}
         email = (data.get('email') or '').strip() or None
+        force = bool(data.get('force_create'))
         if email:
-            existing = Contact.query.filter_by(email=email).first()
+            existing = Contact.query.filter(func.lower(Contact.email) == email.lower()).first()
             if existing:
-                return jsonify({'error':'email exists', 'id': existing.id}), 409
+                return jsonify({'error': 'email exists', 'id': existing.id}), 409
+        if not force:
+            first_name = (data.get('first_name') or '').strip()
+            last_name = (data.get('last_name') or '').strip()
+            organization = (data.get('organization') or '').strip()
+            if first_name and last_name and organization:
+                possible_dup = Contact.query.filter(
+                    func.lower(Contact.first_name) == first_name.lower(),
+                    func.lower(Contact.last_name) == last_name.lower(),
+                    func.lower(Contact.organization) == organization.lower(),
+                ).first()
+                if possible_dup:
+                    return jsonify({
+                        'warning': 'possible_duplicate',
+                        'id': possible_dup.id,
+                        'message': f'A contact named {first_name} {last_name} at {organization} already exists. Add anyway?',
+                    }), 409
         c = Contact(
             email=email,
             first_name=data.get('first_name') or None,

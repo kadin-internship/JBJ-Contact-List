@@ -36,7 +36,7 @@
     <section class="card">
       <h3>Existing users</h3>
       <table>
-        <thead><tr><th>Username</th><th>Display name</th><th>Admin</th><th>Created</th></tr></thead>
+        <thead><tr><th>Username</th><th>Display name</th><th>Admin</th><th>Created</th><th></th></tr></thead>
         <tbody>
           {% for u in users %}
           <tr>
@@ -44,12 +44,26 @@
             <td>{{ u.display_name }}</td>
             <td>{{ 'Yes' if u.is_admin else '' }}</td>
             <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+            <td><button class="btn reset-password-btn" data-user-id="{{ u.id }}" data-username="{{ u.username }}"><i class="fas fa-key"></i> Reset Password</button></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </section>
   </main>
+
+  <div id="resetPasswordModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="resetPasswordTitle" style="max-width:380px">
+      <button id="closeResetModal" class="close">×</button>
+      <h3 id="resetPasswordTitle">Reset password for <span id="resetUsername"></span></h3>
+      <label>New password<br><input id="resetPasswordInput" type="password" minlength="8" autocomplete="new-password"></label>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="resetPasswordConfirmBtn" class="btn btn-primary"><i class="fas fa-key"></i> Reset Password</button>
+      </div>
+      <div id="resetPasswordError" class="login-error" style="display:none;color:#9b1c1c;background:rgba(173,3,4,0.08);border-color:rgba(173,3,4,0.3)"></div>
+      <div id="resetPasswordStatus" class="muted" style="margin-top:8px"></div>
+    </div>
+  </div>
 
   <script>
     document.getElementById('newUserForm').addEventListener('submit', async (e) => {
@@ -72,6 +86,58 @@
       } else {
         const j = await res.json().catch(() => ({}));
         errEl.textContent = j.error || 'Could not create user.';
+        errEl.style.display = 'block';
+      }
+    });
+
+    let resetTargetId = null;
+    const resetModal = document.getElementById('resetPasswordModal');
+
+    document.querySelectorAll('.reset-password-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        resetTargetId = btn.dataset.userId;
+        document.getElementById('resetUsername').textContent = btn.dataset.username;
+        document.getElementById('resetPasswordInput').value = '';
+        document.getElementById('resetPasswordError').style.display = 'none';
+        document.getElementById('resetPasswordStatus').textContent = '';
+        resetModal.style.display = '';
+        document.getElementById('resetPasswordInput').focus();
+      });
+    });
+
+    document.getElementById('closeResetModal').addEventListener('click', () => {
+      resetModal.style.display = 'none';
+    });
+
+    document.getElementById('resetPasswordConfirmBtn').addEventListener('click', async () => {
+      const errEl = document.getElementById('resetPasswordError');
+      const statusEl = document.getElementById('resetPasswordStatus');
+      const password = document.getElementById('resetPasswordInput').value;
+      errEl.style.display = 'none';
+      if (password.length < 8) {
+        errEl.textContent = 'Password must be at least 8 characters.';
+        errEl.style.display = 'block';
+        return;
+      }
+      statusEl.textContent = 'Resetting…';
+      try {
+        const res = await fetch(`/api/users/${resetTargetId}/reset-password`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({password}),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          statusEl.textContent = '';
+          errEl.textContent = j.error || 'Could not reset password.';
+          errEl.style.display = 'block';
+          return;
+        }
+        statusEl.textContent = 'Password reset.';
+        setTimeout(() => { resetModal.style.display = 'none'; }, 800);
+      } catch (e) {
+        statusEl.textContent = '';
+        errEl.textContent = 'Could not reach the server.';
         errEl.style.display = 'block';
       }
     });

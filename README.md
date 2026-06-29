@@ -31,6 +31,12 @@ See `CHANGELOG.md` for a running history of what's changed and why.
   scoped to the current filter.
 - **Login** — every page and API route requires an employee login (see
   "Creating employee accounts" below). No public self-registration.
+  Rate-limited (10 attempts/minute) against password guessing. No
+  self-service "forgot password" (no email service configured) — an
+  admin resets a forgotten password from Manage Users instead.
+- **Duplicate detection** — adding a contact that matches an existing
+  one by name + organization warns before saving ("Add Anyway?" to
+  confirm); an exact email match (case-insensitive) is always blocked.
 
 ## Setup
 
@@ -47,6 +53,7 @@ gitignored) with:
 SECRET_KEY=<random value, signs login sessions>
 ANTHROPIC_API_KEY=<only needed for the Draft Email and Create Flyer features>
 OPENAI_API_KEY=<only needed for the Create Flyer feature's background image>
+SENTRY_DSN=<optional -- error monitoring; app runs fine without it set>
 ```
 
 Generate a `SECRET_KEY` with `python3 -c "import secrets; print(secrets.token_hex(32))"`.
@@ -56,6 +63,19 @@ Run the server:
 ```bash
 PORT=5050 .venv/bin/python app.py
 ```
+
+## Running tests
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest
+```
+
+Covers login/rate-limiting/password reset, contact CRUD and duplicate
+detection, the Needs Follow-up filter, audit logging, and the Analytics
+dashboard's access control and drill-down. Runs against a throwaway
+SQLite file, never the real database. Test-only dependencies
+(`requirements-dev.txt`) aren't installed in production.
 
 ## Creating employee accounts
 
@@ -68,6 +88,10 @@ terminal so passwords never pass through chat, logs, or screen-share:
 
 It asks for a username, display name (shown in the app and recorded on
 every outreach-activity entry), and password.
+
+Forgot a password? There's no self-service reset (no email service is
+configured) — an admin resets it from **Manage Users** in the app
+itself, no terminal access needed.
 
 ## Data model
 
@@ -220,6 +244,10 @@ still uses the local `contacts.db` SQLite file by default.
    - `OPENAI_API_KEY` — needed for Create Flyer's background image (get
      one at platform.openai.com → API keys). Skip it and add it later if
      that feature isn't needed yet.
+   - `SENTRY_DSN` — optional. Create a free project at sentry.io, copy its
+     DSN here, and the app will start reporting server errors there
+     instead of relying on someone noticing and reporting them. Skip it
+     and the app runs exactly the same without it.
    - `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` (8+
      characters) / optionally `BOOTSTRAP_ADMIN_DISPLAY_NAME` — not needed
      if you migrated existing local user accounts in step 2 (they came

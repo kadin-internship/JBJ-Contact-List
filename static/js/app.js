@@ -505,8 +505,10 @@ async function openProfile(id, defaults={}){
         <label>Lists (comma separated)<br><input id="cf_lists" value="${(c.lists||[]).join(', ')}" /></label>
         <label>County<br><input id="cf_county" value="${c.county||''}" /></label>
         <label>Notes<br><textarea id="cf_notes">${c.notes||''}</textarea></label>
+        <div id="duplicateWarning" class="flag flag-warn" style="display:none;margin-top:10px;"></div>
         <div style="margin-top:10px">
           <button id="saveContactBtn" type="button" class="btn btn-primary"><i class="fas fa-check"></i> Save</button>
+          <button id="addAnywayBtn" type="button" class="btn" style="display:none;">Add Anyway</button>
           <button id="closeModalBtn" type="button" class="btn">Close</button>
         </div>
       </form>
@@ -514,11 +516,12 @@ async function openProfile(id, defaults={}){
     const modal = el('profileModal')
     if(modal){ modal.style.display = '' }
     el('closeModalBtn').addEventListener('click', closeModal)
-    el('saveContactBtn').addEventListener('click', saveContact)
+    el('saveContactBtn').addEventListener('click', ()=> saveContact(false))
+    el('addAnywayBtn').addEventListener('click', ()=> saveContact(true))
   }catch(e){console.error(e)}
 }
 
-async function saveContact(){
+async function saveContact(force){
   const id = el('contactId').value
   const payload = {
     first_name: el('cf_first').value.trim(),
@@ -533,6 +536,7 @@ async function saveContact(){
     county: el('cf_county').value.trim(),
     notes: el('cf_notes').value.trim(),
   }
+  if(!id && force) payload.force_create = true
   try{
     let res
     if(id){
@@ -542,6 +546,13 @@ async function saveContact(){
     }
     const j = await res.json()
     if(!res.ok){
+      if(j.warning === 'possible_duplicate'){
+        const warn = el('duplicateWarning')
+        warn.textContent = j.message || 'A similar contact already exists.'
+        warn.style.display = ''
+        el('addAnywayBtn').style.display = ''
+        return
+      }
       const msg = j.error === 'email exists' ? 'That email is already used by another contact.' : (j.error || 'Save failed')
       toast(msg, 'error')
       return

@@ -1,0 +1,4 @@
+# Test-only dependencies -- not installed in production (Render's build
+# only runs `pip install -r requirements.txt`). Install locally with:
+#   pip install -r requirements.txt -r requirements-dev.txt
+pytest>=8.0

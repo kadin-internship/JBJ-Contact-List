@@ -43,7 +43,10 @@ jobs:
           fi
           STAMP="$(date -u +%Y%m%d_%H%M%S)"
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
-          pg_dump "$DATABASE_URL" --no-owner --no-privileges --format=custom --file="postgres_${STAMP}.dump"
+          # Call the versioned binary directly -- installing
+          # postgresql-client-18 doesn't repoint the generic /usr/bin/pg_dump
+          # (update-alternatives keeps it on whatever was there before).
+          /usr/lib/postgresql/18/bin/pg_dump "$DATABASE_URL" --no-owner --no-privileges --format=custom --file="postgres_${STAMP}.dump"
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4

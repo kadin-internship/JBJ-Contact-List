@@ -22,8 +22,16 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Install postgresql-client
-        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - name: Install postgresql-client matching the production server version
+        # ubuntu-latest's default apt package lags behind -- pg_dump refuses
+        # to run against a newer server than itself, so pull the client from
+        # the official PostgreSQL apt repo (PGDG) instead, which has every
+        # current major version.
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install --yes postgresql-client-18
 
       - name: Dump production database
         env:

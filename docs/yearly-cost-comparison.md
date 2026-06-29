@@ -61,11 +61,14 @@ dashboard — not something that requires touching the app's code.
 
 ---
 
-## Part 2: The AI "Draft Email" feature (separate, optional add-on)
+## Part 2: The AI add-on features (separate, optional)
 
-This cost is billed by how much it's actually used — it doesn't change
-based on which option above is chosen. There are two quality/price
-levels to choose from:
+These costs are billed by how much they're actually used — they don't
+change based on which hosting option above is chosen.
+
+### Draft Email
+
+There are two quality/price levels to choose from:
 
 | AI Option | Exact model | Quality | Monthly (heavy daily use) | Yearly |
 |---|---|---|---|---|
@@ -84,6 +87,35 @@ which model that account is billed for per request. This is a quick
 change for whoever maintains the app's code, not something done in a
 billing dashboard.
 
+### Flyer/Post Generator
+
+One click produces a finished social post or flyer image: an AI text
+step writes the headline/body, and a separate AI image step paints the
+background. Both run automatically per click — there's no quality
+choice to make here, it's already set to the cheapest workable option.
+
+| Step | Exact model | Cost per flyer/post |
+|---|---|---|
+| Writes the headline/body text | Claude Sonnet 4.6 | ~$0.003 |
+| Paints the background image | OpenAI gpt-image-1-mini (low quality) | ~$0.005 |
+| **Combined, per flyer/post** | | **~$0.008** |
+
+| Usage | Monthly | Yearly |
+|---|---|---|
+| Light (~5 a day) | ~$0.90 | ~$10–11 |
+| Regular (~20 a day) | ~$3.50 | ~$40–45 |
+| Heavy (~50 a day) | ~$9 | ~$100–110 |
+
+This is small enough that it's not worth a "which option" decision —
+even heavy daily use across the whole office stays under $10/month.
+
+**How to get this:** unlike Draft Email, this needs a *second*,
+separate billing account — at platform.openai.com — in addition to the
+existing Anthropic one, since the image-generation step runs on
+OpenAI's models rather than Claude's. One-time setup (create an
+account, add a payment method, generate an API key); after that it's
+billed automatically per use, same as Draft Email.
+
 ---
 
 ## Put together: full yearly cost examples
@@ -93,6 +125,10 @@ billing dashboard.
 | Cheapest workable + Haiku AI | ~$54–56 | **~$650–670/year** |
 | Recommended + Sonnet AI | ~$147–154 | **~$1,760–1,850/year** |
 | Premium + Sonnet AI | ~$295–302 | **~$3,540–3,620/year** |
+
+Adding the Flyer/Post Generator on top of any of these is a small,
+separate add-on: roughly **+$10 to +$110/year**, depending on how often
+the office uses it (see the table above).
 
 ## A few other costs, for completeness
 

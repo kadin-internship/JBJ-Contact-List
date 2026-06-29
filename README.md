@@ -15,8 +15,18 @@ See `CHANGELOG.md` for a running history of what's changed and why.
 - **Outreach activity log** — per-contact and per-organization history of
   who reached out, when, and what was discussed, so staff can check
   whether someone's already been contacted before reaching out again.
+- **"Needs Follow-up" filter** — narrow the People view to contacts never
+  contacted, or not contacted in 30/60/90+ days; works with search,
+  exports, and Draft Email like any other filter.
+- **Analytics dashboard** (admin-only) — outreach trends, breakdowns by
+  employee/channel/county, and admin activity, built from the activity
+  and audit logs already being collected.
 - **AI email drafting** — generates a draft outreach email (via Claude)
   scoped to whatever People/Organizations filter is currently active.
+- **Flyer/post generator** — one-click social post or printed flyer:
+  Claude drafts a short headline/body, OpenAI generates an on-brand
+  background image, and the text is composited on top (so it's always
+  crisp and correctly spelled, never garbled AI-rendered text).
 - **Export** — CSV, a de-duplicated email list (for BCC), or a Word doc,
   scoped to the current filter.
 - **Login** — every page and API route requires an employee login (see
@@ -35,7 +45,8 @@ gitignored) with:
 
 ```
 SECRET_KEY=<random value, signs login sessions>
-ANTHROPIC_API_KEY=<only needed for the Draft Email feature>
+ANTHROPIC_API_KEY=<only needed for the Draft Email and Create Flyer features>
+OPENAI_API_KEY=<only needed for the Create Flyer feature's background image>
 ```
 
 Generate a `SECRET_KEY` with `python3 -c "import secrets; print(secrets.token_hex(32))"`.
@@ -204,8 +215,11 @@ still uses the local `contacts.db` SQLite file by default.
    - `SECRET_KEY` — generate a **new** one just for production:
      `python3 -c "import secrets; print(secrets.token_hex(32))"`. Don't
      reuse your local `.env` value.
-   - `ANTHROPIC_API_KEY` — same key used locally for Draft Email, or skip
-     it and add it later if that feature isn't needed yet.
+   - `ANTHROPIC_API_KEY` — same key used locally for Draft Email and
+     Create Flyer, or skip it and add it later if those aren't needed yet.
+   - `OPENAI_API_KEY` — needed for Create Flyer's background image (get
+     one at platform.openai.com → API keys). Skip it and add it later if
+     that feature isn't needed yet.
    - `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` (8+
      characters) / optionally `BOOTSTRAP_ADMIN_DISPLAY_NAME` — not needed
      if you migrated existing local user accounts in step 2 (they came

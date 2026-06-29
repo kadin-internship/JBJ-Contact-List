@@ -29,6 +29,8 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
       # One-time use: creates the first admin login on startup if the users
       # table is empty, since Render's Shell tab needs a paid plan. Set these
       # in the dashboard's Environment tab, deploy once, then they can be

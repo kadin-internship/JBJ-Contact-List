@@ -114,6 +114,32 @@ adoption is much heavier than expected. If cost certainty matters more
 than convenience, a simple per-user daily cap could be added later; not
 done here since current usage doesn't justify the added complexity.
 
+## Anthropic + OpenAI API cost (Flyer/Post Generator)
+
+The "Create Flyer/Post" feature makes two API calls per click: Claude
+drafts the headline/body text, then OpenAI's `gpt-image-1-mini` (at
+`quality="low"`, the cheapest tier) paints a text-free background image
+that the text gets composited onto. Both are already the cheapest
+reasonable model/quality choice for this task -- there's no
+Haiku-vs-Sonnet-style tradeoff to make here.
+
+| Step | Model | Cost per flyer/post |
+|---|---|---|
+| Headline/body text | Claude Sonnet 4.6 | ~$0.003 |
+| Background image | OpenAI gpt-image-1-mini, low quality | ~$0.005 |
+| **Combined** | | **~$0.008** |
+
+```
+20 flyers/day x ~22 business days/month x $0.008 = ~$3.50/month (~$40-45/year)
+50 flyers/day x ~22 business days/month x $0.008 = ~$9/month    (~$100-110/year)
+```
+
+Negligible next to the hosting/database cost either way. The one new
+operational requirement: this needs a second, separate billing account
+at platform.openai.com (its own API key, `OPENAI_API_KEY`) in addition
+to the existing Anthropic account, since the image step runs on OpenAI
+rather than Claude.
+
 ## What you need to actually do
 
 Everything above the cost table is **already committed to this repo**

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Analytics — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/#search" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>Analytics</h2>
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-area">
+    <section class="analytics-stats">
+      <div class="analytics-stat"><span class="num">{{ total_contacts }}</span><span class="label">Total Contacts</span></div>
+      <div class="analytics-stat"><span class="num">{{ total_orgs }}</span><span class="label">Organizations</span></div>
+      <div class="analytics-stat"><span class="num">{{ total_activities }}</span><span class="label">Outreach Logged (all time)</span></div>
+      <div class="analytics-stat"><span class="num">{{ activities_30d }}</span><span class="label">Outreach (last 30 days)</span></div>
+      <div class="analytics-stat"><span class="num">{{ never_contacted }}</span><span class="label">Never Contacted</span></div>
+      <div class="analytics-stat"><span class="num">{{ data_complete_pct }}%</span><span class="label">Data Complete</span></div>
+    </section>
+
+    <section class="card">
+      <h3>Outreach activity, last 12 weeks</h3>
+      {% if weekly_trend|sum(attribute='count') %}
+      <div class="weekly-chart">
+        {% for w in weekly_trend %}
+        <div class="week-col">
+          <div class="week-bar-track"><div class="week-bar" style="height:{{ w.pct }}%" title="{{ w.count }} logged"></div></div>
+          <span class="week-count">{{ w.count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="muted" style="margin-top:6px">Oldest week on the left, most recent on the right.</p>
+      {% else %}
+      <p class="muted">No outreach logged in the last 12 weeks.</p>
+      {% endif %}
+    </section>
+
+    <div class="analytics-grid">
+      <section class="card">
+        <h3>Outreach by employee</h3>
+        {% if by_employee %}
+        <div class="bar-list">
+          {% for row in by_employee %}
+          <div class="bar-row">
+            <span class="bar-label">{{ row.label or 'Unknown' }}</span>
+            <div class="bar-track"><div class="bar-fill" style="width:{{ row.pct }}%"></div></div>
+            <span class="bar-count">{{ row.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No outreach logged yet.</p>
+        {% endif %}
+      </section>
+
+      <section class="card">
+        <h3>Outreach by channel</h3>
+        {% if by_channel %}
+        <div class="bar-list">
+          {% for row in by_channel %}
+          <div class="bar-row">
+            <span class="bar-label">{{ row.label }}</span>
+            <div class="bar-track"><div class="bar-fill" style="width:{{ row.pct }}%"></div></div>
+            <span class="bar-count">{{ row.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No outreach logged yet.</p>
+        {% endif %}
+      </section>
+
+      <section class="card">
+        <h3>Outreach by county (top 10)</h3>
+        {% if by_county %}
+        <div class="bar-list">
+          {% for row in by_county %}
+          <div class="bar-row">
+            <span class="bar-label">{{ row.label }}</span>
+            <div class="bar-track"><div class="bar-fill" style="width:{{ row.pct }}%"></div></div>
+            <span class="bar-count">{{ row.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No outreach logged against a contact with a county yet.</p>
+        {% endif %}
+      </section>
+
+      <section class="card">
+        <h3>Admin activity, last 30 days</h3>
+        {% if by_action %}
+        <div class="bar-list">
+          {% for row in by_action %}
+          <div class="bar-row">
+            <span class="bar-label">{{ row.label }}</span>
+            <div class="bar-track"><div class="bar-fill" style="width:{{ row.pct }}%"></div></div>
+            <span class="bar-count">{{ row.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No admin actions in the last 30 days.</p>
+        {% endif %}
+      </section>
+    </div>
+  </main>
+</body>
+</html>

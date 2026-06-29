@@ -7,7 +7,7 @@ const API = {
   counties: '/api/counties',
 }
 
-let state = { page: 1, limit: 25, q: '', tags: [], counties: [], total: 0, view: 'people' }
+let state = { page: 1, limit: 25, q: '', tags: [], counties: [], followup: '', total: 0, view: 'people' }
 
 function el(id){return document.getElementById(id)}
 function initials(first, last, fallback){
@@ -442,6 +442,7 @@ async function search(){
   if(state.q) params.set('q', state.q)
   if(state.tags.length) params.set('tag', state.tags.join(','))
   if(state.counties.length) params.set('county', state.counties.join(','))
+  if(state.view !== 'organizations' && state.followup) params.set('followup', state.followup)
   try{
     if(state.view === 'organizations'){
       const res = await fetch(API.sections + '?' + params.toString())
@@ -571,6 +572,10 @@ function switchView(view, userInitiated){
   const peopleBtn = el('viewPeopleBtn'); const orgBtn = el('viewOrgBtn')
   if(peopleBtn) peopleBtn.classList.toggle('active', view === 'people')
   if(orgBtn) orgBtn.classList.toggle('active', view === 'organizations')
+  // Follow-up status is tracked per-Contact, not per-Organization, so the
+  // filter doesn't apply (but isn't reset) when browsing Organizations.
+  const followupFilter = el('followupFilter')
+  if(followupFilter) followupFilter.disabled = (view === 'organizations')
   const si = el('searchInput')
   if(si) si.placeholder = view === 'people'
     ? 'Search by Name, Organization, Title, or Email...'
@@ -590,6 +595,13 @@ function bind(){
   const viewOrgBtn = el('viewOrgBtn')
   if(viewPeopleBtn) viewPeopleBtn.addEventListener('click', ()=> switchView('people', true))
   if(viewOrgBtn) viewOrgBtn.addEventListener('click', ()=> switchView('organizations', true))
+
+  const followupFilter = el('followupFilter')
+  if(followupFilter) followupFilter.addEventListener('change', ()=>{
+    state.followup = followupFilter.value
+    state.page = 1
+    search()
+  })
 
   // keyboard shortcuts: Ctrl+K and '/' -- but not while typing in a field,
   // otherwise '/' could never be typed into notes, lists, etc.
@@ -614,6 +626,7 @@ function bind(){
   if(backBtn) backBtn.addEventListener('click', ()=>{ showHome(true) })
   bindExportMenu()
   bindDraftEmail()
+  bindCreateFlyer()
   bindCountyFilter()
   bindTagFilter()
 }
@@ -626,6 +639,7 @@ function currentExportParams(){
     else params.set('tag', state.tags.join(','))
   }
   if(state.counties.length) params.set('county', state.counties.join(','))
+  if(state.view !== 'organizations' && state.followup) params.set('followup', state.followup)
   return params
 }
 
@@ -679,6 +693,9 @@ function bindDraftEmail(){
     }
     if(state.counties.length) parts.push(`count${state.counties.length===1?'y':'ies'} "${state.counties.join(', ')}"`)
     if(state.q) parts.push(`search "${state.q}"`)
+    if(state.view !== 'organizations' && state.followup){
+      parts.push(state.followup === 'never' ? 'never contacted' : `no contact in ${state.followup}+ days`)
+    }
     el('draftEmailAudience').textContent = parts.length
       ? 'Drafting for the current filter: ' + parts.join(', ')
       : 'Drafting for all contacts (no filter applied).'
@@ -715,6 +732,7 @@ function bindDraftEmail(){
           county: state.counties.join(','),
           tag: state.view === 'organizations' ? undefined : state.tags.join(','),
           org_tag: state.view === 'organizations' ? state.tags.join(',') : undefined,
+          followup: state.view === 'organizations' ? undefined : (state.followup || undefined),
         })
       })
       const j = await res.json()
@@ -736,6 +754,54 @@ function bindDraftEmail(){
       await navigator.clipboard.writeText(el('draftEmailOutput').value)
       el('draftEmailStatus').textContent = 'Copied to clipboard.'
     }catch(e){ el('draftEmailStatus').textContent = 'Could not copy.' }
+  })
+}
+
+function bindCreateFlyer(){
+  const btn = el('createFlyerBtn')
+  const modal = el('createFlyerModal')
+  if(!btn || !modal) return
+
+  btn.addEventListener('click', ()=>{
+    el('createFlyerPrompt').value = ''
+    el('createFlyerOutput').style.display = 'none'
+    el('createFlyerOutput').src = ''
+    el('createFlyerDownloadBtn').style.display = 'none'
+    el('createFlyerStatus').textContent = ''
+    modal.style.display = ''
+    el('createFlyerPrompt').focus()
+  })
+
+  el('closeCreateFlyerModal').addEventListener('click', ()=>{ modal.style.display = 'none' })
+
+  el('createFlyerGenerateBtn').addEventListener('click', async ()=>{
+    const prompt = el('createFlyerPrompt').value.trim()
+    if(!prompt){ el('createFlyerStatus').textContent = 'Describe what the post or flyer is about.'; return }
+    const format = document.querySelector('input[name="flyerFormat"]:checked').value
+    const genBtn = el('createFlyerGenerateBtn')
+    genBtn.disabled = true
+    el('createFlyerStatus').textContent = 'Generating… this can take up to a minute.'
+    el('createFlyerOutput').style.display = 'none'
+    el('createFlyerDownloadBtn').style.display = 'none'
+    try{
+      const res = await fetch('/api/generate-flyer', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ prompt, format })
+      })
+      const j = await res.json()
+      if(!res.ok){ el('createFlyerStatus').textContent = j.error || 'Could not generate the image.'; return }
+      el('createFlyerOutput').src = j.image
+      el('createFlyerOutput').style.display = ''
+      el('createFlyerDownloadBtn').href = j.image
+      el('createFlyerDownloadBtn').style.display = ''
+      el('createFlyerStatus').textContent = `Headline: "${j.headline}"`
+    }catch(e){
+      el('createFlyerStatus').textContent = 'Could not reach the server.'
+      console.error(e)
+    }finally{
+      genBtn.disabled = false
+    }
   })
 }
 

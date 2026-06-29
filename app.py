@@ -1,7 +1,7 @@
 import os
 import io
 import csv
-from datetime import date
+from datetime import date, datetime, timedelta
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_file, render_template, render_template_string, redirect, url_for
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -60,7 +60,7 @@ def county_filter_clause(counties):
     return or_(*clauses)
 
 
-def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None):
+def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None, followup=None):
     """Shared filter logic for /api/contacts and the export endpoints, so
     exports always match what's currently shown on screen.
 
@@ -69,6 +69,11 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
     -- the two category sets use different names for the same kind of group,
     so org_tag is resolved to organization names first rather than treated as
     a Contact.tag value.
+
+    `followup` is 'never' (no Activity at all) or a number of days as a
+    string ('30'/'60'/'90') meaning "no Activity logged in that many days,
+    including never" -- a contact with no activity at all always counts as
+    overdue, regardless of the threshold.
     """
     query = Contact.query
     if contact_id:
@@ -98,6 +103,25 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
         clause = county_filter_clause(counties)
         if clause is not None:
             query = query.filter(clause)
+    if followup:
+        last_contacted = (
+            db.session.query(Activity.contact_id, func.max(Activity.contacted_on).label('last_contacted'))
+            .group_by(Activity.contact_id)
+            .subquery()
+        )
+        query = query.outerjoin(last_contacted, last_contacted.c.contact_id == Contact.id)
+        if followup == 'never':
+            query = query.filter(last_contacted.c.last_contacted.is_(None))
+        else:
+            try:
+                cutoff = date.today() - timedelta(days=int(followup))
+            except (TypeError, ValueError):
+                cutoff = None
+            if cutoff is not None:
+                query = query.filter(or_(
+                    last_contacted.c.last_contacted.is_(None),
+                    last_contacted.c.last_contacted < cutoff,
+                ))
     return query
 
 
@@ -353,6 +377,100 @@ def create_app(config_class=Config):
         } for e in rows]
         return render_template('audit.html', entries=entries, page=page, pages=pages)
 
+    @app.route('/admin/analytics')
+    def analytics():
+        if not current_user.is_admin:
+            return redirect(url_for('index'))
+
+        def ranked(rows):
+            """[(label, count), ...] -> [{'label','count','pct'}, ...], pct relative to the top row."""
+            top = rows[0][1] if rows else 0
+            return [{'label': label, 'count': count, 'pct': round(100 * count / top) if top else 0}
+                    for label, count in rows]
+
+        total_contacts = Contact.query.count()
+        total_orgs = OutreachOrg.query.count()
+        total_activities = Activity.query.count()
+        complete_count = Contact.query.filter(Contact.data_complete == True).count()
+        data_complete_pct = round(100 * complete_count / total_contacts) if total_contacts else 0
+
+        contacted_ids = {r[0] for r in db.session.query(Activity.contact_id)
+                          .filter(Activity.contact_id.isnot(None)).distinct().all()}
+        never_contacted = max(0, total_contacts - len(contacted_ids))
+
+        today = date.today()
+        activities_30d = Activity.query.filter(Activity.contacted_on >= today - timedelta(days=30)).count()
+        audit_cutoff = datetime.utcnow() - timedelta(days=30)
+        audit_30d = AuditLog.query.filter(AuditLog.created_at >= audit_cutoff).count()
+
+        # Weekly outreach trend, oldest to newest, last 12 weeks.
+        weeks_back = 12
+        trend_start = today - timedelta(weeks=weeks_back)
+        contacted_dates = [d for (d,) in db.session.query(Activity.contacted_on)
+                           .filter(Activity.contacted_on >= trend_start).all() if d]
+        week_counts = [0] * weeks_back
+        for d in contacted_dates:
+            idx = weeks_back - 1 - (today - d).days // 7
+            if 0 <= idx < weeks_back:
+                week_counts[idx] += 1
+        max_week = max(week_counts) if week_counts else 0
+        weekly_trend = [{'count': c, 'pct': round(100 * c / max_week) if max_week else 0} for c in week_counts]
+
+        by_employee = ranked(
+            db.session.query(Activity.employee_name, func.count(Activity.id))
+            .group_by(Activity.employee_name)
+            .order_by(func.count(Activity.id).desc()).limit(10).all()
+        )
+
+        by_channel = ranked(
+            db.session.query(Activity.channel, func.count(Activity.id))
+            .group_by(Activity.channel)
+            .order_by(func.count(Activity.id).desc()).all()
+        )
+        for row in by_channel:
+            row['label'] = row['label'] or 'Unspecified'
+
+        # Contact.county can hold several comma-separated counties in one
+        # field (see /api/counties) -- split those apart so each county
+        # name is counted on its own instead of every combination being a
+        # separate bucket.
+        county_counts = {}
+        county_rows = (db.session.query(Contact.county, func.count(Activity.id))
+                        .join(Activity, Activity.contact_id == Contact.id)
+                        .filter(Contact.county.isnot(None), Contact.county != '')
+                        .group_by(Contact.county).all())
+        for county_str, count in county_rows:
+            for part in county_str.split(','):
+                part = part.strip()
+                if part:
+                    county_counts[part] = county_counts.get(part, 0) + count
+        by_county = ranked(sorted(county_counts.items(), key=lambda kv: -kv[1])[:10])
+
+        by_action = ranked(
+            db.session.query(AuditLog.action, func.count(AuditLog.id))
+            .filter(AuditLog.created_at >= audit_cutoff)
+            .group_by(AuditLog.action)
+            .order_by(func.count(AuditLog.id).desc()).all()
+        )
+        for row in by_action:
+            row['label'] = ACTION_LABELS.get(row['label'], row['label'])
+
+        return render_template(
+            'analytics.html',
+            total_contacts=total_contacts,
+            total_orgs=total_orgs,
+            total_activities=total_activities,
+            activities_30d=activities_30d,
+            never_contacted=never_contacted,
+            data_complete_pct=data_complete_pct,
+            audit_30d=audit_30d,
+            weekly_trend=weekly_trend,
+            by_employee=by_employee,
+            by_channel=by_channel,
+            by_county=by_county,
+            by_action=by_action,
+        )
+
     @app.route('/api/users', methods=['POST'])
     def create_user_api():
         # Lets an admin create more employee logins from the browser, so
@@ -382,10 +500,11 @@ def create_app(config_class=Config):
         q = request.args.get('q', type=str)
         tag = parse_multi_param('tag')
         county = parse_multi_param('county')
+        followup = request.args.get('followup', type=str)
         page = request.args.get('page', default=1, type=int)
         limit = request.args.get('limit', default=25, type=int)
 
-        query = filtered_contacts_query(q=q, tag=tag, county=county)
+        query = filtered_contacts_query(q=q, tag=tag, county=county, followup=followup)
 
         total = query.count()
         results = query.order_by(Contact.added.desc()).offset((page - 1) * limit).limit(limit).all()
@@ -707,8 +826,9 @@ def create_app(config_class=Config):
         tag = parse_multi_param('tag')
         org_tag = parse_multi_param('org_tag')
         county = parse_multi_param('county')
+        followup = request.args.get('followup', type=str)
         contact_id = request.args.get('id', type=int)
-        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, contact_id=contact_id).order_by(Contact.added.desc()).all()
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, contact_id=contact_id, followup=followup).order_by(Contact.added.desc()).all()
 
         # stream CSV
         si = io.StringIO()
@@ -732,7 +852,8 @@ def create_app(config_class=Config):
         tag = parse_multi_param('tag')
         org_tag = parse_multi_param('org_tag')
         county = parse_multi_param('county')
-        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).all()
+        followup = request.args.get('followup', type=str)
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, followup=followup).all()
 
         emails = []
         seen = set()
@@ -756,7 +877,8 @@ def create_app(config_class=Config):
         tag = parse_multi_param('tag')
         org_tag = parse_multi_param('org_tag')
         county = parse_multi_param('county')
-        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).order_by(Contact.organization, Contact.last_name).all()
+        followup = request.args.get('followup', type=str)
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, followup=followup).order_by(Contact.organization, Contact.last_name).all()
 
         doc = Document()
         title = ', '.join(tag) if tag else (', '.join(org_tag) if org_tag else 'Contacts')
@@ -799,7 +921,8 @@ def create_app(config_class=Config):
         tag = data.get('tag')
         org_tag = data.get('org_tag')
         county = data.get('county')
-        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county).all()
+        followup = data.get('followup')
+        rows = filtered_contacts_query(q=q, tag=tag, org_tag=org_tag, county=county, followup=followup).all()
         orgs = sorted({r.organization for r in rows if r.organization})
 
         context_lines = [f"{len(rows)} recipient(s) in this group."]
@@ -811,6 +934,10 @@ def create_app(config_class=Config):
             context_lines.append(f'County filter: {county}.')
         if q:
             context_lines.append(f'Search filter: "{q}".')
+        if followup == 'never':
+            context_lines.append("This group has never been contacted before -- this would be a first outreach, not a check-in.")
+        elif followup:
+            context_lines.append(f"This group hasn't been contacted in {followup}+ days -- consider a warmer, re-engaging tone rather than a routine update.")
         if orgs:
             sample = ', '.join(orgs[:8])
             context_lines.append(f'Sample organizations: {sample}{"..." if len(orgs) > 8 else "."}')
@@ -841,6 +968,148 @@ def create_app(config_class=Config):
 
         draft = next((b.text for b in response.content if b.type == 'text'), '')
         return jsonify({'draft': draft, 'recipient_count': len(rows)})
+
+    @app.route('/api/generate-flyer', methods=['POST'])
+    def generate_flyer():
+        import json
+        import base64
+        import anthropic
+        import openai
+        from PIL import Image, ImageDraw, ImageFont
+
+        data = request.get_json(silent=True) or {}
+        prompt = (data.get('prompt') or '').strip()
+        fmt = data.get('format') if data.get('format') in ('square', 'portrait') else 'square'
+        if not prompt:
+            return jsonify({'error': 'Describe what the post or flyer is about.'}), 400
+
+        anthropic_key = os.environ.get('ANTHROPIC_API_KEY')
+        openai_key = os.environ.get('OPENAI_API_KEY')
+        if not anthropic_key:
+            return jsonify({'error': 'ANTHROPIC_API_KEY is not configured on the server.'}), 500
+        if not openai_key:
+            return jsonify({'error': 'OPENAI_API_KEY is not configured on the server.'}), 500
+
+        width, height = (1024, 1536) if fmt == 'portrait' else (1024, 1024)
+
+        copy_system = (
+            "You write short marketing copy for a single social media post or printed "
+            "flyer image for JBJ Management, a community/government-relations firm. "
+            'Respond with ONLY valid JSON, no commentary or markdown fences, in this '
+            'exact shape: {"headline": "...", "body": "..."}. The headline must be 3-7 '
+            "words, punchy, no ending period. The body must be 1-2 short sentences, 25 "
+            "words or fewer. Do not invent specific dates, addresses, or prices the user "
+            "didn't provide -- use a placeholder like [DATE] if one seems needed."
+        )
+        raw_text = ''
+        try:
+            claude = anthropic.Anthropic(api_key=anthropic_key)
+            copy_response = claude.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=200,
+                system=copy_system,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw_text = next((b.text for b in copy_response.content if b.type == 'text'), '{}').strip()
+            if raw_text.startswith('```'):
+                raw_text = raw_text.strip('`')
+                if raw_text.startswith('json'):
+                    raw_text = raw_text[4:]
+            parsed = json.loads(raw_text)
+            headline = (parsed.get('headline') or '').strip() or 'JBJ Management'
+            body = (parsed.get('body') or '').strip()
+        except anthropic.APIStatusError as e:
+            return jsonify({'error': f'Claude API error: {e.message}'}), 502
+        except Exception:
+            headline = raw_text[:60] or 'JBJ Management'
+            body = ''
+
+        visual_prompt = (
+            f"A clean, professional background graphic for a "
+            f"{'printed flyer' if fmt == 'portrait' else 'social media post'} about: "
+            f"{prompt}. Style: modern, minimal, photo-realistic or tasteful abstract "
+            "design. Color palette: deep maroon red, black, and soft dusty rose accents "
+            "on white or light background. Leave clear open, uncluttered space in the "
+            "lower third of the image for text to be added afterward. Absolutely no "
+            "text, words, letters, or numbers anywhere in the image."
+        )
+        try:
+            oai_client = openai.OpenAI(api_key=openai_key)
+            img_response = oai_client.images.generate(
+                model="gpt-image-1-mini",
+                prompt=visual_prompt,
+                size=f"{width}x{height}",
+                quality="low",
+            )
+            img_bytes = base64.b64decode(img_response.data[0].b64_json)
+        except openai.APIStatusError as e:
+            return jsonify({'error': f'OpenAI image API error: {e.message}'}), 502
+        except Exception as e:
+            return jsonify({'error': str(e)}), 502
+
+        base_img = Image.open(io.BytesIO(img_bytes)).convert('RGBA')
+        if base_img.size != (width, height):
+            base_img = base_img.resize((width, height))
+        overlay = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+
+        fonts_dir = os.path.join(os.path.dirname(__file__), 'static', 'fonts')
+        headline_font = ImageFont.truetype(
+            os.path.join(fonts_dir, 'ArchivoBlack-Regular.ttf'),
+            56 if fmt == 'portrait' else 48,
+        )
+        body_font = ImageFont.truetype(os.path.join(fonts_dir, 'Inter-Variable.ttf'), 28)
+        try:
+            body_font.set_variation_by_name('Regular')
+        except Exception:
+            pass
+
+        margin = 60
+        max_width = width - margin * 2
+
+        def wrap_text(text, font, max_w):
+            lines, cur = [], ''
+            for word in text.split():
+                trial = (cur + ' ' + word).strip()
+                if draw.textlength(trial, font=font) <= max_w:
+                    cur = trial
+                else:
+                    if cur:
+                        lines.append(cur)
+                    cur = word
+            if cur:
+                lines.append(cur)
+            return lines
+
+        headline_lines = wrap_text(headline, headline_font, max_width)
+        body_lines = wrap_text(body, body_font, max_width) if body else []
+        line_gap = 10
+        headline_h = len(headline_lines) * (headline_font.size + line_gap)
+        body_h = len(body_lines) * (body_font.size + 8) if body_lines else 0
+        band_height = min(height, headline_h + body_h + 80)
+        band_top = height - band_height
+
+        draw.rectangle([0, band_top, width, height], fill=(20, 0, 2, 175))
+
+        y = band_top + 36
+        for line in headline_lines:
+            draw.text((margin, y), line, font=headline_font, fill=(255, 255, 255, 255))
+            y += headline_font.size + line_gap
+        y += 8
+        for line in body_lines:
+            draw.text((margin, y), line, font=body_font, fill=(240, 240, 240, 255))
+            y += body_font.size + 8
+
+        final = Image.alpha_composite(base_img, overlay).convert('RGB')
+        buf = io.BytesIO()
+        final.save(buf, format='PNG')
+        final_b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+
+        return jsonify({
+            'image': f'data:image/png;base64,{final_b64}',
+            'headline': headline,
+            'body': body,
+        })
 
     return app
 

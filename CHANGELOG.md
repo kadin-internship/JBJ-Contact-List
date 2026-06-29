@@ -6,6 +6,42 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-29 — Analytics dashboard, and "needs follow-up" filter
+
+Two manager-facing additions:
+
+- **Analytics dashboard** (`/admin/analytics`, admin-only, linked next to
+  Audit Log): total contacts/organizations, outreach logged (all-time
+  and last 30 days), never-contacted count, data-completeness %, a
+  12-week outreach trend chart, and breakdowns of outreach by employee,
+  by channel, by county, and admin activity by type. Built from the
+  Outreach Activity Log and Audit Log data already being collected --
+  no new tracking required, just a way to see it.
+- **"Needs Follow-up" filter** on the People search (a new dropdown next
+  to County): Never Contacted, or No Contact in 30/60/90+ Days. Works
+  everywhere the other filters do -- search, CSV/email/Word exports, and
+  Draft Email, which now also adjusts its tone (acknowledges it's a
+  first-ever outreach, or a re-engagement after a gap) when this filter
+  is active. Only applies to the People view, since follow-up status is
+  tracked per-contact, not per-organization.
+
+## 2026-06-29 — Flyer/post generator
+
+Team asked for a way to create posts/flyers for the business page or to
+attach to emails. Added a **Create Flyer/Post** button (next to Draft
+Email) that produces a finished, one-click image in two formats (social
+post / printed flyer): Claude drafts a short headline and body line
+scoped to whatever the user typed, OpenAI's `gpt-image-1-mini` generates
+an on-brand background (explicitly prompted with no text in it -- AI
+image models are unreliable at rendering legible/correctly-spelled
+text), and Pillow composites the actual headline/body on top using the
+app's brand fonts (Archivo Black, Inter) over a maroon-tinted band. This
+guarantees crisp, correctly-spelled, on-brand text rather than risking
+garbled AI-rendered text on real client-facing marketing material.
+Needs a new `OPENAI_API_KEY` env var (see README) -- not yet set in
+production, so the feature won't work there until that's added in
+Render's dashboard.
+
 ## 2026-06-29 — Plain-text copy of each Postgres backup
 
 The nightly Postgres backup (`scripts/fetch_postgres_backup.sh`) only

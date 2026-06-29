@@ -248,3 +248,23 @@ main{padding:24px 0}
   .results-and-detail{grid-template-columns:1fr}
   .contact-detail{order:2}
 }
+
+.analytics-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px}
+.analytics-stat{background:#fff;border-radius:14px;box-shadow:var(--card-shadow);border-top:3px solid var(--rose);padding:16px;display:flex;flex-direction:column;gap:4px;text-align:center}
+.analytics-stat .num{font-family:var(--font-display);font-weight:400;font-size:28px;color:var(--maroon)}
+.analytics-stat .label{font-size:12px;color:var(--muted);letter-spacing:0.3px;text-transform:uppercase}
+
+.analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:16px}
+
+.bar-list{display:flex;flex-direction:column;gap:10px}
+.bar-row{display:grid;grid-template-columns:130px 1fr 36px;align-items:center;gap:10px}
+.bar-label{font-size:13px;color:var(--black);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{background:rgba(173,3,4,0.08);border-radius:999px;height:10px;overflow:hidden}
+.bar-fill{background:var(--maroon);height:100%;border-radius:999px;transition:width 0.25s}
+.bar-count{font-size:13px;color:var(--muted);text-align:right}
+
+.weekly-chart{display:flex;align-items:flex-end;gap:8px;height:140px;padding-top:10px}
+.week-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.week-bar-track{width:100%;max-width:28px;height:110px;display:flex;align-items:flex-end;background:rgba(173,3,4,0.06);border-radius:6px;overflow:hidden}
+.week-bar{width:100%;background:var(--maroon);border-radius:6px 6px 0 0;min-height:2px;transition:height 0.25s}
+.week-count{font-size:11px;color:var(--muted)}

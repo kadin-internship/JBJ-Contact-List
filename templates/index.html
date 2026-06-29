@@ -45,6 +45,7 @@
           <a class="btn" href="/admin"><i class="fas fa-file-arrow-up"></i> Sync Spreadsheet</a>
           <a class="btn" href="/admin/users"><i class="fas fa-users-gear"></i> Manage Users</a>
           <a class="btn" href="/admin/audit"><i class="fas fa-clipboard-list"></i> Audit Log</a>
+          <a class="btn" href="/admin/analytics"><i class="fas fa-chart-column"></i> Analytics</a>
           {% endif %}
           <a class="btn" href="/logout"><i class="fas fa-arrow-right-from-bracket"></i> Logout</a>
         </div>
@@ -73,6 +74,13 @@
               </button>
               <div id="countyFilterMenu" class="export-menu filter-menu" style="display:none;"></div>
             </div>
+            <select id="followupFilter" class="btn" aria-label="Needs follow-up filter">
+              <option value="">All Contacts</option>
+              <option value="never">Never Contacted</option>
+              <option value="30">No Contact in 30+ Days</option>
+              <option value="60">No Contact in 60+ Days</option>
+              <option value="90">No Contact in 90+ Days</option>
+            </select>
             <button id="searchBtn" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
             <div class="export-wrap">
               <button id="exportMenuBtn" class="btn"><i class="fas fa-download"></i> Export <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
@@ -83,6 +91,7 @@
               </div>
             </div>
             <button id="draftEmailBtn" class="btn"><i class="fas fa-wand-magic-sparkles"></i> Draft Email</button>
+            <button id="createFlyerBtn" class="btn"><i class="fas fa-image"></i> Create Flyer/Post</button>
           </div>
         </div>
         <div class="search-right">
@@ -134,6 +143,26 @@
       </div>
       <div id="draftEmailStatus" class="muted" style="margin-top:8px;"></div>
       <textarea id="draftEmailOutput" rows="14" style="display:none;width:100%;margin-top:8px;" placeholder="Your drafted email will appear here..."></textarea>
+    </div>
+  </div>
+
+  <div id="createFlyerModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="createFlyerTitle">
+      <button id="closeCreateFlyerModal" class="close">×</button>
+      <h3 id="createFlyerTitle">Create Flyer/Post</h3>
+      <label for="createFlyerPrompt">What's it about?</label>
+      <textarea id="createFlyerPrompt" rows="3" placeholder="e.g. Announcing our new community outreach office in Dallas"></textarea>
+      <label style="margin-top:10px;display:block;">Format</label>
+      <div class="flyer-format-toggle" style="display:flex;gap:8px;">
+        <label class="btn"><input type="radio" name="flyerFormat" value="square" checked style="margin-right:6px;">Social post (square)</label>
+        <label class="btn"><input type="radio" name="flyerFormat" value="portrait" style="margin-right:6px;">Flyer (portrait)</label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button id="createFlyerGenerateBtn" class="btn btn-primary">Generate</button>
+        <a id="createFlyerDownloadBtn" class="btn" download="flyer.png" style="display:none;">Download Image</a>
+      </div>
+      <div id="createFlyerStatus" class="muted" style="margin-top:8px;"></div>
+      <img id="createFlyerOutput" style="display:none;max-width:100%;margin-top:8px;border-radius:8px;" alt="Generated flyer/post" />
     </div>
   </div>
 

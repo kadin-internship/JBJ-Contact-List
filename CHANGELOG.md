@@ -6,6 +6,17 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-29 — Fix "% Complete" always showing 0%
+
+The dashboard's % Complete stat was based on `Contact.data_complete`, a
+flag nothing in the UI ever sets (only the spreadsheet import or a
+direct API call could set it) -- so it was stuck at 0% for everyone.
+Changed it to be derived automatically from whether a contact has an
+email or phone number on file, matching the "Incomplete"/"Complete"
+flag already shown in the contact detail panel, so the two never
+disagree. No schema or migration involved -- this only changes how
+existing columns are read.
+
 ## 2026-06-29 — Drill-down on Admin Activity too
 
 The Analytics dashboard's click-to-drill-down covered outreach

@@ -6,6 +6,19 @@ def test_stats_includes_organizations_and_complete_pct(standard_client):
     assert 'complete_pct' in body
 
 
+def test_complete_pct_reflects_email_or_phone_on_file(standard_client):
+    # "Complete" is derived from having an email or phone on file, not the
+    # unused data_complete flag (nothing in the UI ever sets that).
+    standard_client.post('/api/contacts', json={'first_name': 'Has', 'last_name': 'Email', 'email': 'has@example.com'})
+    standard_client.post('/api/contacts', json={'first_name': 'No', 'last_name': 'Contact Info'})
+
+    res = standard_client.get('/api/stats')
+    body = res.get_json()
+    assert body['total'] == 2
+    assert body['incomplete'] == 1
+    assert body['complete_pct'] == 50
+
+
 def test_create_contact_requires_login(client):
     # /api/ routes return 401 JSON (not a redirect) when unauthenticated --
     # see require_login() in app.py.

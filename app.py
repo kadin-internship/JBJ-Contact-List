@@ -15,7 +15,7 @@ from utils import (
     read_uploaded_file, clean_dataframe, clean_outreach_orgs,
     looks_like_contacts_sheet, looks_like_orgs_sheet,
 )
-from sqlalchemy import or_, func
+from sqlalchemy import or_, and_, func
 
 load_dotenv()
 
@@ -83,6 +83,21 @@ def county_filter_clause(counties):
             Contact.county.ilike(f"%, {c}, %"),
         ))
     return or_(*clauses)
+
+
+def contact_incomplete_clause():
+    """A contact counts as incomplete when there's no way to reach them --
+    no email AND no phone of either kind. Mirrors the "Incomplete"/
+    "Complete" flag shown on the contact detail panel (see `incomplete` in
+    showContactDetail() in app.js), so the dashboard stat and the per-
+    contact flag never disagree. Contact.data_complete is unused here --
+    nothing in the UI ever sets it, so it was permanently 0%."""
+    no_email = or_(Contact.email.is_(None), Contact.email == '')
+    no_phone = and_(
+        or_(Contact.phone_office.is_(None), Contact.phone_office == ''),
+        or_(Contact.phone_cell.is_(None), Contact.phone_cell == ''),
+    )
+    return and_(no_email, no_phone)
 
 
 def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None, followup=None, favorites_only=False):
@@ -431,8 +446,8 @@ def create_app(config_class=Config):
         total_contacts = Contact.query.count()
         total_orgs = OutreachOrg.query.count()
         total_activities = Activity.query.count()
-        complete_count = Contact.query.filter(Contact.data_complete == True).count()
-        data_complete_pct = round(100 * complete_count / total_contacts) if total_contacts else 0
+        incomplete_count = Contact.query.filter(contact_incomplete_clause()).count()
+        data_complete_pct = round(100 * (total_contacts - incomplete_count) / total_contacts) if total_contacts else 0
 
         contacted_ids = {r[0] for r in db.session.query(Activity.contact_id)
                           .filter(Activity.contact_id.isnot(None)).distinct().all()}
@@ -839,7 +854,7 @@ def create_app(config_class=Config):
     @app.route('/api/stats', methods=['GET'])
     def stats():
         total = Contact.query.count()
-        incomplete = Contact.query.filter(Contact.data_complete == False).count()
+        incomplete = Contact.query.filter(contact_incomplete_clause()).count()
         organizations = OutreachOrg.query.count()
         complete_pct = round(100 * (total - incomplete) / total) if total else 0
         per_tag = db.session.query(Contact.tag, func.count(Contact.id)).group_by(Contact.tag).all()

@@ -6,6 +6,25 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-29 — Edit permissions: only edit what you added
+
+The app is going to be shared more widely (a link to people who just
+need to look someone up), so editing needed to be locked down. New
+rule: anyone logged in can view every contact and add new ones, but
+editing an existing contact's fields is now restricted to admins and
+whoever originally added that contact. Everyone else sees a read-only
+detail panel until they add a contact of their own, at which point they
+can manage that one. Outreach activity logging is unaffected -- it's
+not considered an edit to the contact itself, so anyone can still log a
+call or email against any contact.
+
+Added `Contact.created_by_id` (nullable -- null for the ~14,000
+existing/imported contacts, which are now admin-only to edit since
+there's no real record of who added them). New contacts record
+`created_by_id` automatically on creation. See
+`scripts/add_created_by_column.py` for the migration (run before
+deploying this).
+
 ## 2026-06-29 — Drill-down on Admin Activity too
 
 The Analytics dashboard's click-to-drill-down covered outreach

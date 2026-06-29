@@ -51,6 +51,9 @@ class Contact(db.Model):
     notes = db.Column(db.Text, nullable=True)
     data_complete = db.Column(db.Boolean, default=False, nullable=False)
     is_favorite = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    # Null means no recorded creator (imported/legacy contacts) -- those are
+    # editable by admins only. See can_edit_contact() in app.py.
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
 
     __table_args__ = (
         Index('ix_contacts_name', 'first_name', 'last_name'),
@@ -74,6 +77,7 @@ class Contact(db.Model):
             'notes': self.notes,
             'data_complete': bool(self.data_complete),
             'is_favorite': bool(self.is_favorite),
+            'created_by_id': self.created_by_id,
         }
 
 

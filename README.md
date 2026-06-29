@@ -44,6 +44,13 @@ See `CHANGELOG.md` for a running history of what's changed and why.
 - **Duplicate detection** — adding a contact that matches an existing
   one by name + organization warns before saving ("Add Anyway?" to
   confirm); an exact email match (case-insensitive) is always blocked.
+- **Edit permissions** — anyone logged in can view every contact and add
+  new ones. Editing an existing contact's fields is restricted to admins
+  and whoever originally added that contact — everyone else only gets
+  the Edit button once they've added a contact of their own. Logging
+  outreach activity is unrestricted (it's not considered an edit to the
+  contact). This makes it safe to share the app link with people who
+  only need to browse.
 
 ## Setup
 
@@ -103,7 +110,9 @@ itself, no terminal access needed.
 ## Data model
 
 - `Contact` — one row per person (`app.py`/`models.py`). `email` is
-  optional but unique when present.
+  optional but unique when present. `created_by_id` records who added it
+  (null for imported/legacy contacts) and drives the edit-permission
+  check in `can_edit_contact()` in `app.py`.
 - `OutreachOrg` — the per-organization outreach checklist (category, org
   name, last-touched date, notes). Cross-referenced with `Contact` by
   organization name, not a foreign key — the two sheets use different
@@ -121,10 +130,11 @@ which. There's no migration framework — `db.create_all()` creates missing
 tables on startup, but it will **not** alter an existing table's columns.
 Schema changes to existing tables (e.g. making a column nullable) need a
 manual migration; see the "email made optional" entry in `CHANGELOG.md`
-for the pattern used, or `scripts/add_favorite_column.py` for a small,
-self-contained example (adds the `is_favorite` column to an existing
-database, safe to run more than once). Run a script like this **before**
-deploying code that depends on the new column.
+for the pattern used, or `scripts/add_favorite_column.py` /
+`scripts/add_created_by_column.py` for small, self-contained examples
+(each adds one column to an existing database, safe to run more than
+once). Run a script like this **before** deploying code that depends
+on the new column.
 
 ## Backup & recovery
 

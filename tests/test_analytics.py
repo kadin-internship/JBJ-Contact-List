@@ -32,3 +32,23 @@ def test_analytics_drilldown_returns_matching_activity(admin_client):
 def test_audit_log_requires_admin(standard_client):
     res = standard_client.get('/admin/audit')
     assert res.status_code == 302
+
+
+def test_analytics_audit_entries_requires_admin(standard_client):
+    res = standard_client.get('/api/analytics/audit-entries?action=contact_created')
+    assert res.status_code == 403
+
+
+def test_analytics_audit_entries_filters_by_action(admin_client):
+    res = admin_client.post('/api/contacts', json={'first_name': 'Audit', 'last_name': 'Drill'})
+    contact_id = res.get_json()['id']
+    admin_client.put(f'/api/contacts/{contact_id}', json={'title': 'New Title'})
+
+    res = admin_client.get('/api/analytics/audit-entries?action=contact_created')
+    assert res.status_code == 200
+    summaries = [e['summary'] for e in res.get_json()['entries']]
+    assert any('Audit Drill' in s for s in summaries)
+
+    res = admin_client.get('/api/analytics/audit-entries?action=contact_updated')
+    summaries = [e['summary'] for e in res.get_json()['entries']]
+    assert any('New Title' in s for s in summaries)

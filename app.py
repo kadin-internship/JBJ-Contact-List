@@ -503,6 +503,7 @@ def create_app(config_class=Config):
             .order_by(func.count(AuditLog.id).desc()).all()
         )
         for row in by_action:
+            row['action'] = row['label']
             row['label'] = ACTION_LABELS.get(row['label'], row['label'])
 
         return render_template(
@@ -564,6 +565,27 @@ def create_app(config_class=Config):
                 'organization': a.organization or (contact.organization if contact else None),
             })
         return jsonify({'count': len(activities), 'activities': activities})
+
+    @app.route('/api/analytics/audit-entries', methods=['GET'])
+    def analytics_audit_entries():
+        """Backs the click-to-drill-down on the Analytics dashboard's Admin
+        Activity breakdown -- same idea as analytics_activities(), but for
+        AuditLog rows instead of outreach Activity rows."""
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+
+        action = request.args.get('action', type=str)
+        query = AuditLog.query.filter(AuditLog.created_at >= datetime.utcnow() - timedelta(days=30))
+        if action:
+            query = query.filter(AuditLog.action == action)
+
+        rows = query.order_by(AuditLog.created_at.desc()).limit(200).all()
+        entries = [{
+            'created_at': e.created_at.isoformat() if e.created_at else None,
+            'actor_name': e.actor_name,
+            'summary': format_audit_summary(e),
+        } for e in rows]
+        return jsonify({'count': len(entries), 'entries': entries})
 
     @app.route('/api/users', methods=['POST'])
     def create_user_api():

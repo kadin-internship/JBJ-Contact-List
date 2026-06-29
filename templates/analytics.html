@@ -104,7 +104,7 @@
         {% if by_action %}
         <div class="bar-list">
           {% for row in by_action %}
-          <div class="bar-row">
+          <div class="bar-row bar-row-clickable" data-action="{{ row.action }}" data-label="{{ row.label }}" title="Click to see these entries">
             <span class="bar-label">{{ row.label }}</span>
             <div class="bar-track"><div class="bar-fill" style="width:{{ row.pct }}%"></div></div>
             <span class="bar-count">{{ row.count }}</span>
@@ -163,6 +163,32 @@
     document.querySelectorAll('.week-col[data-week-start]').forEach(col=>{
       col.addEventListener('click', ()=> showDetail('Outreach: week of ' + col.dataset.weekStart, {week_start: col.dataset.weekStart, week_end: col.dataset.weekEnd}))
     })
+
+    async function showAuditDetail(title, action){
+      const modal = el('detailModal')
+      const body = el('detailModalBody')
+      el('detailModalTitle').textContent = title
+      body.innerHTML = 'Loading…'
+      modal.style.display = ''
+      try{
+        const res = await fetch('/api/analytics/audit-entries?' + new URLSearchParams({action}).toString())
+        const j = await res.json()
+        if(!res.ok){ body.innerHTML = '<p class="muted">' + (j.error || 'Could not load details.') + '</p>'; return }
+        if(!j.entries.length){ body.innerHTML = '<p class="muted">No matching admin activity.</p>'; return }
+        body.innerHTML = j.entries.map(e => `
+          <div class="activity-item">
+            <div class="activity-meta"><strong>${e.created_at ? new Date(e.created_at).toLocaleString() : 'No date'}</strong> — ${e.actor_name}</div>
+            <div class="activity-summary">${e.summary}</div>
+          </div>
+        `).join('')
+      }catch(e){
+        body.innerHTML = '<p class="muted">Could not reach the server.</p>'
+      }
+    }
+    document.querySelectorAll('.bar-row[data-action]').forEach(row=>{
+      row.addEventListener('click', ()=> showAuditDetail(row.dataset.label + ' (last 30 days)', row.dataset.action))
+    })
+
     el('closeDetailModal').addEventListener('click', ()=>{ el('detailModal').style.display = 'none' })
   </script>
 </body>

@@ -6,6 +6,14 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-29 — Drill-down on Admin Activity too
+
+The Analytics dashboard's click-to-drill-down covered outreach
+(employee/channel/county/week) but not the Admin Activity breakdown --
+added a matching `/api/analytics/audit-entries` endpoint so clicking an
+admin-activity bar (e.g. "Added contact") shows the actual Audit Log
+entries behind that count, same as the outreach breakdowns.
+
 ## 2026-06-29 — UI feedback round: card design, favorites, colorful tags, outreach recency
 
 Manager collected feedback from the team on the look and feel of the

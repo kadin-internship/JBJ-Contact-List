@@ -1,5 +1,8 @@
 # Scaling & cost plan: supporting 50+ employees
 
+(For a non-technical, presentation-ready version of the cost numbers,
+see `docs/yearly-cost-comparison.md`.)
+
 Goal: the app should stay responsive with 50+ employees using it at once,
 with comfortable headroom for the contact list and traffic to keep
 growing -- not the bare minimum that just barely avoids crashing.

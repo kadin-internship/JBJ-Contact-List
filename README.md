@@ -146,7 +146,16 @@ If this Mac is ever off, the GitHub Actions side still runs and the
 backup is safely sitting in GitHub regardless — the LaunchAgent just
 catches it up into iCloud the next time it runs.
 
-**To restore** a Postgres backup:
+Each day's backup lands in that `postgres/` folder as **two files**:
+`postgres_<timestamp>.dump` (the real backup — binary, used to restore)
+and `postgres_<timestamp>.sql` (the same backup converted to plain text,
+so it can be opened directly in any text editor to eyeball what's in
+it, with no special tools needed). Both contain the same real contact
+data and password hashes as production, so treat that folder the same
+way as the database itself — it's gitignored and lives only in iCloud,
+not in this repo, for the same reason `contacts.db` is kept out of git.
+
+**To restore** a Postgres backup (from the `.dump` file, not the `.sql`):
 
 ```bash
 pg_restore --no-owner --clean --dbname="$DATABASE_URL" postgres_<timestamp>.dump

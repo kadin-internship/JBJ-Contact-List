@@ -6,6 +6,14 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-29 — Plain-text copy of each Postgres backup
+
+The nightly Postgres backup (`scripts/fetch_postgres_backup.sh`) only
+produced a binary `.dump` file, which isn't readable without
+`pg_restore`. It now also writes a plain-text `.sql` copy alongside it
+in the same iCloud folder, so the backup's contents can be opened and
+checked directly in a text editor.
+
 ## 2026-06-25 — Automated production (Postgres) database backups
 
 Manager asked for automated backups of the production database, on top

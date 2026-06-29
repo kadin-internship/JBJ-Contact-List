@@ -35,7 +35,21 @@ fi
 
 cp "$DUMP_FILE" "$ICLOUD_BACKUP_DIR/postgres_$STAMP.dump"
 
+# Also write a plain-text .sql copy alongside the binary .dump, so the
+# backup can be opened and read directly without needing pg_restore --
+# pg_restore plain (no path) on this Mac is too old to read dumps taken
+# from a newer Postgres server, so prefer a matching versioned install.
+PG_RESTORE="pg_restore"
+for candidate in /opt/homebrew/opt/postgresql@18/bin/pg_restore /opt/homebrew/opt/postgresql@17/bin/pg_restore /opt/homebrew/opt/postgresql@16/bin/pg_restore; do
+  if [ -x "$candidate" ]; then
+    PG_RESTORE="$candidate"
+    break
+  fi
+done
+"$PG_RESTORE" -f "$ICLOUD_BACKUP_DIR/postgres_$STAMP.sql" "$DUMP_FILE"
+
 # Prune backups older than KEEP_DAYS.
 find "$ICLOUD_BACKUP_DIR" -name "postgres_*.dump" -mtime "+$KEEP_DAYS" -delete
+find "$ICLOUD_BACKUP_DIR" -name "postgres_*.sql" -mtime "+$KEEP_DAYS" -delete
 
-echo "$(date): saved postgres backup from run $RUN_ID as postgres_$STAMP.dump"
+echo "$(date): saved postgres backup from run $RUN_ID as postgres_$STAMP.dump and postgres_$STAMP.sql"

@@ -85,12 +85,25 @@ cost is negligible by comparison (a few dollars even at several GB).
 
 The "Draft Email" feature calls Claude (Sonnet 4.6: $3 / $15 per million
 input/output tokens). A typical drafted email is roughly 1,000-1,500
-total tokens, costing well under $0.01 each. Even frequent use across 50
-employees is unlikely to be a meaningful line item -- but because it's
-the one feature here with no usage cap, it's worth keeping an eye on if
-adoption is heavy. If cost certainty matters more than convenience, a
-simple per-user daily cap could be added later; not done here since
-current usage doesn't justify the added complexity.
+total tokens (~800 input, ~450 output), costing about $0.009 -- under a
+cent -- each.
+
+**Heavy-use example:** even at 100 drafts every single day (a high
+estimate -- that's one every few minutes across an 8-hour day):
+
+```
+100 drafts/day x $0.009 = ~$0.90/day
+~$0.90/day x 30 days     = ~$27/month
+~$0.90/day x 22 business days = ~$20/month
+```
+
+So heavy use across the whole team still lands around **$20-30/month**
+-- not a number that meaningfully changes the overall budget. It's the
+one feature here with no usage cap, so it's worth keeping an eye on the
+Anthropic billing dashboard if adoption is much heavier than expected.
+If cost certainty matters more than convenience, a simple per-user
+daily cap could be added later; not done here since current usage
+doesn't justify the added complexity.
 
 ## What you need to actually do
 

@@ -90,14 +90,14 @@ function toast(message, type){
 }
 console.debug('app.js loaded')
 
-// The Tag, County, and Export dropdowns are independent toggle buttons, but
-// each one's own click handler calls stopPropagation() (so opening it
-// doesn't immediately trigger its own "click outside closes it" listener) --
-// which also stops that click from reaching the *other* dropdowns'
-// outside-click listeners, so they never close. Closing every other menu
-// before opening one keeps only one open at a time.
+// The Tag, County, Export, and AI Tools dropdowns are independent toggle
+// buttons, but each one's own click handler calls stopPropagation() (so
+// opening it doesn't immediately trigger its own "click outside closes
+// it" listener) -- which also stops that click from reaching the *other*
+// dropdowns' outside-click listeners, so they never close. Closing every
+// other menu before opening one keeps only one open at a time.
 function closeOtherFilterMenus(exceptId){
-  ;['tagFilterMenu', 'countyFilterMenu', 'exportMenu'].forEach(id => {
+  ;['tagFilterMenu', 'countyFilterMenu', 'exportMenu', 'toolsMenu'].forEach(id => {
     if(id === exceptId) return
     const m = el(id)
     if(m) m.style.display = 'none'
@@ -762,10 +762,23 @@ function bind(){
   const backBtn = el('backHomeBtn')
   if(backBtn) backBtn.addEventListener('click', ()=>{ showHome(true) })
   bindExportMenu()
+  bindToolsMenu()
   bindDraftEmail()
   bindCreateFlyer()
   bindCountyFilter()
   bindTagFilter()
+  bindAdminMenu()
+}
+
+// The Admin nav dropdown is a native <details>/<summary> (no JS needed to
+// toggle it open/closed), but it doesn't close itself on an outside click
+// the way the other header menus do -- this adds just that.
+function bindAdminMenu(){
+  const menu = document.querySelector('.admin-menu')
+  if(!menu) return
+  document.addEventListener('click', (e)=>{
+    if(!menu.contains(e.target)) menu.removeAttribute('open')
+  })
 }
 
 function currentExportParams(){
@@ -779,6 +792,27 @@ function currentExportParams(){
   if(state.view !== 'organizations' && state.followup) params.set('followup', state.followup)
   if(state.view !== 'organizations' && state.favoritesOnly) params.set('favorites_only', '1')
   return params
+}
+
+// Draft Email and Create Flyer/Post are both AI-generation tools, distinct
+// from filtering/exporting -- grouped under one toggle to cut down on
+// separate buttons in the toolbar. The buttons keep their own ids/click
+// handlers (bindDraftEmail/bindCreateFlyer elsewhere), this just opens
+// and closes the menu they live in.
+function bindToolsMenu(){
+  const btn = el('toolsMenuBtn')
+  const menu = el('toolsMenu')
+  if(!btn || !menu) return
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation()
+    const opening = menu.style.display === 'none'
+    closeOtherFilterMenus('toolsMenu')
+    menu.style.display = opening ? '' : 'none'
+  })
+  menu.addEventListener('click', (e)=>{
+    if(e.target.closest('.export-menu-item')) menu.style.display = 'none'
+  })
+  document.addEventListener('click', ()=>{ menu.style.display = 'none' })
 }
 
 function bindExportMenu(){

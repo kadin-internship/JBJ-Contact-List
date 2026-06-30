@@ -6,6 +6,18 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-30 — Decluttered the nav and search toolbar
+
+Manager felt the page was cramped. Grouped the four admin-only nav
+links (Sync Spreadsheet, Manage Users, Audit Log, Analytics) behind a
+single "Admin" dropdown instead of four separate buttons. Split the
+search toolbar into a Filters group (Tags/Counties/Follow-up/Favorites)
+and an Actions group (Search/Export/AI Tools), and combined Draft Email
++ Create Flyer/Post into one "AI Tools" dropdown. (A left-sidebar
+version of the filters was also prototyped locally but reverted --
+icons lost their text labels in that layout and it wasn't an
+improvement.) No backend changes.
+
 ## 2026-06-30 — Delete contact (admin-only)
 
 There was no way to remove a contact entirely -- only edit fields or

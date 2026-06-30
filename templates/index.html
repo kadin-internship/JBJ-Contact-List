@@ -43,10 +43,15 @@
           <button id="addContactBtn" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add Contact</button>
           <a class="btn" href="/case-studies"><i class="fas fa-book-open"></i> Case Studies</a>
           {% if current_user.is_admin %}
-          <a class="btn" href="/admin"><i class="fas fa-file-arrow-up"></i> Sync Spreadsheet</a>
-          <a class="btn" href="/admin/users"><i class="fas fa-users-gear"></i> Manage Users</a>
-          <a class="btn" href="/admin/audit"><i class="fas fa-clipboard-list"></i> Audit Log</a>
-          <a class="btn" href="/admin/analytics"><i class="fas fa-chart-column"></i> Analytics</a>
+          <details class="admin-menu">
+            <summary class="btn"><i class="fas fa-screwdriver-wrench"></i> Admin <i class="fas fa-chevron-down" style="font-size:11px;"></i></summary>
+            <div class="admin-menu-panel">
+              <a class="export-menu-item" href="/admin"><i class="fas fa-file-arrow-up"></i> Sync Spreadsheet</a>
+              <a class="export-menu-item" href="/admin/users"><i class="fas fa-users-gear"></i> Manage Users</a>
+              <a class="export-menu-item" href="/admin/audit"><i class="fas fa-clipboard-list"></i> Audit Log</a>
+              <a class="export-menu-item" href="/admin/analytics"><i class="fas fa-chart-column"></i> Analytics</a>
+            </div>
+          </details>
           {% endif %}
           <a class="btn" href="/logout"><i class="fas fa-arrow-right-from-bracket"></i> Logout</a>
         </div>
@@ -63,37 +68,46 @@
             <button id="viewOrgBtn" class="view-toggle-btn" type="button"><i class="fas fa-building"></i> Organizations</button>
           </div>
           <div class="search-controls">
-            <div class="tag-filter-wrap export-wrap">
-              <button id="tagFilterBtn" type="button" class="btn" aria-haspopup="true">
-                <i class="fas fa-tag"></i> <span id="tagFilterLabel">All Tags</span>
-              </button>
-              <div id="tagFilterMenu" class="export-menu filter-menu" style="display:none;"></div>
+            <div class="control-group" role="group" aria-label="Filters">
+              <div class="tag-filter-wrap export-wrap">
+                <button id="tagFilterBtn" type="button" class="btn" aria-haspopup="true">
+                  <i class="fas fa-tag"></i> <span id="tagFilterLabel">All Tags</span>
+                </button>
+                <div id="tagFilterMenu" class="export-menu filter-menu" style="display:none;"></div>
+              </div>
+              <div class="county-filter-wrap export-wrap">
+                <button id="countyFilterBtn" type="button" class="btn" aria-haspopup="true">
+                  <i class="fas fa-map-location-dot"></i> <span id="countyFilterLabel">All Counties</span>
+                </button>
+                <div id="countyFilterMenu" class="export-menu filter-menu" style="display:none;"></div>
+              </div>
+              <select id="followupFilter" class="btn" aria-label="Needs follow-up filter">
+                <option value="">All Contacts</option>
+                <option value="never">Never Contacted</option>
+                <option value="30">No Contact in 30+ Days</option>
+                <option value="60">No Contact in 60+ Days</option>
+                <option value="90">No Contact in 90+ Days</option>
+              </select>
+              <button id="favoritesOnlyBtn" type="button" class="btn" aria-pressed="false" title="Show only starred contacts"><i class="far fa-star"></i> Favorites</button>
             </div>
-            <div class="county-filter-wrap export-wrap">
-              <button id="countyFilterBtn" type="button" class="btn" aria-haspopup="true">
-                <i class="fas fa-map-location-dot"></i> <span id="countyFilterLabel">All Counties</span>
-              </button>
-              <div id="countyFilterMenu" class="export-menu filter-menu" style="display:none;"></div>
-            </div>
-            <select id="followupFilter" class="btn" aria-label="Needs follow-up filter">
-              <option value="">All Contacts</option>
-              <option value="never">Never Contacted</option>
-              <option value="30">No Contact in 30+ Days</option>
-              <option value="60">No Contact in 60+ Days</option>
-              <option value="90">No Contact in 90+ Days</option>
-            </select>
-            <button id="favoritesOnlyBtn" type="button" class="btn" aria-pressed="false" title="Show only starred contacts"><i class="far fa-star"></i> Favorites</button>
-            <button id="searchBtn" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
-            <div class="export-wrap">
-              <button id="exportMenuBtn" class="btn"><i class="fas fa-download"></i> Export <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
-              <div id="exportMenu" class="export-menu" style="display:none;">
-                <button id="exportCopyEmails" class="export-menu-item"><i class="fas fa-envelope"></i> Copy Emails (for mass email)</button>
-                <button id="exportCsvBtn" class="export-menu-item"><i class="fas fa-file-csv"></i> Download CSV</button>
-                <button id="exportDocxBtn" class="export-menu-item"><i class="fas fa-file-word"></i> Download Word Doc</button>
+            <div class="control-group" role="group" aria-label="Actions">
+              <button id="searchBtn" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
+              <div class="export-wrap">
+                <button id="exportMenuBtn" class="btn"><i class="fas fa-download"></i> Export <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
+                <div id="exportMenu" class="export-menu" style="display:none;">
+                  <button id="exportCopyEmails" class="export-menu-item"><i class="fas fa-envelope"></i> Copy Emails (for mass email)</button>
+                  <button id="exportCsvBtn" class="export-menu-item"><i class="fas fa-file-csv"></i> Download CSV</button>
+                  <button id="exportDocxBtn" class="export-menu-item"><i class="fas fa-file-word"></i> Download Word Doc</button>
+                </div>
+              </div>
+              <div class="export-wrap">
+                <button id="toolsMenuBtn" class="btn"><i class="fas fa-wand-magic-sparkles"></i> AI Tools <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
+                <div id="toolsMenu" class="export-menu" style="display:none;">
+                  <button id="draftEmailBtn" class="export-menu-item"><i class="fas fa-wand-magic-sparkles"></i> Draft Email</button>
+                  <button id="createFlyerBtn" class="export-menu-item"><i class="fas fa-image"></i> Create Flyer/Post</button>
+                </div>
               </div>
             </div>
-            <button id="draftEmailBtn" class="btn"><i class="fas fa-wand-magic-sparkles"></i> Draft Email</button>
-            <button id="createFlyerBtn" class="btn"><i class="fas fa-image"></i> Create Flyer/Post</button>
           </div>
         </div>
         <div class="search-right">

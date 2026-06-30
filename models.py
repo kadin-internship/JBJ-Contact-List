@@ -51,6 +51,13 @@ class Contact(db.Model):
     notes = db.Column(db.Text, nullable=True)
     data_complete = db.Column(db.Boolean, default=False, nullable=False)
     is_favorite = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    # Set when someone clicks the unsubscribe link in a sent email -- the
+    # email builder's send route excludes these contacts, but the rest of
+    # the app (exports, Draft Email, the main list) still shows them.
+    # unsubscribe_token is the lookup key for that link (not the contact's
+    # id) so the link can't be used to guess-unsubscribe other contacts.
+    unsubscribed = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    unsubscribe_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
 
     __table_args__ = (
         Index('ix_contacts_name', 'first_name', 'last_name'),
@@ -74,6 +81,7 @@ class Contact(db.Model):
             'notes': self.notes,
             'data_complete': bool(self.data_complete),
             'is_favorite': bool(self.is_favorite),
+            'unsubscribed': bool(self.unsubscribed),
         }
 
 
@@ -197,4 +205,114 @@ class CaseStudy(db.Model):
             'has_file': bool(self.file_data),
             'file_name': self.file_name,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class EmailTemplate(db.Model):
+    """A saved email design built in the drag-and-drop email builder --
+    blocks is an ordered list of {type, ...props} dicts the builder's
+    canvas renders from and the HTML-email renderer turns into the real
+    sent message."""
+    __tablename__ = 'email_templates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(256), nullable=False)
+    subject = db.Column(db.String(512), nullable=True)
+    blocks = db.Column(db.JSON, nullable=False, default=list)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'subject': self.subject,
+            'blocks': self.blocks or [],
+            'created_by_id': self.created_by_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class FlyerTemplate(db.Model):
+    """A saved flyer/social-post design built in the free-canvas flyer
+    builder -- elements is an ordered list of {type, x, y, width, height,
+    ...props} dicts, array order doubling as stacking (z) order."""
+    __tablename__ = 'flyer_templates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(256), nullable=False)
+    format = db.Column(db.String(16), nullable=False, default='square')  # 'square' | 'portrait'
+    elements = db.Column(db.JSON, nullable=False, default=list)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'format': self.format,
+            'elements': self.elements or [],
+            'created_by_id': self.created_by_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class FlyerAsset(db.Model):
+    """An uploaded image used by an Image element in the flyer builder.
+    Stored as bytes in Postgres, same reasoning as CaseStudy.file_data --
+    Render's free plan has no persistent disk for a filesystem upload path."""
+    __tablename__ = 'flyer_assets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.LargeBinary, nullable=False)
+    mimetype = db.Column(db.String(128), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'mimetype': self.mimetype,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class EmailSend(db.Model):
+    """The operational record of one real send -- recipient/sent/failed
+    counts and status, so a stuck or partial send (e.g. the Render dyno
+    restarting mid-send) is visible and diagnosable. Separate from
+    AuditLog, which records that a send happened for the Audit Log page;
+    this is the queryable per-send detail AuditLog.details isn't suited for."""
+    __tablename__ = 'email_sends'
+
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('email_templates.id'), nullable=True)
+    sent_by_name = db.Column(db.String(120), nullable=False)
+    subject = db.Column(db.String(512), nullable=True)
+    filter_snapshot = db.Column(db.JSON, nullable=True)
+    recipient_count = db.Column(db.Integer, nullable=False, default=0)
+    sent_count = db.Column(db.Integer, nullable=False, default=0)
+    failed_count = db.Column(db.Integer, nullable=False, default=0)
+    status = db.Column(db.String(32), nullable=False, default='pending')  # pending|sending|completed|failed
+    error = db.Column(db.Text, nullable=True)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'template_id': self.template_id,
+            'sent_by_name': self.sent_by_name,
+            'subject': self.subject,
+            'filter_snapshot': self.filter_snapshot,
+            'recipient_count': self.recipient_count,
+            'sent_count': self.sent_count,
+            'failed_count': self.failed_count,
+            'status': self.status,
+            'error': self.error,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
         }

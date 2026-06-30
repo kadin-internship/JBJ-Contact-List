@@ -6,6 +6,19 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-30 — Email/flyer builder, step 1: data model only
+
+First of several PRs toward a real drag-and-drop email builder and a
+free-canvas flyer builder (replacing the old third-party newsletter tool
+the team lost access to), with actual sending -- not just AI-drafted text
+to copy elsewhere like today's Draft Email/Create Flyer. This step adds
+only the database schema: `EmailTemplate`, `FlyerTemplate`, `FlyerAsset`,
+`EmailSend` (all brand-new tables), plus `Contact.unsubscribed` /
+`Contact.unsubscribe_token` (existing-table change -- see
+`scripts/add_unsubscribe_columns.py`, must run against production before
+the next step's code deploys). No UI yet, nothing user-facing changes in
+this step.
+
 ## 2026-06-30 — Moved filters into a left sidebar
 
 Manager liked a reference layout (plain radio/checkbox filter lists with

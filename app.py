@@ -10,7 +10,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from config import Config
 from db import db
-from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy, EmailTemplate
+from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy, EmailTemplate, FlyerTemplate, FlyerAsset
 from schemas import ContactSchema
 from utils import (
     read_uploaded_file, clean_dataframe, clean_outreach_orgs,
@@ -200,6 +200,9 @@ ACTION_LABELS = {
     'email_template_updated': 'Edited email template',
     'email_template_deleted': 'Deleted email template',
     'email_template_sent': 'Sent email',
+    'flyer_template_created': 'Created flyer',
+    'flyer_template_updated': 'Edited flyer',
+    'flyer_template_deleted': 'Deleted flyer',
 }
 
 
@@ -1049,6 +1052,107 @@ def create_app(config_class=Config):
             'to': to_email, 'attachment_count': len(attachments),
         })
         return jsonify({'sent': True})
+
+    # ------------------------------------------------------------------ #
+    # Flyer / canvas builder                                               #
+    # ------------------------------------------------------------------ #
+
+    @app.route('/flyer-builder')
+    def flyer_builder_list():
+        templates = FlyerTemplate.query.order_by(FlyerTemplate.updated_at.desc()).all()
+        return render_template('flyer_builder_list.html', templates=templates)
+
+    @app.route('/flyer-builder/<int:template_id>')
+    def flyer_builder_edit(template_id):
+        template = FlyerTemplate.query.get_or_404(template_id)
+        return render_template('flyer_builder.html', template=template)
+
+    @app.route('/api/flyer-templates', methods=['GET'])
+    def list_flyer_templates():
+        items = FlyerTemplate.query.order_by(FlyerTemplate.updated_at.desc()).all()
+        return jsonify({'flyer_templates': [t.to_dict() for t in items]})
+
+    @app.route('/api/flyer-templates', methods=['POST'])
+    def create_flyer_template():
+        data = request.get_json(force=True) or {}
+        t = FlyerTemplate(
+            name=(data.get('name') or '').strip() or 'Untitled flyer',
+            format=data.get('format', 'square') if data.get('format') in ('square', 'portrait') else 'square',
+            elements=data.get('elements') or [],
+            created_by_id=current_user.id,
+        )
+        db.session.add(t)
+        db.session.commit()
+        log_audit('flyer_template_created', 'flyer_template', t.id, t.name)
+        return jsonify(t.to_dict()), 201
+
+    @app.route('/api/flyer-templates/<int:template_id>', methods=['GET'])
+    def get_flyer_template(template_id):
+        return jsonify(FlyerTemplate.query.get_or_404(template_id).to_dict())
+
+    @app.route('/api/flyer-templates/<int:template_id>', methods=['PUT'])
+    def update_flyer_template(template_id):
+        t = FlyerTemplate.query.get_or_404(template_id)
+        data = request.get_json(force=True) or {}
+        t.name = (data.get('name') or '').strip() or 'Untitled flyer'
+        if data.get('format') in ('square', 'portrait'):
+            t.format = data['format']
+        t.elements = data.get('elements') or []
+        db.session.commit()
+        log_audit('flyer_template_updated', 'flyer_template', t.id, t.name)
+        return jsonify(t.to_dict())
+
+    @app.route('/api/flyer-templates/<int:template_id>', methods=['DELETE'])
+    def delete_flyer_template(template_id):
+        t = FlyerTemplate.query.get_or_404(template_id)
+        label = t.name
+        db.session.delete(t)
+        db.session.commit()
+        log_audit('flyer_template_deleted', 'flyer_template', template_id, label)
+        return jsonify({'deleted': True})
+
+    @app.route('/api/flyer-templates/<int:template_id>/render', methods=['POST'])
+    def render_flyer_template(template_id):
+        import base64
+        from flyer_render import render_flyer_png, DISPLAY_SIZES
+
+        t = FlyerTemplate.query.get_or_404(template_id)
+        data = request.get_json(silent=True) or {}
+        elements = data.get('elements') or t.elements or []
+        fmt = t.format
+
+        def asset_loader(asset_id):
+            a = FlyerAsset.query.get(int(asset_id))
+            return a.data if a else None
+
+        bg = data.get('background', '#ffffff')
+        png_bytes = render_flyer_png(elements, fmt=fmt, bg_color=bg, asset_loader=asset_loader)
+        return jsonify({
+            'image': 'data:image/png;base64,' + base64.b64encode(png_bytes).decode(),
+            'width': DISPLAY_SIZES.get(fmt, (540, 540))[0] * 2,
+            'height': DISPLAY_SIZES.get(fmt, (540, 540))[1] * 2,
+        })
+
+    @app.route('/api/flyer-assets', methods=['POST'])
+    def upload_flyer_asset():
+        f = request.files.get('file')
+        if not f or not f.filename:
+            return jsonify({'error': 'No file provided.'}), 400
+        data = f.read()
+        if len(data) > 10 * 1024 * 1024:
+            return jsonify({'error': 'File too large (10MB limit).'}), 400
+        asset = FlyerAsset(data=data, mimetype=f.mimetype or 'application/octet-stream')
+        db.session.add(asset)
+        db.session.commit()
+        return jsonify({'id': asset.id, 'mimetype': asset.mimetype}), 201
+
+    @app.route('/flyer-builder/assets/<int:asset_id>')
+    def serve_flyer_asset(asset_id):
+        asset = FlyerAsset.query.get_or_404(asset_id)
+        return send_file(
+            io.BytesIO(asset.data),
+            mimetype=asset.mimetype,
+        )
 
     @app.route('/api/contacts', methods=['GET'])
     def list_contacts():

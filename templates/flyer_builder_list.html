@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Flyer Builder — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/#search" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>Flyer Builder</h2>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button id="fbNewSquareBtn" class="btn"><i class="fas fa-plus"></i> New Square (Social Post)</button>
+        <button id="fbNewPortraitBtn" class="btn btn-primary"><i class="fas fa-plus"></i> New Portrait (Flyer)</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-area">
+    {% if templates %}
+    <div class="results-grid" style="margin-top:16px;">
+      {% for t in templates %}
+      <a class="card" href="/flyer-builder/{{ t.id }}" style="text-decoration:none;color:inherit;">
+        <h3>{{ t.name }}</h3>
+        <div class="meta">{{ 'Square (1080×1080)' if t.format == 'square' else 'Portrait (1080×1536)' }}</div>
+        <p class="muted" style="margin:6px 0 0;">{{ t.elements|length }} element{{ '' if t.elements|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}</p>
+        <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteFlyerTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted" style="margin-top:16px">No flyers yet — create one above.</p>
+    {% endif %}
+  </main>
+
+  <script>
+    async function createFlyer(format) {
+      const res = await fetch('/api/flyer-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Untitled flyer', format }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) window.location.href = `/flyer-builder/${j.id}`
+    }
+    async function deleteFlyerTemplate(id, name) {
+      if (!confirm(`Delete "${name}"? This can't be undone.`)) return
+      const res = await fetch(`/api/flyer-templates/${id}`, { method: 'DELETE' })
+      if (res.ok) window.location.reload()
+    }
+    document.getElementById('fbNewSquareBtn').addEventListener('click', () => createFlyer('square'))
+    document.getElementById('fbNewPortraitBtn').addEventListener('click', () => createFlyer('portrait'))
+  </script>
+</body>
+</html>

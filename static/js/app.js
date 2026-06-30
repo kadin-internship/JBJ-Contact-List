@@ -382,12 +382,12 @@ async function showContactDetail(contact){
           <div class="detail-row"><strong>County:</strong> ${c.county || '<span class="muted">Unknown</span>'}</div>
           <div class="detail-row"><strong>Tags:</strong> ${(c.lists||[]).map(x=>pillHtml(x,'small')).join(' ') } ${c.tag? pillHtml(c.tag,'small'): ''}</div>
           <div class="detail-notes">${hasNotes? `<h4>Notes</h4><div class="notes">${(c.notes||'').replace(/\n/g,'<br>')}</div>` : ''}</div>
-          <div class="detail-flags" style="margin-top:10px;display:flex;gap:8px;align-items:center">
+          <div class="detail-flags" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
             ${incomplete? '<span class="flag flag-warn">Incomplete</span>' : '<span class="flag flag-ok">Complete</span>'}
             ${hasNotes? '<span class="flag flag-info">Has notes</span>' : ''}
             <button id="detailEditBtn" class="btn"><i class="fas fa-pen"></i> Edit</button>
             <a id="detailExport" class="btn" href="/api/export?id=${encodeURIComponent(c.id||'')}"><i class="fas fa-download"></i> Export</a>
-            ${window.IS_ADMIN ? '<button id="detailDeleteBtn" class="btn" style="margin-left:auto;color:#9b1c1c;"><i class="fas fa-trash"></i> Delete</button>' : ''}
+            ${window.IS_ADMIN ? '<button id="detailDeleteBtn" class="btn" style="color:#9b1c1c;"><i class="fas fa-trash"></i> Delete</button>' : ''}
           </div>
           ${activitySectionHtml()}
         </div>

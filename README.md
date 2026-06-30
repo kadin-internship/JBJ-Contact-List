@@ -48,6 +48,12 @@ See `CHANGELOG.md` for a running history of what's changed and why.
   collection of past-project writeups (challenge/solution/results) for
   staff to reference when prepping outreach. Viewing is open to
   everyone logged in; adding, editing, and deleting is admin-only.
+- **Case Studies bulk import** (`/case-studies/import`, admin-only) —
+  upload several PDF/Word case study files at once; Claude reads each
+  one and drafts the title/client/sector/challenges/solution/results,
+  which an admin reviews and edits before anything is saved. Native
+  Google Docs must be exported to .docx or PDF first (Drive doesn't
+  expose a way to read a native Doc's content without the Drive API).
 
 ## Setup
 
@@ -62,7 +68,7 @@ gitignored) with:
 
 ```
 SECRET_KEY=<random value, signs login sessions>
-ANTHROPIC_API_KEY=<only needed for the Draft Email and Create Flyer features>
+ANTHROPIC_API_KEY=<only needed for Draft Email, Create Flyer, and the Case Studies bulk importer>
 OPENAI_API_KEY=<only needed for the Create Flyer feature's background image>
 SENTRY_DSN=<optional -- error monitoring; app runs fine without it set>
 ```
@@ -258,8 +264,9 @@ still uses the local `contacts.db` SQLite file by default.
    - `SECRET_KEY` — generate a **new** one just for production:
      `python3 -c "import secrets; print(secrets.token_hex(32))"`. Don't
      reuse your local `.env` value.
-   - `ANTHROPIC_API_KEY` — same key used locally for Draft Email and
-     Create Flyer, or skip it and add it later if those aren't needed yet.
+   - `ANTHROPIC_API_KEY` — same key used locally for Draft Email, Create
+     Flyer, and the Case Studies bulk importer, or skip it and add it
+     later if those aren't needed yet.
    - `OPENAI_API_KEY` — needed for Create Flyer's background image (get
      one at platform.openai.com → API keys). Skip it and add it later if
      that feature isn't needed yet.

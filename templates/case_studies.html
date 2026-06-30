@@ -18,7 +18,10 @@
         <h2>Case Studies</h2>
       </div>
       {% if current_user.is_admin %}
-      <a class="btn btn-primary" href="/case-studies/new"><i class="fas fa-plus"></i> Add Case Study</a>
+      <div style="display:flex;gap:8px;">
+        <a class="btn" href="/case-studies/import"><i class="fas fa-file-import"></i> Import from Files</a>
+        <a class="btn btn-primary" href="/case-studies/new"><i class="fas fa-plus"></i> Add Case Study</a>
+      </div>
       {% endif %}
     </div>
   </header>

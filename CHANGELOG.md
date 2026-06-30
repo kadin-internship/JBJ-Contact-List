@@ -6,6 +6,18 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-30 — Case Studies bulk importer
+
+Manager has dozens of existing case study files (PDFs and Word docs)
+in Drive that needed to get into the library without retyping each
+one. Added `/case-studies/import` (admin-only): upload several PDF/
+.docx files at once, Claude reads each one and drafts the title/
+client/sector/challenges/solution/results, and the admin reviews/edits
+before anything is saved -- nothing is written to the database until
+confirmed. Native Google Docs aren't readable directly (no Drive API
+access) -- they need to be exported to .docx or PDF first. New
+dependency: `pypdf` (PDF text extraction).
+
 ## 2026-06-30 — Case Studies library
 
 Added a `/case-studies` page so staff can browse and search past-project

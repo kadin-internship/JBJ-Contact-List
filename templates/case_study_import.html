@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Import Case Studies — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/case-studies" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>Import Case Studies</h2>
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-area">
+    <section class="card" style="max-width:720px">
+      <h3>1. Upload files</h3>
+      <p class="muted">
+        Accepts PDF and Word (.docx) files. Native Google Docs need to be
+        exported first (in Drive: open the doc &rarr; File &rarr; Download &rarr;
+        Microsoft Word or PDF) -- this importer can't read them directly.
+        Claude will read each file and draft the title, client, sector, and
+        challenges/solution/results -- nothing is saved until you review and
+        confirm below.
+      </p>
+      <input id="fileInput" type="file" multiple accept=".pdf,.docx" />
+      <div style="margin-top:10px">
+        <button id="parseBtn" class="btn btn-primary"><i class="fas fa-wand-magic-sparkles"></i> Parse Files</button>
+      </div>
+      <div id="parseStatus" class="muted" style="margin-top:8px;"></div>
+    </section>
+
+    <section id="reviewSection" style="margin-top:16px;display:none;">
+      <div class="card">
+        <h3>2. Review and save</h3>
+        <p class="muted">Edit anything that looks off, uncheck anything you don't want to keep, then save.</p>
+        <div style="display:flex;gap:8px;">
+          <button id="saveAllBtn" class="btn btn-primary"><i class="fas fa-check"></i> Save Checked</button>
+        </div>
+        <div id="saveStatus" class="muted" style="margin-top:8px;"></div>
+      </div>
+      <div id="reviewList" style="display:flex;flex-direction:column;gap:14px;margin-top:14px;"></div>
+    </section>
+  </main>
+
+  <script>
+    function el(id){ return document.getElementById(id) }
+    let drafts = []
+
+    el('parseBtn').addEventListener('click', async () => {
+      const files = el('fileInput').files
+      if (!files.length) { el('parseStatus').textContent = 'Choose at least one file first.'; return }
+      const formData = new FormData()
+      for (const f of files) formData.append('files', f)
+
+      el('parseBtn').disabled = true
+      el('parseStatus').textContent = `Reading ${files.length} file(s) with Claude -- this can take a minute...`
+
+      try {
+        const res = await fetch('/api/case-studies/parse', { method: 'POST', body: formData })
+        const j = await res.json()
+        if (!res.ok) {
+          el('parseStatus').textContent = j.error || 'Could not parse these files.'
+          el('parseBtn').disabled = false
+          return
+        }
+        drafts = j.results
+        renderReview()
+        const okCount = drafts.filter(d => d.success).length
+        el('parseStatus').textContent = `Parsed ${okCount} of ${drafts.length} file(s). Review below.`
+      } catch (e) {
+        el('parseStatus').textContent = 'Could not reach the server.'
+      }
+      el('parseBtn').disabled = false
+    })
+
+    function escapeHtml(s){
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    }
+
+    function renderReview(){
+      const list = el('reviewList')
+      list.innerHTML = ''
+      drafts.forEach((d, i) => {
+        const card = document.createElement('div')
+        card.className = 'card'
+        if (!d.success) {
+          card.innerHTML = `
+            <h3>${escapeHtml(d.filename)}</h3>
+            <p class="flag flag-warn">${escapeHtml(d.error)}</p>
+          `
+          list.appendChild(card)
+          return
+        }
+        card.innerHTML = `
+          <label><input type="checkbox" class="cs-include" data-i="${i}" checked> <strong>${escapeHtml(d.filename)}</strong></label>
+          <label>Title<br><input type="text" class="cs-title" data-i="${i}" value="${escapeHtml(d.title).replace(/"/g,'&quot;')}"></label>
+          <label>Client<br><input type="text" class="cs-client" data-i="${i}" value="${escapeHtml(d.client).replace(/"/g,'&quot;')}"></label>
+          <label>Sector<br><input type="text" class="cs-sector" data-i="${i}" value="${escapeHtml(d.sector).replace(/"/g,'&quot;')}"></label>
+          <label>Challenges<br><textarea class="cs-challenges" data-i="${i}" rows="4">${escapeHtml(d.challenges)}</textarea></label>
+          <label>Solution<br><textarea class="cs-solution" data-i="${i}" rows="4">${escapeHtml(d.solution)}</textarea></label>
+          <label>Results<br><textarea class="cs-results" data-i="${i}" rows="4">${escapeHtml(d.results)}</textarea></label>
+        `
+        list.appendChild(card)
+      })
+      el('reviewSection').style.display = ''
+    }
+
+    el('saveAllBtn').addEventListener('click', async () => {
+      const checks = document.querySelectorAll('.cs-include:checked')
+      if (!checks.length) { el('saveStatus').textContent = 'Nothing checked to save.'; return }
+      el('saveAllBtn').disabled = true
+      let saved = 0
+      let failed = 0
+      for (const cb of checks) {
+        const i = cb.dataset.i
+        const body = {
+          title: document.querySelector(`.cs-title[data-i="${i}"]`).value.trim(),
+          client: document.querySelector(`.cs-client[data-i="${i}"]`).value.trim(),
+          sector: document.querySelector(`.cs-sector[data-i="${i}"]`).value.trim(),
+          challenges: document.querySelector(`.cs-challenges[data-i="${i}"]`).value.trim(),
+          solution: document.querySelector(`.cs-solution[data-i="${i}"]`).value.trim(),
+          results: document.querySelector(`.cs-results[data-i="${i}"]`).value.trim(),
+        }
+        try {
+          const res = await fetch('/api/case-studies', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) })
+          if (res.ok) saved++; else failed++
+        } catch (e) { failed++ }
+      }
+      el('saveStatus').textContent = `Saved ${saved} case stud${saved===1?'y':'ies'}.${failed ? ' ' + failed + ' failed.' : ''}`
+      el('saveAllBtn').disabled = false
+      if (saved && !failed) {
+        setTimeout(() => { window.location.href = '/case-studies' }, 900)
+      }
+    })
+  </script>
+</body>
+</html>

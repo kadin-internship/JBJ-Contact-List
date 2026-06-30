@@ -1,6 +1,87 @@
+import io
+import json
+from unittest.mock import patch, MagicMock
+
+import docx
+
+
+def _make_docx_bytes(text):
+    buf = io.BytesIO()
+    d = docx.Document()
+    d.add_paragraph(text)
+    d.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def _fake_claude_response(payload):
+    block = MagicMock()
+    block.type = 'text'
+    block.text = json.dumps(payload)
+    response = MagicMock()
+    response.content = [block]
+    return response
+
+
 def test_case_studies_list_loads_for_standard_user(standard_client):
     res = standard_client.get('/case-studies')
     assert res.status_code == 200
+
+
+def test_parse_requires_admin(standard_client):
+    data = {'files': (_make_docx_bytes('Some case study text here.'), 'test.docx')}
+    res = standard_client.post('/api/case-studies/parse', data=data, content_type='multipart/form-data')
+    assert res.status_code == 403
+
+
+def test_parse_requires_files(admin_client, monkeypatch):
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'fake-key-for-tests')
+    res = admin_client.post('/api/case-studies/parse', data={}, content_type='multipart/form-data')
+    assert res.status_code == 400
+
+
+def test_parse_requires_api_key(admin_client, monkeypatch):
+    monkeypatch.delenv('ANTHROPIC_API_KEY', raising=False)
+    data = {'files': (_make_docx_bytes('Some case study text here.'), 'test.docx')}
+    res = admin_client.post('/api/case-studies/parse', data=data, content_type='multipart/form-data')
+    assert res.status_code == 500
+
+
+def test_parse_rejects_unsupported_file_type(admin_client, monkeypatch):
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'fake-key-for-tests')
+    data = {'files': (io.BytesIO(b'plain text'), 'notes.txt')}
+    res = admin_client.post('/api/case-studies/parse', data=data, content_type='multipart/form-data')
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body['results'][0]['success'] is False
+    assert '.txt' in body['results'][0]['error']
+
+
+def test_parse_extracts_and_returns_drafts(admin_client, monkeypatch):
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'fake-key-for-tests')
+    fake_payload = {
+        'title': 'DFW Airport Contractor Support',
+        'client': 'DFW Airport',
+        'sector': 'Aviation',
+        'challenges': 'Coordinating contractors at scale.',
+        'solution': 'Managed compliance through B2GNow.',
+        'results': 'Improved transparency.',
+    }
+    with patch('anthropic.Anthropic') as MockAnthropic:
+        MockAnthropic.return_value.messages.create.return_value = _fake_claude_response(fake_payload)
+        data = {'files': (_make_docx_bytes('A real case study about DFW Airport.'), 'dfw.docx')}
+        res = admin_client.post('/api/case-studies/parse', data=data, content_type='multipart/form-data')
+
+    assert res.status_code == 200
+    result = res.get_json()['results'][0]
+    assert result['success'] is True
+    assert result['title'] == 'DFW Airport Contractor Support'
+    assert result['sector'] == 'Aviation'
+
+
+def test_import_form_requires_admin(standard_client):
+    res = standard_client.get('/case-studies/import')
+    assert res.status_code == 302
 
 
 def test_create_case_study_requires_admin(standard_client):

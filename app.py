@@ -332,6 +332,41 @@ def _import_orgs(df, result):
             result['inserted'] += 1
 
 
+def extract_case_study_text(file_storage):
+    """Pulls raw text out of an uploaded .pdf or .docx for the case-study
+    importer to hand to Claude. Returns (text, error) -- exactly one is
+    None. Native Google Docs aren't readable here (no Drive API access);
+    the user has to export them to .docx or PDF first via Drive's
+    Download menu, same as old binary .doc files."""
+    filename = file_storage.filename or ''
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+
+    if ext == 'pdf':
+        from pypdf import PdfReader
+        try:
+            reader = PdfReader(file_storage.stream)
+            text = '\n'.join((page.extract_text() or '') for page in reader.pages)
+        except Exception as e:
+            return None, f'Could not read this PDF: {e}'
+    elif ext == 'docx':
+        from docx import Document as DocxReader
+        try:
+            doc = DocxReader(file_storage.stream)
+            text = '\n'.join(p.text for p in doc.paragraphs)
+        except Exception as e:
+            return None, f'Could not read this Word document: {e}'
+    else:
+        return None, (
+            f'Unsupported file type ".{ext or "unknown"}" -- only .pdf and .docx are supported. '
+            'Native Google Docs need to be exported first (File > Download > Microsoft Word or PDF).'
+        )
+
+    text = text.strip()
+    if len(text) < 30:
+        return None, 'Could not find readable text in this file (it may be a scanned/image-only PDF).'
+    return text, None
+
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -444,6 +479,12 @@ def create_app(config_class=Config):
         if not current_user.is_admin:
             return redirect(url_for('case_studies_list'))
         return render_template('case_study_form.html', case_study=None)
+
+    @app.route('/case-studies/import')
+    def case_study_import_form():
+        if not current_user.is_admin:
+            return redirect(url_for('case_studies_list'))
+        return render_template('case_study_import.html')
 
     @app.route('/case-studies/<int:case_study_id>')
     def case_study_detail(case_study_id):
@@ -744,6 +785,87 @@ def create_app(config_class=Config):
         db.session.commit()
         log_audit('case_study_deleted', 'case_study', case_study_id, label)
         return jsonify({'deleted': True})
+
+    @app.route('/api/case-studies/parse', methods=['POST'])
+    def parse_case_study_files():
+        """Bulk-import helper: extracts text from uploaded PDFs/Word docs
+        and asks Claude to structure each into title/client/sector/
+        challenges/solution/results. Returns drafts only -- nothing is
+        saved here, so an admin can review/edit before confirming via the
+        normal POST /api/case-studies for each one."""
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+
+        import json
+        import anthropic
+
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        if not api_key:
+            return jsonify({'error': 'ANTHROPIC_API_KEY is not configured on the server.'}), 500
+
+        files = request.files.getlist('files')
+        if not files:
+            return jsonify({'error': 'No files uploaded.'}), 400
+        if len(files) > 15:
+            return jsonify({'error': 'Upload at most 15 files at a time.'}), 400
+
+        system = (
+            "You extract structured data from a company's case study document for JBJ "
+            "Management. The document may have explicit CHALLENGES/SOLUTION/RESULTS "
+            "sections, or may be written more loosely -- either way, extract or "
+            "reasonably summarize the same three elements: the challenge/problem the "
+            "client faced, the solution/approach JBJ provided, and the measurable "
+            "results/outcome. Also extract the case study's title (use the document's "
+            "own title if present, otherwise write a short descriptive one), the "
+            "client/organization name, and a one-to-three-word sector/category label "
+            "(e.g. \"Aviation\", \"Transportation\", \"Government Affairs\", "
+            "\"Construction\", \"Healthcare\"). Preserve the original wording closely -- "
+            "do not invent facts, numbers, or details not present in the source text. "
+            "Respond with ONLY valid JSON, no commentary or markdown fences, in this "
+            'exact shape: {"title": "...", "client": "...", "sector": "...", '
+            '"challenges": "...", "solution": "...", "results": "..."}. If a field truly '
+            "cannot be determined from the text, use an empty string for it."
+        )
+
+        client = anthropic.Anthropic(api_key=api_key)
+        results = []
+        for f in files:
+            text, extract_error = extract_case_study_text(f)
+            if extract_error:
+                results.append({'filename': f.filename, 'success': False, 'error': extract_error})
+                continue
+            raw = '{}'
+            try:
+                response = client.messages.create(
+                    model="claude-opus-4-8",
+                    max_tokens=2000,
+                    system=system,
+                    messages=[{"role": "user", "content": text[:12000]}],
+                )
+                raw = next((b.text for b in response.content if b.type == 'text'), '{}').strip()
+                if raw.startswith('```'):
+                    raw = raw.strip('`')
+                    if raw.startswith('json'):
+                        raw = raw[4:]
+                parsed = json.loads(raw)
+            except anthropic.APIStatusError as e:
+                results.append({'filename': f.filename, 'success': False, 'error': f'Claude API error: {e.message}'})
+                continue
+            except Exception:
+                results.append({'filename': f.filename, 'success': False, 'error': 'Claude returned something this importer could not parse -- try again or enter this one manually.'})
+                continue
+            results.append({
+                'filename': f.filename,
+                'success': True,
+                'title': (parsed.get('title') or '').strip() or f.filename,
+                'client': (parsed.get('client') or '').strip(),
+                'sector': (parsed.get('sector') or '').strip(),
+                'challenges': (parsed.get('challenges') or '').strip(),
+                'solution': (parsed.get('solution') or '').strip(),
+                'results': (parsed.get('results') or '').strip(),
+            })
+
+        return jsonify({'results': results})
 
     @app.route('/api/contacts', methods=['GET'])
     def list_contacts():

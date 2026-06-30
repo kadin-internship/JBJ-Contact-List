@@ -26,11 +26,16 @@ RENDER_SCALE = 2
 
 
 def _hex_to_rgba(hex_color, alpha=255):
-    h = hex_color.lstrip('#')
-    if len(h) == 3:
-        h = ''.join(c * 2 for c in h)
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    return (r, g, b, alpha)
+    try:
+        h = (hex_color or '#000000').lstrip('#')
+        if len(h) == 3:
+            h = ''.join(c * 2 for c in h)
+        if len(h) != 6:
+            raise ValueError
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return (r, g, b, alpha)
+    except (ValueError, AttributeError):
+        return (0, 0, 0, alpha)
 
 
 def _load_font(bold=False, size=36):

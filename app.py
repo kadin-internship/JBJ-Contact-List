@@ -1122,8 +1122,11 @@ def create_app(config_class=Config):
         fmt = t.format
 
         def asset_loader(asset_id):
-            a = FlyerAsset.query.get(int(asset_id))
-            return a.data if a else None
+            try:
+                a = FlyerAsset.query.get(int(asset_id))
+                return a.data if a else None
+            except (TypeError, ValueError):
+                return None
 
         bg = data.get('background', '#ffffff')
         png_bytes = render_flyer_png(elements, fmt=fmt, bg_color=bg, asset_loader=asset_loader)

@@ -250,6 +250,7 @@ main{padding:24px 0}
 .detail-row{font-size:14px;color:var(--black);margin:6px 0;overflow-wrap:anywhere}
 .detail-row a{color:var(--maroon);text-decoration:none}
 .detail-notes .notes{background:#fafafa;padding:8px;border-radius:8px;margin-top:6px;overflow-wrap:anywhere}
+.case-study-text{white-space:pre-wrap;line-height:1.5;color:var(--black);overflow-wrap:anywhere}
 .flag{padding:6px 8px;border-radius:8px;font-size:13px}
 .flag-warn{background:rgba(184,116,12,0.14);color:var(--amber)}
 .flag-info{background:rgba(148,153,156,0.18);color:var(--charcoal)}

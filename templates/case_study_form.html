@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ 'Edit' if case_study else 'Add' }} Case Study — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="{{ '/case-studies/' + case_study.id|string if case_study else '/case-studies' }}" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>{{ 'Edit Case Study' if case_study else 'Add Case Study' }}</h2>
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-area">
+    <section class="card" style="max-width:720px">
+      <form id="caseStudyForm" style="display:flex;flex-direction:column;gap:10px">
+        <label>Title<br><input id="csTitle" type="text" required value="{{ case_study.title if case_study else '' }}"></label>
+        <label>Client<br><input id="csClient" type="text" value="{{ case_study.client if case_study else '' }}"></label>
+        <label>Sector / category<br><input id="csSector" type="text" placeholder="e.g. Aviation, Construction" value="{{ case_study.sector if case_study else '' }}"></label>
+        <label>Challenges<br><textarea id="csChallenges" rows="6">{{ case_study.challenges if case_study else '' }}</textarea></label>
+        <label>Solution<br><textarea id="csSolution" rows="6">{{ case_study.solution if case_study else '' }}</textarea></label>
+        <label>Results<br><textarea id="csResults" rows="6">{{ case_study.results if case_study else '' }}</textarea></label>
+        <div style="display:flex;gap:8px;">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Save</button>
+        </div>
+      </form>
+      <div id="caseStudyFormError" class="login-error" style="display:none;color:#9b1c1c;background:rgba(173,3,4,0.08);border-color:rgba(173,3,4,0.3)"></div>
+    </section>
+  </main>
+
+  <script>
+    const caseStudyId = {{ case_study.id if case_study else 'null' }}
+    document.getElementById('caseStudyForm').addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const errEl = document.getElementById('caseStudyFormError')
+      errEl.style.display = 'none'
+      const body = {
+        title: document.getElementById('csTitle').value.trim(),
+        client: document.getElementById('csClient').value.trim(),
+        sector: document.getElementById('csSector').value.trim(),
+        challenges: document.getElementById('csChallenges').value.trim(),
+        solution: document.getElementById('csSolution').value.trim(),
+        results: document.getElementById('csResults').value.trim(),
+      }
+      const url = caseStudyId ? `/api/case-studies/${caseStudyId}` : '/api/case-studies'
+      const method = caseStudyId ? 'PUT' : 'POST'
+      const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) {
+        window.location.href = `/case-studies/${j.id}`
+      } else {
+        errEl.textContent = j.error || 'Could not save this case study.'
+        errEl.style.display = 'block'
+      }
+    })
+  </script>
+</body>
+</html>

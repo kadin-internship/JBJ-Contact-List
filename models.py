@@ -161,3 +161,31 @@ class Activity(db.Model):
             'contacted_on': self.contacted_on.isoformat() if self.contacted_on else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class CaseStudy(db.Model):
+    """A past-project writeup (challenge/solution/results) staff can browse
+    or reference when prepping outreach. Add/edit/delete is admin-only --
+    viewing is open to everyone logged in, same as the rest of the app."""
+    __tablename__ = 'case_studies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(256), nullable=False)
+    client = db.Column(db.String(256), nullable=True)
+    sector = db.Column(db.String(128), index=True, nullable=True)
+    challenges = db.Column(db.Text, nullable=True)
+    solution = db.Column(db.Text, nullable=True)
+    results = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'client': self.client,
+            'sector': self.sector,
+            'challenges': self.challenges,
+            'solution': self.solution,
+            'results': self.results,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }

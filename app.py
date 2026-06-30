@@ -9,7 +9,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from config import Config
 from db import db
-from models import Contact, OutreachOrg, Activity, User, AuditLog
+from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy
 from schemas import ContactSchema
 from utils import (
     read_uploaded_file, clean_dataframe, clean_outreach_orgs,
@@ -190,6 +190,9 @@ ACTION_LABELS = {
     'spreadsheet_sync': 'Synced spreadsheet',
     'user_created': 'Created user login',
     'password_reset': 'Reset password for',
+    'case_study_created': 'Added case study',
+    'case_study_updated': 'Edited case study',
+    'case_study_deleted': 'Deleted case study',
 }
 
 
@@ -401,6 +404,58 @@ def create_app(config_class=Config):
     @app.route('/profile/<int:contact_id>')
     def profile(contact_id):
         return render_template('profile.html', contact_id=contact_id)
+
+    @app.route('/case-studies')
+    def case_studies_list():
+        q = request.args.get('q', type=str)
+        sector = request.args.get('sector', type=str)
+        page = request.args.get('page', default=1, type=int)
+        limit = 12
+
+        query = CaseStudy.query
+        if q:
+            like = f"%{q}%"
+            query = query.filter(or_(
+                CaseStudy.title.ilike(like),
+                CaseStudy.client.ilike(like),
+                CaseStudy.sector.ilike(like),
+                CaseStudy.challenges.ilike(like),
+                CaseStudy.solution.ilike(like),
+                CaseStudy.results.ilike(like),
+            ))
+        if sector:
+            query = query.filter(CaseStudy.sector == sector)
+
+        total = query.count()
+        pages = max(1, (total + limit - 1) // limit)
+        page = max(1, min(page, pages))
+        items = query.order_by(CaseStudy.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
+        sectors = [s[0] for s in db.session.query(CaseStudy.sector)
+                   .filter(CaseStudy.sector.isnot(None), CaseStudy.sector != '')
+                   .distinct().order_by(CaseStudy.sector).all()]
+
+        return render_template(
+            'case_studies.html', items=items, total=total, page=page, pages=pages,
+            q=q or '', sector=sector or '', sectors=sectors,
+        )
+
+    @app.route('/case-studies/new')
+    def case_study_new_form():
+        if not current_user.is_admin:
+            return redirect(url_for('case_studies_list'))
+        return render_template('case_study_form.html', case_study=None)
+
+    @app.route('/case-studies/<int:case_study_id>')
+    def case_study_detail(case_study_id):
+        cs = CaseStudy.query.get_or_404(case_study_id)
+        return render_template('case_study_detail.html', cs=cs)
+
+    @app.route('/case-studies/<int:case_study_id>/edit')
+    def case_study_edit_form(case_study_id):
+        if not current_user.is_admin:
+            return redirect(url_for('case_studies_list'))
+        cs = CaseStudy.query.get_or_404(case_study_id)
+        return render_template('case_study_form.html', case_study=cs)
 
     @app.route('/admin')
     def admin():
@@ -641,6 +696,54 @@ def create_app(config_class=Config):
         db.session.commit()
         log_audit('password_reset', 'user', user.id, user.username)
         return jsonify({'ok': True})
+
+    def _case_study_fields(data):
+        return {
+            'title': (data.get('title') or '').strip(),
+            'client': (data.get('client') or '').strip() or None,
+            'sector': (data.get('sector') or '').strip() or None,
+            'challenges': (data.get('challenges') or '').strip() or None,
+            'solution': (data.get('solution') or '').strip() or None,
+            'results': (data.get('results') or '').strip() or None,
+        }
+
+    @app.route('/api/case-studies', methods=['POST'])
+    def create_case_study():
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        fields = _case_study_fields(request.get_json(force=True) or {})
+        if not fields['title']:
+            return jsonify({'error': 'title is required'}), 400
+        cs = CaseStudy(**fields)
+        db.session.add(cs)
+        db.session.commit()
+        log_audit('case_study_created', 'case_study', cs.id, cs.title)
+        return jsonify(cs.to_dict()), 201
+
+    @app.route('/api/case-studies/<int:case_study_id>', methods=['PUT'])
+    def update_case_study(case_study_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        cs = CaseStudy.query.get_or_404(case_study_id)
+        fields = _case_study_fields(request.get_json(force=True) or {})
+        if not fields['title']:
+            return jsonify({'error': 'title is required'}), 400
+        for key, value in fields.items():
+            setattr(cs, key, value)
+        db.session.commit()
+        log_audit('case_study_updated', 'case_study', cs.id, cs.title)
+        return jsonify(cs.to_dict())
+
+    @app.route('/api/case-studies/<int:case_study_id>', methods=['DELETE'])
+    def delete_case_study(case_study_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        cs = CaseStudy.query.get_or_404(case_study_id)
+        label = cs.title
+        db.session.delete(cs)
+        db.session.commit()
+        log_audit('case_study_deleted', 'case_study', case_study_id, label)
+        return jsonify({'deleted': True})
 
     @app.route('/api/contacts', methods=['GET'])
     def list_contacts():

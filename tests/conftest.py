@@ -74,12 +74,18 @@ def _login_as(client, user_id):
 
 
 @pytest.fixture
-def admin_client(client, admin_id):
-    _login_as(client, admin_id)
-    return client
+def admin_client(app, admin_id):
+    # Each *_client fixture gets its own app.test_client() rather than
+    # sharing the `client` fixture -- test clients carry session state via
+    # cookies, so two fixtures sharing one client would silently log each
+    # other out whenever a test uses more than one actor at once.
+    c = app.test_client()
+    _login_as(c, admin_id)
+    return c
 
 
 @pytest.fixture
-def standard_client(client, standard_id):
-    _login_as(client, standard_id)
-    return client
+def standard_client(app, standard_id):
+    c = app.test_client()
+    _login_as(c, standard_id)
+    return c

@@ -44,6 +44,10 @@ See `CHANGELOG.md` for a running history of what's changed and why.
 - **Duplicate detection** — adding a contact that matches an existing
   one by name + organization warns before saving ("Add Anyway?" to
   confirm); an exact email match (case-insensitive) is always blocked.
+- **Case Studies library** (`/case-studies`) — a searchable/filterable
+  collection of past-project writeups (challenge/solution/results) for
+  staff to reference when prepping outreach. Viewing is open to
+  everyone logged in; adding, editing, and deleting is admin-only.
 
 ## Setup
 
@@ -79,9 +83,10 @@ pytest
 ```
 
 Covers login/rate-limiting/password reset, contact CRUD and duplicate
-detection, the Needs Follow-up filter, audit logging, and the Analytics
-dashboard's access control and drill-down. Runs against a throwaway
-SQLite file, never the real database. Test-only dependencies
+detection, the Needs Follow-up filter, audit logging, the Analytics
+dashboard's access control and drill-down, and the Case Studies
+library's search/filter and admin-only edit access. Runs against a
+throwaway SQLite file, never the real database. Test-only dependencies
 (`requirements-dev.txt`) aren't installed in production.
 
 ## Creating employee accounts
@@ -114,11 +119,15 @@ itself, no terminal access needed.
   organization (or both).
 - `User` — employee logins. Passwords are hashed (Werkzeug), never stored
   in plain text.
+- `CaseStudy` — a past-project writeup (title, client, sector,
+  challenges/solution/results) shown on the Case Studies page.
 
 Locally the database is SQLite (`contacts.db` in the project root); in
 production it's Postgres (see "Deploying" below) — `DATABASE_URL` decides
 which. There's no migration framework — `db.create_all()` creates missing
-tables on startup, but it will **not** alter an existing table's columns.
+tables on startup (this is why adding `CaseStudy` needed no migration
+script — it's a brand-new table, not a new column on an existing one),
+but it will **not** alter an existing table's columns.
 Schema changes to existing tables (e.g. making a column nullable) need a
 manual migration; see the "email made optional" entry in `CHANGELOG.md`
 for the pattern used, or `scripts/add_favorite_column.py` for a small,

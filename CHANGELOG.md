@@ -6,6 +6,16 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-30 — Case Studies library
+
+Added a `/case-studies` page so staff can browse and search past-project
+writeups (challenge/solution/results, e.g. the DFW Airport contractor
+support program) when prepping outreach. Anyone logged in can view and
+search; adding, editing, and deleting is admin-only. New `CaseStudy`
+table — no migration script needed since it's a brand-new table, not a
+new column on an existing one (`db.create_all()` handles that on
+deploy automatically).
+
 ## 2026-06-29 — Fix "% Complete" always showing 0%
 
 The dashboard's % Complete stat was based on `Contact.data_complete`, a

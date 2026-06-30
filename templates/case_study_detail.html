@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ cs.title }} — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/case-studies" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>{{ cs.title }}</h2>
+      </div>
+      {% if current_user.is_admin %}
+      <div style="display:flex;gap:8px;">
+        <a class="btn" href="/case-studies/{{ cs.id }}/edit"><i class="fas fa-pen"></i> Edit</a>
+        <button id="deleteCaseStudyBtn" class="btn"><i class="fas fa-trash"></i> Delete</button>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container admin-area">
+    <section class="card">
+      {% if cs.client %}<div class="detail-row"><strong>Client:</strong> {{ cs.client }}</div>{% endif %}
+      {% if cs.sector %}<div class="detail-row" style="margin-top:6px;"><span class="flag flag-info">{{ cs.sector }}</span></div>{% endif %}
+
+      {% if cs.challenges %}
+      <h4 style="margin-top:18px;">Challenges</h4>
+      <div class="case-study-text">{{ cs.challenges }}</div>
+      {% endif %}
+
+      {% if cs.solution %}
+      <h4 style="margin-top:18px;">Solution</h4>
+      <div class="case-study-text">{{ cs.solution }}</div>
+      {% endif %}
+
+      {% if cs.results %}
+      <h4 style="margin-top:18px;">Results</h4>
+      <div class="case-study-text">{{ cs.results }}</div>
+      {% endif %}
+    </section>
+  </main>
+
+  {% if current_user.is_admin %}
+  <script>
+    document.getElementById('deleteCaseStudyBtn').addEventListener('click', async () => {
+      if (!confirm('Delete "{{ cs.title }}"? This cannot be undone.')) return
+      const res = await fetch('/api/case-studies/{{ cs.id }}', { method: 'DELETE' })
+      if (res.ok) {
+        window.location.href = '/case-studies'
+      } else {
+        alert('Could not delete this case study.')
+      }
+    })
+  </script>
+  {% endif %}
+</body>
+</html>

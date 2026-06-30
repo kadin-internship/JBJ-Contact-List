@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Case Studies — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/#search" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>Case Studies</h2>
+      </div>
+      {% if current_user.is_admin %}
+      <a class="btn btn-primary" href="/case-studies/new"><i class="fas fa-plus"></i> Add Case Study</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container admin-area">
+    <section class="card">
+      <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <label style="flex:1;min-width:220px;">Search<br>
+          <input type="text" name="q" value="{{ q }}" placeholder="Search title, client, or text...">
+        </label>
+        <label>Sector<br>
+          <select name="sector">
+            <option value="">All Sectors</option>
+            {% for s in sectors %}
+            <option value="{{ s }}" {{ 'selected' if s == sector else '' }}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
+        {% if q or sector %}<a class="btn" href="/case-studies">Clear</a>{% endif %}
+      </form>
+    </section>
+
+    {% if items %}
+    <div class="results-grid" style="margin-top:16px;">
+      {% for cs in items %}
+      <a class="card" href="/case-studies/{{ cs.id }}" style="text-decoration:none;color:inherit;">
+        <h3>{{ cs.title }}</h3>
+        {% if cs.client %}<div class="meta">{{ cs.client }}</div>{% endif %}
+        {% if cs.sector %}<span class="flag flag-info">{{ cs.sector }}</span>{% endif %}
+        {% if cs.challenges %}<p class="muted" style="margin:6px 0 0;">{{ cs.challenges[:160] }}{{ '…' if cs.challenges|length > 160 else '' }}</p>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    <nav class="pagination" aria-label="Pagination" style="margin-top:14px">
+      {% if page > 1 %}<a class="page-btn btn" href="{{ url_for('case_studies_list', q=q or None, sector=sector or None, page=page - 1) }}"><i class="fas fa-chevron-left"></i> Previous</a>{% endif %}
+      <span class="muted" style="padding:0 10px">Page {{ page }} of {{ pages }}</span>
+      {% if page < pages %}<a class="page-btn btn" href="{{ url_for('case_studies_list', q=q or None, sector=sector or None, page=page + 1) }}">Next <i class="fas fa-chevron-right"></i></a>{% endif %}
+    </nav>
+    {% else %}
+    <p class="muted" style="margin-top:16px">
+      {% if q or sector %}No case studies match that search.{% else %}No case studies yet.{% endif %}
+      {% if current_user.is_admin and not q and not sector %}<a href="/case-studies/new">Add the first one</a>.{% endif %}
+    </p>
+    {% endif %}
+  </main>
+</body>
+</html>

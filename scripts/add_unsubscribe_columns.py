@@ -1,9 +1,15 @@
 """One-time schema change: adds unsubscribed and unsubscribe_token to the
 existing contacts table. db.create_all() only creates brand-new tables --
 it never alters an existing one -- so new columns on an already-deployed
-table need a manual ALTER TABLE same as any other column addition. Safe
-to run more than once: checks first whether each column already exists
-and skips it if so.
+table need a manual ALTER TABLE.
+
+Safe to run more than once: uses Postgres's native "IF NOT EXISTS" clause
+so the ALTER TABLE is a no-op if the columns already exist. This avoids
+the false-positive bug that SQLAlchemy's inspector can give after
+create_app()/db.create_all() runs -- the inspector reads from ORM metadata
+(which knows about these columns from the model definition) rather than
+querying the actual database, causing it to incorrectly report "already
+exists" even when the columns were never added.
 
 Run locally for the local SQLite database:
     .venv/bin/python scripts/add_unsubscribe_columns.py
@@ -13,46 +19,39 @@ own terminal, not into chat):
     DATABASE_URL=<production connection string> .venv/bin/python scripts/add_unsubscribe_columns.py
 
 Run this BEFORE deploying app.py changes that reference these columns --
-the app will error on any contact query if the code expects them before
-they exist.
+the app will error on any contact query if the code expects the column
+before it exists.
 """
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import inspect, text
+from sqlalchemy import create_engine, text
 
-from app import create_app
-from db import db
+from config import Config
 
-app = create_app()
-with app.app_context():
-    inspector = inspect(db.engine)
-    existing_columns = [c['name'] for c in inspector.get_columns('contacts')]
-    is_postgres = db.engine.dialect.name == 'postgresql'
-    bool_default = 'DEFAULT FALSE' if is_postgres else 'DEFAULT 0'
+database_url = os.environ.get('DATABASE_URL') or Config.SQLALCHEMY_DATABASE_URI
+engine = create_engine(database_url)
+is_postgres = engine.dialect.name == 'postgresql'
 
-    if 'unsubscribed' in existing_columns:
-        print('unsubscribed column already exists -- nothing to do.')
-    else:
-        db.session.execute(text(f'ALTER TABLE contacts ADD COLUMN unsubscribed BOOLEAN NOT NULL {bool_default}'))
-        db.session.commit()
-        print('Added unsubscribed column to contacts.')
-
-    if 'unsubscribe_token' in existing_columns:
-        print('unsubscribe_token column already exists -- nothing to do.')
-    else:
-        db.session.execute(text('ALTER TABLE contacts ADD COLUMN unsubscribe_token VARCHAR(64)'))
-        db.session.commit()
-        print('Added unsubscribe_token column to contacts.')
-
-    existing_indexes = [ix['name'] for ix in inspector.get_indexes('contacts')]
-    if 'ix_contacts_unsubscribe_token' in existing_indexes:
-        print('ix_contacts_unsubscribe_token index already exists -- nothing to do.')
-    else:
-        db.session.execute(text(
-            'CREATE UNIQUE INDEX ix_contacts_unsubscribe_token ON contacts (unsubscribe_token)'
+with engine.connect() as conn:
+    if is_postgres:
+        conn.execute(text(
+            'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS unsubscribed BOOLEAN NOT NULL DEFAULT FALSE'
         ))
-        db.session.commit()
-        print('Added unique index on contacts.unsubscribe_token.')
+        conn.execute(text(
+            'ALTER TABLE contacts ADD COLUMN IF NOT EXISTS unsubscribe_token VARCHAR(64)'
+        ))
+        conn.execute(text(
+            'CREATE UNIQUE INDEX IF NOT EXISTS ix_contacts_unsubscribe_token ON contacts (unsubscribe_token)'
+        ))
+    else:
+        from sqlalchemy import inspect as sa_inspect
+        cols = [c['name'] for c in sa_inspect(engine).get_columns('contacts')]
+        if 'unsubscribed' not in cols:
+            conn.execute(text('ALTER TABLE contacts ADD COLUMN unsubscribed BOOLEAN NOT NULL DEFAULT 0'))
+        if 'unsubscribe_token' not in cols:
+            conn.execute(text('ALTER TABLE contacts ADD COLUMN unsubscribe_token VARCHAR(64)'))
+    conn.commit()
+    print('Done.')

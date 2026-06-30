@@ -6,6 +6,17 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-30 — Fixed Send failing in production with a database error
+
+Sending worked locally but failed on Render with "Could not send" and a
+Postgres "SSL connection has been closed unexpectedly" error in the
+logs. Cause: the request held a database connection open for the whole
+SMTP send (which can take several seconds), and Neon's connection
+pooler closed it server-side while idle; the next query after (the
+audit log write) then failed on that stale connection, even though the
+email itself had already gone out. Fixed by releasing the connection
+before the SMTP call so a fresh one gets used afterward.
+
 ## 2026-06-30 — Email builder, step 3: send to an address + attachments + visible formatting
 
 Three fixes/additions from trying step 2: (1) the drag-and-drop block

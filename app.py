@@ -1025,6 +1025,19 @@ def create_app(config_class=Config):
             f'margin:0 auto;padding:16px;">{html_body}</div>'
         )
 
+        # Capture what log_audit needs as plain values, then release the DB
+        # connection before the slow SMTP network call. Flask-SQLAlchemy
+        # holds one connection checked out for the whole request -- left
+        # idle for the several seconds an SMTP handshake can take, Neon's
+        # pooler closes it server-side, and the next query after (the
+        # audit log write, or Flask-Login re-touching current_user) fails
+        # with "SSL connection has been closed unexpectedly" even though
+        # the email itself sent fine. db.session.close() forces a fresh
+        # connection to be checked out afterward instead of reusing the
+        # one that just sat idle through the delay.
+        template_id_value, template_name = t.id, t.name
+        db.session.close()
+
         try:
             send_email_smtp(to_email, subject, wrapped_html, attachments)
         except RuntimeError as e:
@@ -1032,7 +1045,7 @@ def create_app(config_class=Config):
         except Exception as e:
             return jsonify({'error': f'Could not send: {e}'}), 502
 
-        log_audit('email_template_sent', 'email_template', t.id, t.name, {
+        log_audit('email_template_sent', 'email_template', template_id_value, template_name, {
             'to': to_email, 'attachment_count': len(attachments),
         })
         return jsonify({'sent': True})

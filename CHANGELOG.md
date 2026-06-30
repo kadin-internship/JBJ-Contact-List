@@ -6,6 +6,20 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-30 — Moved filters into a left sidebar
+
+Manager liked a reference layout (plain radio/checkbox filter lists with
+an explicit "Apply Filters" button) better than the toolbar dropdowns.
+Moved Tags/Counties/Follow-up/Favorites out of the header toolbar into
+an always-visible left sidebar, using plain checkboxes and radio
+buttons instead of the app's pill-button styling (this is what made the
+earlier sidebar attempt, below, feel off). Filter changes no longer
+search automatically -- you pick filters, then click "Apply Filters"
+(or the header Search button). The sidebar's filter list scrolls
+internally when it's taller than the screen, but the Apply Filters
+button stays pinned at the bottom so it's always reachable without
+scrolling past it. No backend changes.
+
 ## 2026-06-30 — Decluttered the nav and search toolbar
 
 Manager felt the page was cramped. Grouped the four admin-only nav
@@ -14,9 +28,11 @@ single "Admin" dropdown instead of four separate buttons. Split the
 search toolbar into a Filters group (Tags/Counties/Follow-up/Favorites)
 and an Actions group (Search/Export/AI Tools), and combined Draft Email
 + Create Flyer/Post into one "AI Tools" dropdown. (A left-sidebar
-version of the filters was also prototyped locally but reverted --
-icons lost their text labels in that layout and it wasn't an
-improvement.) No backend changes.
+version of the filters using the toolbar's pill-button styling was also
+prototyped locally but reverted -- icons lost their text labels in that
+layout and it wasn't an improvement; see the sidebar entry above for
+the version that was later adopted, using plain controls instead.) No
+backend changes.
 
 ## 2026-06-30 — Delete contact (admin-only)
 

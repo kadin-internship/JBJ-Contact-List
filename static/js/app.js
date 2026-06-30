@@ -90,14 +90,15 @@ function toast(message, type){
 }
 console.debug('app.js loaded')
 
-// The Tag, County, Export, and AI Tools dropdowns are independent toggle
-// buttons, but each one's own click handler calls stopPropagation() (so
-// opening it doesn't immediately trigger its own "click outside closes
-// it" listener) -- which also stops that click from reaching the *other*
-// dropdowns' outside-click listeners, so they never close. Closing every
-// other menu before opening one keeps only one open at a time.
+// The Export and AI Tools dropdowns are independent toggle buttons, but
+// each one's own click handler calls stopPropagation() (so opening it
+// doesn't immediately trigger its own "click outside closes it" listener) --
+// which also stops that click from reaching the *other* dropdown's
+// outside-click listener, so it'd never close. Closing the other menu
+// before opening one keeps only one open at a time. (Tags/Counties live
+// permanently in the sidebar in this layout, not as popovers.)
 function closeOtherFilterMenus(exceptId){
-  ;['tagFilterMenu', 'countyFilterMenu', 'exportMenu', 'toolsMenu'].forEach(id => {
+  ;['exportMenu', 'toolsMenu'].forEach(id => {
     if(id === exceptId) return
     const m = el(id)
     if(m) m.style.display = 'none'
@@ -107,10 +108,7 @@ function closeOtherFilterMenus(exceptId){
 function updateTagFilterLabel(){
   const label = el('tagFilterLabel')
   if(!label) return
-  const noun = state.view === 'organizations' ? 'Categories' : 'Tags'
-  if(state.tags.length === 0) label.textContent = `All ${noun}`
-  else if(state.tags.length === 1) label.textContent = state.tags[0]
-  else label.textContent = `${state.tags.length} ${noun}`
+  label.textContent = state.tags.length ? `(${state.tags.length} selected)` : ''
 }
 
 // The category dropdown is shared by both views, but People (Contact.tag)
@@ -143,8 +141,6 @@ async function fetchTagOptions(){
           state.tags = state.tags.filter(t => t !== cb.value)
         }
         updateTagFilterLabel()
-        state.page = 1
-        search()
       })
     })
     updateTagFilterLabel()
@@ -168,9 +164,7 @@ function bindTagFilter(){
 function updateCountyFilterLabel(){
   const label = el('countyFilterLabel')
   if(!label) return
-  if(state.counties.length === 0) label.textContent = 'All Counties'
-  else if(state.counties.length === 1) label.textContent = state.counties[0]
-  else label.textContent = `${state.counties.length} Counties`
+  label.textContent = state.counties.length ? `(${state.counties.length} selected)` : ''
 }
 
 async function fetchCounties(){
@@ -197,8 +191,6 @@ async function fetchCounties(){
           state.counties = state.counties.filter(c => c !== cb.value)
         }
         updateCountyFilterLabel()
-        state.page = 1
-        search()
       })
     })
     updateCountyFilterLabel()
@@ -699,10 +691,9 @@ function switchView(view, userInitiated){
   if(orgBtn) orgBtn.classList.toggle('active', view === 'organizations')
   // Follow-up status is tracked per-Contact, not per-Organization, so the
   // filter doesn't apply (but isn't reset) when browsing Organizations.
-  const followupFilter = el('followupFilter')
-  if(followupFilter) followupFilter.disabled = (view === 'organizations')
-  const favoritesOnlyBtn = el('favoritesOnlyBtn')
-  if(favoritesOnlyBtn) favoritesOnlyBtn.disabled = (view === 'organizations')
+  document.querySelectorAll('input[name=followupRadio]').forEach(r => { r.disabled = (view === 'organizations') })
+  const favoritesOnlyCheckbox = el('favoritesOnlyCheckbox')
+  if(favoritesOnlyCheckbox) favoritesOnlyCheckbox.disabled = (view === 'organizations')
   const si = el('searchInput')
   if(si) si.placeholder = view === 'people'
     ? 'Search by Name, Organization, Title, or Email...'
@@ -723,22 +714,17 @@ function bind(){
   if(viewPeopleBtn) viewPeopleBtn.addEventListener('click', ()=> switchView('people', true))
   if(viewOrgBtn) viewOrgBtn.addEventListener('click', ()=> switchView('organizations', true))
 
-  const followupFilter = el('followupFilter')
-  if(followupFilter) followupFilter.addEventListener('change', ()=>{
-    state.followup = followupFilter.value
-    state.page = 1
-    search()
+  document.querySelectorAll('input[name=followupRadio]').forEach(r => {
+    r.addEventListener('change', ()=>{ if(r.checked) state.followup = r.value })
   })
 
-  const favoritesOnlyBtn = el('favoritesOnlyBtn')
-  if(favoritesOnlyBtn) favoritesOnlyBtn.addEventListener('click', ()=>{
-    state.favoritesOnly = !state.favoritesOnly
-    favoritesOnlyBtn.classList.toggle('btn-primary', state.favoritesOnly)
-    favoritesOnlyBtn.setAttribute('aria-pressed', state.favoritesOnly ? 'true' : 'false')
-    favoritesOnlyBtn.querySelector('i').className = state.favoritesOnly ? 'fas fa-star' : 'far fa-star'
-    state.page = 1
-    search()
+  const favoritesOnlyCheckbox = el('favoritesOnlyCheckbox')
+  if(favoritesOnlyCheckbox) favoritesOnlyCheckbox.addEventListener('change', ()=>{
+    state.favoritesOnly = favoritesOnlyCheckbox.checked
   })
+
+  const applyFiltersBtn = el('applyFiltersBtn')
+  if(applyFiltersBtn) applyFiltersBtn.addEventListener('click', ()=>{ state.page = 1; search() })
 
   // keyboard shortcuts: Ctrl+K and '/' -- but not while typing in a field,
   // otherwise '/' could never be typed into notes, lists, etc.

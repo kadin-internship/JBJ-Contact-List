@@ -68,28 +68,6 @@
             <button id="viewOrgBtn" class="view-toggle-btn" type="button"><i class="fas fa-building"></i> Organizations</button>
           </div>
           <div class="search-controls">
-            <div class="control-group" role="group" aria-label="Filters">
-              <div class="tag-filter-wrap export-wrap">
-                <button id="tagFilterBtn" type="button" class="btn" aria-haspopup="true">
-                  <i class="fas fa-tag"></i> <span id="tagFilterLabel">All Tags</span>
-                </button>
-                <div id="tagFilterMenu" class="export-menu filter-menu" style="display:none;"></div>
-              </div>
-              <div class="county-filter-wrap export-wrap">
-                <button id="countyFilterBtn" type="button" class="btn" aria-haspopup="true">
-                  <i class="fas fa-map-location-dot"></i> <span id="countyFilterLabel">All Counties</span>
-                </button>
-                <div id="countyFilterMenu" class="export-menu filter-menu" style="display:none;"></div>
-              </div>
-              <select id="followupFilter" class="btn" aria-label="Needs follow-up filter">
-                <option value="">All Contacts</option>
-                <option value="never">Never Contacted</option>
-                <option value="30">No Contact in 30+ Days</option>
-                <option value="60">No Contact in 60+ Days</option>
-                <option value="90">No Contact in 90+ Days</option>
-              </select>
-              <button id="favoritesOnlyBtn" type="button" class="btn" aria-pressed="false" title="Show only starred contacts"><i class="far fa-star"></i> Favorites</button>
-            </div>
             <div class="control-group" role="group" aria-label="Actions">
               <button id="searchBtn" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
               <div class="export-wrap">
@@ -123,15 +101,50 @@
   </header>
 
   <main class="container">
-    <div class="results-and-detail">
-      <section id="results" class="results-grid" aria-live="polite"></section>
+    <div class="app-layout">
+      <aside class="filters-sidebar">
+        <div class="filters-scroll">
+          <h3 class="filters-title">Filter By</h3>
 
-      <aside id="contactDetail" class="contact-detail" style="display:none;" aria-live="polite">
-        <div class="detail-empty">
-          <div class="photo-placeholder">No contact selected</div>
-          <div style="padding:12px;text-align:center;color:var(--muted)">Select a contact to view a quick profile here — click <strong>Edit</strong> to open the full editor.</div>
+          <div class="filter-section">
+            <h4>Tags <span id="tagFilterLabel" class="muted"></span></h4>
+            <div id="tagFilterMenu" class="filter-option-list"></div>
+          </div>
+
+          <div class="filter-section">
+            <h4>Counties <span id="countyFilterLabel" class="muted"></span></h4>
+            <div id="countyFilterMenu" class="filter-option-list"></div>
+          </div>
+
+          <div class="filter-section">
+            <h4>Follow-up</h4>
+            <div class="filter-option-list">
+              <label class="filter-option"><input type="radio" name="followupRadio" value="" checked><span>All Contacts</span></label>
+              <label class="filter-option"><input type="radio" name="followupRadio" value="never"><span>Never Contacted</span></label>
+              <label class="filter-option"><input type="radio" name="followupRadio" value="30"><span>No Contact in 30+ Days</span></label>
+              <label class="filter-option"><input type="radio" name="followupRadio" value="60"><span>No Contact in 60+ Days</span></label>
+              <label class="filter-option"><input type="radio" name="followupRadio" value="90"><span>No Contact in 90+ Days</span></label>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <label class="filter-option"><input type="checkbox" id="favoritesOnlyCheckbox"><span>Favorites Only</span></label>
+          </div>
         </div>
+
+        <button id="applyFiltersBtn" class="btn btn-primary filters-apply-btn"><i class="fas fa-magnifying-glass"></i> Apply Filters</button>
       </aside>
+
+      <div class="results-and-detail">
+        <section id="results" class="results-grid" aria-live="polite"></section>
+
+        <aside id="contactDetail" class="contact-detail" style="display:none;" aria-live="polite">
+          <div class="detail-empty">
+            <div class="photo-placeholder">No contact selected</div>
+            <div style="padding:12px;text-align:center;color:var(--muted)">Select a contact to view a quick profile here — click <strong>Edit</strong> to open the full editor.</div>
+          </div>
+        </aside>
+      </div>
     </div>
 
     <nav class="pagination" aria-label="Pagination">

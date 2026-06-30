@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Upload Case Studies — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/case-studies" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>Upload Case Studies</h2>
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-area">
+    <section class="card" style="max-width:600px">
+      <p class="muted">
+        Upload PDF or Word (.docx) files -- each becomes a case study,
+        downloadable from its page, with its title taken from the
+        filename (you can rename it after, via Edit). Native Google Docs
+        need to be exported first (in Drive: open the doc &rarr; File &rarr;
+        Download &rarr; Microsoft Word or PDF) since this can't read them
+        directly.
+      </p>
+      <input id="fileInput" type="file" multiple accept=".pdf,.docx" />
+      <div style="margin-top:10px">
+        <button id="uploadBtn" class="btn btn-primary"><i class="fas fa-file-arrow-up"></i> Upload</button>
+      </div>
+      <div id="uploadStatus" class="muted" style="margin-top:8px;"></div>
+      <ul id="uploadResults" style="margin-top:8px;"></ul>
+    </section>
+  </main>
+
+  <script>
+    function el(id){ return document.getElementById(id) }
+
+    el('uploadBtn').addEventListener('click', async () => {
+      const files = el('fileInput').files
+      if (!files.length) { el('uploadStatus').textContent = 'Choose at least one file first.'; return }
+      const formData = new FormData()
+      for (const f of files) formData.append('files', f)
+
+      el('uploadBtn').disabled = true
+      el('uploadStatus').textContent = `Uploading ${files.length} file(s)...`
+      el('uploadResults').innerHTML = ''
+
+      try {
+        const res = await fetch('/api/case-studies/upload', { method: 'POST', body: formData })
+        const j = await res.json()
+        if (!res.ok) {
+          el('uploadStatus').textContent = j.error || 'Could not upload these files.'
+          el('uploadBtn').disabled = false
+          return
+        }
+        const okCount = j.results.filter(r => r.success).length
+        el('uploadStatus').textContent = `Uploaded ${okCount} of ${j.results.length} file(s).`
+        el('uploadResults').innerHTML = j.results.map(r => {
+          const name = String(r.filename || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+          if (!r.success) return `<li>${name}: <span class="flag flag-warn">${(r.error||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span></li>`
+          const note = r.text_extracted ? '' : ` <span class="muted">(${(r.note||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')})</span>`
+          return `<li>${name}: <a href="/case-studies/${r.id}">saved</a>${note}</li>`
+        }).join('')
+      } catch (e) {
+        el('uploadStatus').textContent = 'Could not reach the server.'
+      }
+      el('uploadBtn').disabled = false
+    })
+  </script>
+</body>
+</html>

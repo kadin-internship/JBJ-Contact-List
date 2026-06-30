@@ -176,6 +176,13 @@ class CaseStudy(db.Model):
     challenges = db.Column(db.Text, nullable=True)
     solution = db.Column(db.Text, nullable=True)
     results = db.Column(db.Text, nullable=True)
+    # Uploaded-file path: the original file is kept as-is (downloadable via
+    # /case-studies/<id>/file) and its text is best-effort extracted for
+    # search -- no AI involved. Manually-typed entries leave these null.
+    file_data = db.Column(db.LargeBinary, nullable=True)
+    file_name = db.Column(db.String(256), nullable=True)
+    file_mimetype = db.Column(db.String(128), nullable=True)
+    extracted_text = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     def to_dict(self):
@@ -187,5 +194,7 @@ class CaseStudy(db.Model):
             'challenges': self.challenges,
             'solution': self.solution,
             'results': self.results,
+            'has_file': bool(self.file_data),
+            'file_name': self.file_name,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }

@@ -181,3 +181,48 @@ def test_contact_list_last_emailed_is_none_when_no_email_logged(standard_client)
     contact = res.get_json()['contacts'][0]
     assert contact['last_contacted_on'] is not None
     assert contact['last_emailed_on'] is None
+
+
+def test_delete_contact_requires_admin(standard_client):
+    res = standard_client.post('/api/contacts', json={'first_name': 'Should', 'last_name': 'Stay'})
+    contact_id = res.get_json()['id']
+
+    res = standard_client.delete(f'/api/contacts/{contact_id}')
+    assert res.status_code == 403
+
+    res = standard_client.get(f'/api/contacts/{contact_id}')
+    assert res.status_code == 200
+
+
+def test_admin_can_delete_contact(admin_client):
+    res = admin_client.post('/api/contacts', json={'first_name': 'To', 'last_name': 'Delete'})
+    contact_id = res.get_json()['id']
+
+    res = admin_client.delete(f'/api/contacts/{contact_id}')
+    assert res.status_code == 200
+
+    res = admin_client.get(f'/api/contacts/{contact_id}')
+    assert res.status_code == 404
+
+
+def test_delete_contact_also_deletes_its_activity(app, admin_client):
+    res = admin_client.post('/api/contacts', json={'first_name': 'Has', 'last_name': 'Activity'})
+    contact_id = res.get_json()['id']
+    admin_client.post(f'/api/contacts/{contact_id}/activity', json={'summary': 'called'})
+
+    res = admin_client.delete(f'/api/contacts/{contact_id}')
+    assert res.status_code == 200
+
+    with app.app_context():
+        from models import Activity
+        assert Activity.query.filter_by(contact_id=contact_id).count() == 0
+
+
+def test_delete_contact_is_audit_logged(admin_client):
+    res = admin_client.post('/api/contacts', json={'first_name': 'Audited', 'last_name': 'Deletion'})
+    contact_id = res.get_json()['id']
+
+    admin_client.delete(f'/api/contacts/{contact_id}')
+
+    res = admin_client.get('/admin/audit')
+    assert 'Audited Deletion' in res.get_data(as_text=True)

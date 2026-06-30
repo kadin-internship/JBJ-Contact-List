@@ -30,6 +30,11 @@
     <section class="card">
       {% if cs.client %}<div class="detail-row"><strong>Client:</strong> {{ cs.client }}</div>{% endif %}
       {% if cs.sector %}<div class="detail-row" style="margin-top:6px;"><span class="flag flag-info">{{ cs.sector }}</span></div>{% endif %}
+      {% if cs.file_name %}
+      <div class="detail-row" style="margin-top:6px;">
+        <a class="btn" href="/case-studies/{{ cs.id }}/file"><i class="fas fa-download"></i> Download Original File ({{ cs.file_name }})</a>
+      </div>
+      {% endif %}
 
       {% if cs.challenges %}
       <h4 style="margin-top:18px;">Challenges</h4>
@@ -44,6 +49,11 @@
       {% if cs.results %}
       <h4 style="margin-top:18px;">Results</h4>
       <div class="case-study-text">{{ cs.results }}</div>
+      {% endif %}
+
+      {% if cs.extracted_text and not (cs.challenges or cs.solution or cs.results) %}
+      <h4 style="margin-top:18px;">Document Text</h4>
+      <div class="case-study-text">{{ cs.extracted_text }}</div>
       {% endif %}
     </section>
   </main>

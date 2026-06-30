@@ -6,17 +6,37 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
-## 2026-06-30 — Case Studies bulk importer
+## 2026-06-30 — Delete contact (admin-only)
+
+There was no way to remove a contact entirely -- only edit fields or
+delete individual outreach log entries. Added a Delete button
+(admin-only, with a confirmation prompt) to the contact detail panel.
+Deleting a contact also deletes its own logged outreach activity (no
+`ON DELETE CASCADE` on that foreign key, so the app deletes those rows
+itself before deleting the contact) and is recorded in the Audit Log.
+No schema change.
+
+## 2026-06-30 — Case Studies file upload (replaces the AI-parsing version)
 
 Manager has dozens of existing case study files (PDFs and Word docs)
 in Drive that needed to get into the library without retyping each
-one. Added `/case-studies/import` (admin-only): upload several PDF/
-.docx files at once, Claude reads each one and drafts the title/
-client/sector/challenges/solution/results, and the admin reviews/edits
-before anything is saved -- nothing is written to the database until
-confirmed. Native Google Docs aren't readable directly (no Drive API
-access) -- they need to be exported to .docx or PDF first. New
-dependency: `pypdf` (PDF text extraction).
+one -- but didn't want Claude rewriting/restructuring them, just
+wanted the files themselves accessible in the app. Replaced the
+AI-parsing importer shipped earlier today with a plain upload:
+`/case-studies/upload` (admin-only) stores each PDF/.docx as-is
+(downloadable from its page) and best-effort extracts its text for
+search -- no AI involved, no review step needed. Manually-typed
+entries (title/client/sector/challenges/solution/results) still work
+as before for anyone who wants to write one up by hand. New
+`CaseStudy` columns (`file_data`/`file_name`/`file_mimetype`/
+`extracted_text`) needed a migration since the table already existed
+in production -- see `scripts/add_case_study_file_columns.py`.
+Native Google Docs aren't readable directly (no Drive API access) --
+they need to be exported to .docx or PDF first. Still depends on
+`pypdf` for PDF text extraction, just no longer on the Anthropic API.
+
+Possible follow-up, not built yet: surfacing case study content as
+inspiration inside Draft Email.
 
 ## 2026-06-30 — Case Studies library
 

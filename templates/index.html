@@ -172,6 +172,13 @@
 
   <!-- file upload removed -->
 
+  <script>
+    // Contact cards/detail panel are rendered client-side, so app.js needs
+    // to know admin status to decide whether to show the Delete button --
+    // unlike the server-rendered nav buttons above, gated with Jinja.
+    window.IS_ADMIN = {{ 'true' if current_user.is_admin else 'false' }}
+  </script>
+
   <!-- Lightweight fallback UI handler: toggles search view even if main JS errors -->
   <script>
     (function(){

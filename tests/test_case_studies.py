@@ -1,6 +1,4 @@
 import io
-import json
-from unittest.mock import patch, MagicMock
 
 import docx
 
@@ -14,73 +12,75 @@ def _make_docx_bytes(text):
     return buf
 
 
-def _fake_claude_response(payload):
-    block = MagicMock()
-    block.type = 'text'
-    block.text = json.dumps(payload)
-    response = MagicMock()
-    response.content = [block]
-    return response
-
-
 def test_case_studies_list_loads_for_standard_user(standard_client):
     res = standard_client.get('/case-studies')
     assert res.status_code == 200
 
 
-def test_parse_requires_admin(standard_client):
+def test_upload_requires_admin(standard_client):
     data = {'files': (_make_docx_bytes('Some case study text here.'), 'test.docx')}
-    res = standard_client.post('/api/case-studies/parse', data=data, content_type='multipart/form-data')
+    res = standard_client.post('/api/case-studies/upload', data=data, content_type='multipart/form-data')
     assert res.status_code == 403
 
 
-def test_parse_requires_files(admin_client, monkeypatch):
-    monkeypatch.setenv('ANTHROPIC_API_KEY', 'fake-key-for-tests')
-    res = admin_client.post('/api/case-studies/parse', data={}, content_type='multipart/form-data')
+def test_upload_requires_files(admin_client):
+    res = admin_client.post('/api/case-studies/upload', data={}, content_type='multipart/form-data')
     assert res.status_code == 400
 
 
-def test_parse_requires_api_key(admin_client, monkeypatch):
-    monkeypatch.delenv('ANTHROPIC_API_KEY', raising=False)
-    data = {'files': (_make_docx_bytes('Some case study text here.'), 'test.docx')}
-    res = admin_client.post('/api/case-studies/parse', data=data, content_type='multipart/form-data')
-    assert res.status_code == 500
-
-
-def test_parse_rejects_unsupported_file_type(admin_client, monkeypatch):
-    monkeypatch.setenv('ANTHROPIC_API_KEY', 'fake-key-for-tests')
+def test_upload_stores_unsupported_file_type_without_extracted_text(admin_client):
+    # The goal is "just make it accessible" -- a file type we can't run
+    # text extraction on still gets stored and is downloadable, just
+    # without searchable text.
     data = {'files': (io.BytesIO(b'plain text'), 'notes.txt')}
-    res = admin_client.post('/api/case-studies/parse', data=data, content_type='multipart/form-data')
+    res = admin_client.post('/api/case-studies/upload', data=data, content_type='multipart/form-data')
     assert res.status_code == 200
     body = res.get_json()
-    assert body['results'][0]['success'] is False
-    assert '.txt' in body['results'][0]['error']
+    assert body['results'][0]['success'] is True
+    assert body['results'][0]['text_extracted'] is False
+
+    case_study_id = body['results'][0]['id']
+    res = admin_client.get(f'/case-studies/{case_study_id}/file')
+    assert res.status_code == 200
 
 
-def test_parse_extracts_and_returns_drafts(admin_client, monkeypatch):
-    monkeypatch.setenv('ANTHROPIC_API_KEY', 'fake-key-for-tests')
-    fake_payload = {
-        'title': 'DFW Airport Contractor Support',
-        'client': 'DFW Airport',
-        'sector': 'Aviation',
-        'challenges': 'Coordinating contractors at scale.',
-        'solution': 'Managed compliance through B2GNow.',
-        'results': 'Improved transparency.',
-    }
-    with patch('anthropic.Anthropic') as MockAnthropic:
-        MockAnthropic.return_value.messages.create.return_value = _fake_claude_response(fake_payload)
-        data = {'files': (_make_docx_bytes('A real case study about DFW Airport.'), 'dfw.docx')}
-        res = admin_client.post('/api/case-studies/parse', data=data, content_type='multipart/form-data')
-
+def test_upload_stores_file_and_extracts_text_no_ai(admin_client):
+    data = {'files': (_make_docx_bytes('Challenges and results about DFW Airport go here.'), 'DFW_Airport_CaseStudy.docx')}
+    res = admin_client.post('/api/case-studies/upload', data=data, content_type='multipart/form-data')
     assert res.status_code == 200
     result = res.get_json()['results'][0]
     assert result['success'] is True
-    assert result['title'] == 'DFW Airport Contractor Support'
-    assert result['sector'] == 'Aviation'
+    assert result['title'] == 'DFW Airport CaseStudy'  # derived from filename, not AI
+    assert result['text_extracted'] is True
+    case_study_id = result['id']
+
+    res = admin_client.get(f'/case-studies/{case_study_id}')
+    assert res.status_code == 200
+    body = res.get_data(as_text=True)
+    assert 'Document Text' in body
+    assert 'DFW Airport go here' in body
 
 
-def test_import_form_requires_admin(standard_client):
-    res = standard_client.get('/case-studies/import')
+def test_uploaded_file_is_downloadable(admin_client):
+    data = {'files': (_make_docx_bytes('Downloadable content.'), 'Downloadable.docx')}
+    res = admin_client.post('/api/case-studies/upload', data=data, content_type='multipart/form-data')
+    case_study_id = res.get_json()['results'][0]['id']
+
+    res = admin_client.get(f'/case-studies/{case_study_id}/file')
+    assert res.status_code == 200
+    assert res.data  # raw bytes returned
+
+
+def test_upload_is_searchable_by_extracted_text(standard_client, admin_client):
+    data = {'files': (_make_docx_bytes('A one of a kind phrase about turbines.'), 'Turbine Project.docx')}
+    admin_client.post('/api/case-studies/upload', data=data, content_type='multipart/form-data')
+
+    res = standard_client.get('/case-studies?q=one+of+a+kind+phrase')
+    assert 'Turbine Project' in res.get_data(as_text=True)
+
+
+def test_upload_form_requires_admin(standard_client):
+    res = standard_client.get('/case-studies/upload')
     assert res.status_code == 302
 
 

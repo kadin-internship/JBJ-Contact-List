@@ -22,6 +22,9 @@
 
   <main class="container admin-area">
     <section class="card" style="max-width:720px">
+      {% if case_study and case_study.file_name %}
+      <p class="muted">This entry has an attached file (<a href="/case-studies/{{ case_study.id }}/file">{{ case_study.file_name }}</a>) -- editing these fields doesn't change it.</p>
+      {% endif %}
       <form id="caseStudyForm" style="display:flex;flex-direction:column;gap:10px">
         <label>Title<br><input id="csTitle" type="text" required value="{{ case_study.title if case_study else '' }}"></label>
         <label>Client<br><input id="csClient" type="text" value="{{ case_study.client if case_study else '' }}"></label>

@@ -44,16 +44,19 @@ See `CHANGELOG.md` for a running history of what's changed and why.
 - **Duplicate detection** — adding a contact that matches an existing
   one by name + organization warns before saving ("Add Anyway?" to
   confirm); an exact email match (case-insensitive) is always blocked.
+- **Delete contact** (admin-only) — a Delete button in the contact
+  detail panel, with a confirmation prompt. Also removes that contact's
+  logged outreach history and is recorded in the Audit Log.
 - **Case Studies library** (`/case-studies`) — a searchable/filterable
-  collection of past-project writeups (challenge/solution/results) for
-  staff to reference when prepping outreach. Viewing is open to
-  everyone logged in; adding, editing, and deleting is admin-only.
-- **Case Studies bulk import** (`/case-studies/import`, admin-only) —
-  upload several PDF/Word case study files at once; Claude reads each
-  one and drafts the title/client/sector/challenges/solution/results,
-  which an admin reviews and edits before anything is saved. Native
-  Google Docs must be exported to .docx or PDF first (Drive doesn't
-  expose a way to read a native Doc's content without the Drive API).
+  collection of past-project writeups for staff to reference when
+  prepping outreach. Entries can either be typed by hand (title/client/
+  sector/challenges/solution/results) or uploaded as a PDF/Word file
+  (`/case-studies/upload`, admin-only) — uploaded files are stored as-is
+  and downloadable from their page, with text best-effort extracted for
+  search (no AI involved). Viewing is open to everyone logged in;
+  adding, editing, and deleting is admin-only. Native Google Docs must
+  be exported to .docx or PDF first (Drive doesn't expose a way to read
+  a native Doc's content without the Drive API).
 
 ## Setup
 
@@ -68,7 +71,7 @@ gitignored) with:
 
 ```
 SECRET_KEY=<random value, signs login sessions>
-ANTHROPIC_API_KEY=<only needed for Draft Email, Create Flyer, and the Case Studies bulk importer>
+ANTHROPIC_API_KEY=<only needed for the Draft Email and Create Flyer features>
 OPENAI_API_KEY=<only needed for the Create Flyer feature's background image>
 SENTRY_DSN=<optional -- error monitoring; app runs fine without it set>
 ```
@@ -126,7 +129,11 @@ itself, no terminal access needed.
 - `User` — employee logins. Passwords are hashed (Werkzeug), never stored
   in plain text.
 - `CaseStudy` — a past-project writeup (title, client, sector,
-  challenges/solution/results) shown on the Case Studies page.
+  challenges/solution/results) shown on the Case Studies page. Can
+  optionally hold an uploaded file directly (`file_data`/`file_name`/
+  `file_mimetype`) plus its best-effort-extracted text (`extracted_text`)
+  for search — see `scripts/add_case_study_file_columns.py`, which added
+  those four columns after the table already existed in production.
 
 Locally the database is SQLite (`contacts.db` in the project root); in
 production it's Postgres (see "Deploying" below) — `DATABASE_URL` decides
@@ -264,9 +271,8 @@ still uses the local `contacts.db` SQLite file by default.
    - `SECRET_KEY` — generate a **new** one just for production:
      `python3 -c "import secrets; print(secrets.token_hex(32))"`. Don't
      reuse your local `.env` value.
-   - `ANTHROPIC_API_KEY` — same key used locally for Draft Email, Create
-     Flyer, and the Case Studies bulk importer, or skip it and add it
-     later if those aren't needed yet.
+   - `ANTHROPIC_API_KEY` — same key used locally for Draft Email and
+     Create Flyer, or skip it and add it later if those aren't needed yet.
    - `OPENAI_API_KEY` — needed for Create Flyer's background image (get
      one at platform.openai.com → API keys). Skip it and add it later if
      that feature isn't needed yet.

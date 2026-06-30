@@ -307,6 +307,21 @@ async function toggleFavorite(c, btnEl){
   }catch(e){ toast('Could not reach the server.', 'error'); console.error(e) }
 }
 
+async function deleteContact(c){
+  const name = `${c.first_name||''} ${c.last_name||''}`.trim() || c.email || 'this contact'
+  if(!confirm(`Delete ${name}? This also removes their logged outreach history and cannot be undone.`)) return
+  try{
+    const res = await fetch(`/api/contacts/${c.id}`, { method: 'DELETE' })
+    if(!res.ok){ toast('Could not delete this contact.', 'error'); return }
+    state.selectedKey = null
+    const panel = el('contactDetail')
+    if(panel) panel.style.display = 'none'
+    toast('Contact deleted')
+    search()
+    fetchStats()
+  }catch(e){ toast('Could not reach the server.', 'error'); console.error(e) }
+}
+
 // Organizations view card -- lists every contact at the organization (not
 // just one "primary" contact), since coworkers sharing an organization
 // should show up together.
@@ -372,6 +387,7 @@ async function showContactDetail(contact){
             ${hasNotes? '<span class="flag flag-info">Has notes</span>' : ''}
             <button id="detailEditBtn" class="btn"><i class="fas fa-pen"></i> Edit</button>
             <a id="detailExport" class="btn" href="/api/export?id=${encodeURIComponent(c.id||'')}"><i class="fas fa-download"></i> Export</a>
+            ${window.IS_ADMIN ? '<button id="detailDeleteBtn" class="btn" style="margin-left:auto;color:#9b1c1c;"><i class="fas fa-trash"></i> Delete</button>' : ''}
           </div>
           ${activitySectionHtml()}
         </div>
@@ -380,6 +396,7 @@ async function showContactDetail(contact){
     panel.style.display = ''
     const edit = el('detailEditBtn'); if(edit) edit.addEventListener('click', ()=> openProfile(c.id))
     const favBtn = el('detailFavoriteBtn'); if(favBtn) favBtn.addEventListener('click', ()=> toggleFavorite(c, favBtn))
+    const deleteBtn = el('detailDeleteBtn'); if(deleteBtn) deleteBtn.addEventListener('click', ()=> deleteContact(c))
     const activityContainer = panel.querySelector('.activity-section')
     loadActivitySection(activityContainer, 'contact', c.id)
     bindActivityForm(activityContainer, 'contact', c.id)

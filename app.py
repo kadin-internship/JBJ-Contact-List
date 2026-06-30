@@ -3,7 +3,7 @@ import io
 import csv
 from datetime import date, datetime, timedelta
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, send_file, render_template, render_template_string, redirect, url_for
+from flask import Flask, request, jsonify, send_file, render_template, render_template_string, redirect, url_for, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -187,12 +187,14 @@ def log_audit(action, entity_type, entity_id=None, entity_label=None, details=No
 ACTION_LABELS = {
     'contact_created': 'Added contact',
     'contact_updated': 'Edited contact',
+    'contact_deleted': 'Deleted contact',
     'spreadsheet_sync': 'Synced spreadsheet',
     'user_created': 'Created user login',
     'password_reset': 'Reset password for',
     'case_study_created': 'Added case study',
     'case_study_updated': 'Edited case study',
     'case_study_deleted': 'Deleted case study',
+    'case_study_uploaded': 'Uploaded case study file(s)',
 }
 
 
@@ -215,6 +217,9 @@ def format_audit_details(action, details):
         )
     if action == 'user_created':
         return 'Admin access' if d.get('is_admin') else 'Standard access'
+    if action == 'case_study_uploaded':
+        titles = d.get('titles') or []
+        return f"{d.get('count', len(titles))} file(s): {', '.join(titles[:5])}{'...' if len(titles) > 5 else ''}"
     return ''
 
 
@@ -457,6 +462,7 @@ def create_app(config_class=Config):
                 CaseStudy.challenges.ilike(like),
                 CaseStudy.solution.ilike(like),
                 CaseStudy.results.ilike(like),
+                CaseStudy.extracted_text.ilike(like),
             ))
         if sector:
             query = query.filter(CaseStudy.sector == sector)
@@ -480,16 +486,28 @@ def create_app(config_class=Config):
             return redirect(url_for('case_studies_list'))
         return render_template('case_study_form.html', case_study=None)
 
-    @app.route('/case-studies/import')
-    def case_study_import_form():
+    @app.route('/case-studies/upload')
+    def case_study_upload_form():
         if not current_user.is_admin:
             return redirect(url_for('case_studies_list'))
-        return render_template('case_study_import.html')
+        return render_template('case_study_upload.html')
 
     @app.route('/case-studies/<int:case_study_id>')
     def case_study_detail(case_study_id):
         cs = CaseStudy.query.get_or_404(case_study_id)
         return render_template('case_study_detail.html', cs=cs)
+
+    @app.route('/case-studies/<int:case_study_id>/file')
+    def case_study_file(case_study_id):
+        cs = CaseStudy.query.get_or_404(case_study_id)
+        if not cs.file_data:
+            abort(404)
+        return send_file(
+            io.BytesIO(cs.file_data),
+            mimetype=cs.file_mimetype or 'application/octet-stream',
+            as_attachment=True,
+            download_name=cs.file_name or f'case-study-{cs.id}',
+        )
 
     @app.route('/case-studies/<int:case_study_id>/edit')
     def case_study_edit_form(case_study_id):
@@ -786,22 +804,15 @@ def create_app(config_class=Config):
         log_audit('case_study_deleted', 'case_study', case_study_id, label)
         return jsonify({'deleted': True})
 
-    @app.route('/api/case-studies/parse', methods=['POST'])
-    def parse_case_study_files():
-        """Bulk-import helper: extracts text from uploaded PDFs/Word docs
-        and asks Claude to structure each into title/client/sector/
-        challenges/solution/results. Returns drafts only -- nothing is
-        saved here, so an admin can review/edit before confirming via the
-        normal POST /api/case-studies for each one."""
+    @app.route('/api/case-studies/upload', methods=['POST'])
+    def upload_case_study_files():
+        """Stores uploaded PDF/Word files as-is (downloadable later) and
+        best-effort extracts their text for search -- no AI involved.
+        Title defaults to the filename; sector/client/challenges/solution/
+        results are left blank for the admin to fill in later via Edit if
+        they want that level of detail."""
         if not current_user.is_admin:
             return jsonify({'error': 'admin only'}), 403
-
-        import json
-        import anthropic
-
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
-        if not api_key:
-            return jsonify({'error': 'ANTHROPIC_API_KEY is not configured on the server.'}), 500
 
         files = request.files.getlist('files')
         if not files:
@@ -809,61 +820,36 @@ def create_app(config_class=Config):
         if len(files) > 15:
             return jsonify({'error': 'Upload at most 15 files at a time.'}), 400
 
-        system = (
-            "You extract structured data from a company's case study document for JBJ "
-            "Management. The document may have explicit CHALLENGES/SOLUTION/RESULTS "
-            "sections, or may be written more loosely -- either way, extract or "
-            "reasonably summarize the same three elements: the challenge/problem the "
-            "client faced, the solution/approach JBJ provided, and the measurable "
-            "results/outcome. Also extract the case study's title (use the document's "
-            "own title if present, otherwise write a short descriptive one), the "
-            "client/organization name, and a one-to-three-word sector/category label "
-            "(e.g. \"Aviation\", \"Transportation\", \"Government Affairs\", "
-            "\"Construction\", \"Healthcare\"). Preserve the original wording closely -- "
-            "do not invent facts, numbers, or details not present in the source text. "
-            "Respond with ONLY valid JSON, no commentary or markdown fences, in this "
-            'exact shape: {"title": "...", "client": "...", "sector": "...", '
-            '"challenges": "...", "solution": "...", "results": "..."}. If a field truly '
-            "cannot be determined from the text, use an empty string for it."
-        )
-
-        client = anthropic.Anthropic(api_key=api_key)
         results = []
+        created_titles = []
         for f in files:
+            filename = f.filename or 'Untitled'
+            file_bytes = f.read()
+            if not file_bytes:
+                results.append({'filename': filename, 'success': False, 'error': 'Empty file.'})
+                continue
+            f.stream.seek(0)
             text, extract_error = extract_case_study_text(f)
-            if extract_error:
-                results.append({'filename': f.filename, 'success': False, 'error': extract_error})
-                continue
-            raw = '{}'
-            try:
-                response = client.messages.create(
-                    model="claude-opus-4-8",
-                    max_tokens=2000,
-                    system=system,
-                    messages=[{"role": "user", "content": text[:12000]}],
-                )
-                raw = next((b.text for b in response.content if b.type == 'text'), '{}').strip()
-                if raw.startswith('```'):
-                    raw = raw.strip('`')
-                    if raw.startswith('json'):
-                        raw = raw[4:]
-                parsed = json.loads(raw)
-            except anthropic.APIStatusError as e:
-                results.append({'filename': f.filename, 'success': False, 'error': f'Claude API error: {e.message}'})
-                continue
-            except Exception:
-                results.append({'filename': f.filename, 'success': False, 'error': 'Claude returned something this importer could not parse -- try again or enter this one manually.'})
-                continue
+
+            title = filename.rsplit('.', 1)[0].replace('_', ' ').replace('-', ' ').strip() or filename
+            cs = CaseStudy(
+                title=title,
+                file_data=file_bytes,
+                file_name=filename,
+                file_mimetype=f.mimetype or 'application/octet-stream',
+                extracted_text=text,
+            )
+            db.session.add(cs)
+            db.session.commit()
+            created_titles.append(cs.title)
             results.append({
-                'filename': f.filename,
-                'success': True,
-                'title': (parsed.get('title') or '').strip() or f.filename,
-                'client': (parsed.get('client') or '').strip(),
-                'sector': (parsed.get('sector') or '').strip(),
-                'challenges': (parsed.get('challenges') or '').strip(),
-                'solution': (parsed.get('solution') or '').strip(),
-                'results': (parsed.get('results') or '').strip(),
+                'filename': filename, 'success': True, 'id': cs.id, 'title': cs.title,
+                'text_extracted': bool(text),
+                'note': None if text else (extract_error or 'File stored, but text could not be extracted for search.'),
             })
+
+        if created_titles:
+            log_audit('case_study_uploaded', 'case_study', None, None, {'count': len(created_titles), 'titles': created_titles})
 
         return jsonify({'results': results})
 
@@ -961,6 +947,22 @@ def create_app(config_class=Config):
             label = f"{c.first_name or ''} {c.last_name or ''}".strip() or c.email or f'#{c.id}'
             log_audit('contact_updated', 'contact', c.id, label, changes)
         return jsonify(contact_schema.dump(c))
+
+    @app.route('/api/contacts/<int:contact_id>', methods=['DELETE'])
+    def delete_contact(contact_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        c = Contact.query.get_or_404(contact_id)
+        label = f"{c.first_name or ''} {c.last_name or ''}".strip() or c.email or f'#{c.id}'
+        # No ON DELETE CASCADE on activities.contact_id -- deleting the
+        # contact's own outreach log entries first avoids a FK violation
+        # on Postgres (SQLite doesn't enforce this by default, but
+        # Postgres does).
+        Activity.query.filter_by(contact_id=c.id).delete()
+        db.session.delete(c)
+        db.session.commit()
+        log_audit('contact_deleted', 'contact', contact_id, label)
+        return jsonify({'deleted': True})
 
     @app.route('/api/contacts/<int:contact_id>/favorite', methods=['PUT'])
     def toggle_contact_favorite(contact_id):

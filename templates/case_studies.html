@@ -19,7 +19,7 @@
       </div>
       {% if current_user.is_admin %}
       <div style="display:flex;gap:8px;">
-        <a class="btn" href="/case-studies/import"><i class="fas fa-file-import"></i> Import from Files</a>
+        <a class="btn" href="/case-studies/upload"><i class="fas fa-file-arrow-up"></i> Upload Files</a>
         <a class="btn btn-primary" href="/case-studies/new"><i class="fas fa-plus"></i> Add Case Study</a>
       </div>
       {% endif %}
@@ -49,10 +49,11 @@
     <div class="results-grid" style="margin-top:16px;">
       {% for cs in items %}
       <a class="card" href="/case-studies/{{ cs.id }}" style="text-decoration:none;color:inherit;">
-        <h3>{{ cs.title }}</h3>
+        <h3>{{ cs.title }}{% if cs.file_name %} <i class="fas fa-paperclip" style="font-size:13px;color:var(--muted);"></i>{% endif %}</h3>
         {% if cs.client %}<div class="meta">{{ cs.client }}</div>{% endif %}
         {% if cs.sector %}<span class="flag flag-info">{{ cs.sector }}</span>{% endif %}
-        {% if cs.challenges %}<p class="muted" style="margin:6px 0 0;">{{ cs.challenges[:160] }}{{ '…' if cs.challenges|length > 160 else '' }}</p>{% endif %}
+        {% set preview = cs.challenges or cs.extracted_text %}
+        {% if preview %}<p class="muted" style="margin:6px 0 0;">{{ preview[:160] }}{{ '…' if preview|length > 160 else '' }}</p>{% endif %}
       </a>
       {% endfor %}
     </div>

@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import csv
 from datetime import date, datetime, timedelta
 from dotenv import load_dotenv
@@ -9,7 +10,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from config import Config
 from db import db
-from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy
+from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy, EmailTemplate
 from schemas import ContactSchema
 from utils import (
     read_uploaded_file, clean_dataframe, clean_outreach_orgs,
@@ -195,6 +196,10 @@ ACTION_LABELS = {
     'case_study_updated': 'Edited case study',
     'case_study_deleted': 'Deleted case study',
     'case_study_uploaded': 'Uploaded case study file(s)',
+    'email_template_created': 'Created email template',
+    'email_template_updated': 'Edited email template',
+    'email_template_deleted': 'Deleted email template',
+    'email_template_sent': 'Sent email',
 }
 
 
@@ -220,6 +225,10 @@ def format_audit_details(action, details):
     if action == 'case_study_uploaded':
         titles = d.get('titles') or []
         return f"{d.get('count', len(titles))} file(s): {', '.join(titles[:5])}{'...' if len(titles) > 5 else ''}"
+    if action == 'email_template_sent':
+        attachment_count = d.get('attachment_count', 0)
+        suffix = f" with {attachment_count} attachment(s)" if attachment_count else ''
+        return f"To: {d.get('to', '')}{suffix}"
     return ''
 
 
@@ -370,6 +379,62 @@ def extract_case_study_text(file_storage):
     if len(text) < 30:
         return None, 'Could not find readable text in this file (it may be a scanned/image-only PDF).'
     return text, None
+
+
+def absolutize_static_urls(html, base_url):
+    """Rewrites relative /static/... src/href references (e.g. the email
+    builder's "Insert logo" button) into absolute URLs using the current
+    request's host. A relative path only resolves inside the browser tab
+    it was inserted in -- a recipient's email client has no "current
+    page" to resolve it against, so it just shows a broken image."""
+    base = base_url.rstrip('/')
+    return re.sub(r'(src|href)="(/static/[^"]*)"', lambda m: f'{m.group(1)}="{base}{m.group(2)}"', html)
+
+
+def send_email_smtp(to_email, subject, html_body, attachments=None):
+    """Sends one email via a generic SMTP relay, configured entirely
+    through env vars (SMTP_HOST/PORT/USERNAME/PASSWORD/FROM_EMAIL/
+    FROM_NAME/USE_TLS) so it works with whatever provider gets set up --
+    SendGrid, Mailgun, Postmark, etc -- without code changes, the same way
+    ANTHROPIC_API_KEY/OPENAI_API_KEY/SENTRY_DSN are optional and
+    provider-agnostic. Raises RuntimeError if SMTP_HOST isn't set, so
+    callers can return a clear "not configured" error instead of a raw
+    connection failure."""
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.application import MIMEApplication
+
+    host = os.environ.get('SMTP_HOST')
+    if not host:
+        raise RuntimeError('Email sending is not configured on the server.')
+    port = int(os.environ.get('SMTP_PORT', '587'))
+    username = os.environ.get('SMTP_USERNAME')
+    password = os.environ.get('SMTP_PASSWORD')
+    from_email = os.environ.get('SMTP_FROM_EMAIL') or username
+    from_name = os.environ.get('SMTP_FROM_NAME', 'JBJ Management')
+    use_tls = os.environ.get('SMTP_USE_TLS', 'true').strip().lower() not in ('0', 'false', 'no')
+
+    msg = MIMEMultipart('mixed')
+    msg['Subject'] = subject or '(no subject)'
+    msg['From'] = f'{from_name} <{from_email}>'
+    msg['To'] = to_email
+
+    alt = MIMEMultipart('alternative')
+    alt.attach(MIMEText(html_body, 'html'))
+    msg.attach(alt)
+
+    for filename, mimetype, data in (attachments or []):
+        part = MIMEApplication(data, Name=filename)
+        part['Content-Disposition'] = f'attachment; filename="{filename}"'
+        msg.attach(part)
+
+    with smtplib.SMTP(host, port, timeout=20) as server:
+        if use_tls:
+            server.starttls()
+        if username and password:
+            server.login(username, password)
+        server.sendmail(from_email, [to_email], msg.as_string())
 
 
 def create_app(config_class=Config):
@@ -766,6 +831,17 @@ def create_app(config_class=Config):
             'results': (data.get('results') or '').strip() or None,
         }
 
+    @app.route('/api/case-studies', methods=['GET'])
+    def list_case_studies_json():
+        """Lightweight list (no full text) for pickers like Draft Email's
+        case-study reference dropdown -- the HTML /case-studies page has its
+        own richer, paginated query and isn't reused here."""
+        items = CaseStudy.query.order_by(CaseStudy.title).all()
+        return jsonify({'case_studies': [
+            {'id': c.id, 'title': c.title, 'client': c.client, 'sector': c.sector}
+            for c in items
+        ]})
+
     @app.route('/api/case-studies', methods=['POST'])
     def create_case_study():
         if not current_user.is_admin:
@@ -852,6 +928,114 @@ def create_app(config_class=Config):
             log_audit('case_study_uploaded', 'case_study', None, None, {'count': len(created_titles), 'titles': created_titles})
 
         return jsonify({'results': results})
+
+    @app.route('/email-builder')
+    def email_builder_list():
+        """Saved email designs from the drag-and-drop builder. Open to
+        everyone logged in, same as Draft Email/Create Flyer -- this is a
+        drafting tool, not a sensitive admin page. Sending (a later step)
+        is where a real-people-get-emailed confirmation belongs, not here."""
+        templates = EmailTemplate.query.order_by(EmailTemplate.updated_at.desc()).all()
+        return render_template('email_builder_list.html', templates=templates)
+
+    @app.route('/email-builder/<int:template_id>')
+    def email_builder_edit(template_id):
+        template = EmailTemplate.query.get_or_404(template_id)
+        return render_template('email_builder.html', template=template)
+
+    @app.route('/api/email-templates', methods=['GET'])
+    def list_email_templates():
+        items = EmailTemplate.query.order_by(EmailTemplate.updated_at.desc()).all()
+        return jsonify({'email_templates': [t.to_dict() for t in items]})
+
+    @app.route('/api/email-templates', methods=['POST'])
+    def create_email_template():
+        data = request.get_json(force=True) or {}
+        name = (data.get('name') or '').strip() or 'Untitled email'
+        t = EmailTemplate(
+            name=name,
+            subject=(data.get('subject') or '').strip() or None,
+            blocks=data.get('blocks') or [],
+            created_by_id=current_user.id,
+        )
+        db.session.add(t)
+        db.session.commit()
+        log_audit('email_template_created', 'email_template', t.id, t.name)
+        return jsonify(t.to_dict()), 201
+
+    @app.route('/api/email-templates/<int:template_id>', methods=['GET'])
+    def get_email_template(template_id):
+        t = EmailTemplate.query.get_or_404(template_id)
+        return jsonify(t.to_dict())
+
+    @app.route('/api/email-templates/<int:template_id>', methods=['PUT'])
+    def update_email_template(template_id):
+        t = EmailTemplate.query.get_or_404(template_id)
+        data = request.get_json(force=True) or {}
+        t.name = (data.get('name') or '').strip() or 'Untitled email'
+        t.subject = (data.get('subject') or '').strip() or None
+        t.blocks = data.get('blocks') or []
+        db.session.commit()
+        log_audit('email_template_updated', 'email_template', t.id, t.name)
+        return jsonify(t.to_dict())
+
+    @app.route('/api/email-templates/<int:template_id>', methods=['DELETE'])
+    def delete_email_template(template_id):
+        t = EmailTemplate.query.get_or_404(template_id)
+        label = t.name
+        db.session.delete(t)
+        db.session.commit()
+        log_audit('email_template_deleted', 'email_template', template_id, label)
+        return jsonify({'deleted': True})
+
+    @app.route('/api/email-templates/<int:template_id>/send', methods=['POST'])
+    def send_email_template(template_id):
+        """Sends the current compose content to one typed-in address --
+        a quick send/test capability, not the bulk "send to my filtered
+        contact list" feature (that needs batching, an unsubscribe
+        mechanism, and background dispatch since it could be hundreds of
+        real people; this is a single address, fast enough to send inline
+        within the request)."""
+        t = EmailTemplate.query.get_or_404(template_id)
+        to_email = (request.form.get('to') or '').strip()
+        if not to_email:
+            return jsonify({'error': 'Enter a recipient email address.'}), 400
+        subject = (request.form.get('subject') or t.subject or t.name or '').strip()
+        html_body = request.form.get('html') or ''
+        if not html_body.strip():
+            return jsonify({'error': 'This email has no content yet.'}), 400
+
+        files = request.files.getlist('attachments')
+        if len(files) > 5:
+            return jsonify({'error': 'Attach at most 5 files.'}), 400
+        attachments = []
+        total_bytes = 0
+        for f in files:
+            if not f or not f.filename:
+                continue
+            data = f.read()
+            total_bytes += len(data)
+            if total_bytes > 15 * 1024 * 1024:
+                return jsonify({'error': 'Attachments are too large (15MB total limit).'}), 400
+            attachments.append((f.filename, f.mimetype or 'application/octet-stream', data))
+
+        html_body = absolutize_static_urls(html_body, request.host_url)
+        wrapped_html = (
+            '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;'
+            f'margin:0 auto;padding:16px;">{html_body}</div>'
+        )
+
+        try:
+            send_email_smtp(to_email, subject, wrapped_html, attachments)
+        except RuntimeError as e:
+            return jsonify({'error': str(e)}), 500
+        except Exception as e:
+            return jsonify({'error': f'Could not send: {e}'}), 502
+
+        log_audit('email_template_sent', 'email_template', t.id, t.name, {
+            'to': to_email, 'attachment_count': len(attachments),
+        })
+        return jsonify({'sent': True})
 
     @app.route('/api/contacts', methods=['GET'])
     def list_contacts():
@@ -1379,6 +1563,25 @@ def create_app(config_class=Config):
             sample = ', '.join(orgs[:8])
             context_lines.append(f'Sample organizations: {sample}{"..." if len(orgs) > 8 else "."}')
 
+        case_study_block = ''
+        case_study_id = data.get('case_study_id')
+        if case_study_id:
+            case_study = CaseStudy.query.get(case_study_id)
+            if case_study:
+                cs_lines = [f"Title: {case_study.title}"]
+                if case_study.client:
+                    cs_lines.append(f"Client: {case_study.client}")
+                if case_study.sector:
+                    cs_lines.append(f"Sector: {case_study.sector}")
+                cs_text = '\n'.join(filter(None, [case_study.challenges, case_study.solution, case_study.results])) or case_study.extracted_text or ''
+                if cs_text:
+                    cs_lines.append(cs_text[:3000])
+                case_study_block = (
+                    "\n\nRelevant past case study you may draw on as a proof point if it "
+                    "fits naturally -- use only what's given below, don't invent extra "
+                    "detail beyond it:\n" + "\n".join(cs_lines)
+                )
+
         system = (
             "You draft outreach emails for JBJ Management, sent to community contacts "
             "(elected officials, organizations, clergy, chambers of commerce, etc). Write "
@@ -1388,7 +1591,7 @@ def create_app(config_class=Config):
             "times) the user didn't provide -- use a placeholder like [DATE] or [LOCATION] "
             "instead. Output only the subject line and email body, no commentary."
         )
-        user_message = "Recipient group:\n" + "\n".join(context_lines) + f"\n\nEmail request: {prompt}"
+        user_message = "Recipient group:\n" + "\n".join(context_lines) + case_study_block + f"\n\nEmail request: {prompt}"
 
         try:
             client = anthropic.Anthropic(api_key=api_key)

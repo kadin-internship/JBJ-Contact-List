@@ -57,6 +57,20 @@ See `CHANGELOG.md` for a running history of what's changed and why.
   adding, editing, and deleting is admin-only. Native Google Docs must
   be exported to .docx or PDF first (Drive doesn't expose a way to read
   a native Doc's content without the Drive API).
+- **Email builder** (`/email-builder`) — build your own email by hand,
+  alongside (not instead of) the AI Draft Email tool: a single compose
+  pane with a Gmail-style formatting toolbar (bold/italic/underline,
+  lists, alignment, text color, headings, links, images, a CTA button,
+  dividers, the company logo) -- type and format directly, no
+  drag-and-drop. Toolbar buttons highlight when the cursor is in matching
+  formatting. Preview at desktop/mobile width and Save. A Send button
+  sends the current content to one typed address, with up to 5 file
+  attachments (15MB total) -- requires `SMTP_*` env vars (see Setup
+  above); without them, Send returns a clear "not configured" error
+  rather than failing silently. Open to everyone logged in, same as Draft
+  Email/Create Flyer. Still in progress -- bulk-sending to a filtered
+  contact list and a real flyer/canvas builder are coming in later steps; see
+  `CHANGELOG.md`.
 
 ## Setup
 
@@ -74,7 +88,21 @@ SECRET_KEY=<random value, signs login sessions>
 ANTHROPIC_API_KEY=<only needed for the Draft Email and Create Flyer features>
 OPENAI_API_KEY=<only needed for the Create Flyer feature's background image>
 SENTRY_DSN=<optional -- error monitoring; app runs fine without it set>
+SMTP_HOST=<only needed to send from the Email Builder -- works without it, just can't send>
+SMTP_PORT=<defaults to 587>
+SMTP_USERNAME=<your SMTP provider's username/API key>
+SMTP_PASSWORD=<your SMTP provider's password/API key secret>
+SMTP_FROM_EMAIL=<the address mail appears to come from -- defaults to SMTP_USERNAME>
+SMTP_FROM_NAME=<the display name mail appears to come from -- defaults to "JBJ Management">
+SMTP_USE_TLS=<defaults to true>
 ```
+
+`SMTP_*` is provider-agnostic by design -- point it at SendGrid, Mailgun,
+Postmark, or any other SMTP relay's credentials without changing code.
+Plain personal-account SMTP (e.g. a Gmail account) will work for testing,
+but isn't recommended for real outreach: without a dedicated transactional
+provider's sender reputation, mail to external recipients (elected
+officials, organizations, etc.) is much more likely to land in spam.
 
 Generate a `SECRET_KEY` with `python3 -c "import secrets; print(secrets.token_hex(32))"`.
 

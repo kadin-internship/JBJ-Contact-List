@@ -113,6 +113,17 @@ def test_admin_can_create_and_view_case_study(admin_client):
     assert 'B2GNow' in body
 
 
+def test_list_case_studies_json_for_picker(standard_client, admin_client):
+    # Powers the Draft Email modal's "Reference a case study" dropdown --
+    # open to standard (non-admin) users, like viewing case studies generally.
+    admin_client.post('/api/case-studies', json={'title': 'Picker Project', 'sector': 'Aviation'})
+
+    res = standard_client.get('/api/case-studies')
+    assert res.status_code == 200
+    titles = [cs['title'] for cs in res.get_json()['case_studies']]
+    assert 'Picker Project' in titles
+
+
 def test_case_study_search_matches_text_fields(standard_client, admin_client):
     admin_client.post('/api/case-studies', json={
         'title': 'Findable Project', 'sector': 'Aviation', 'challenges': 'A unique searchable phrase',

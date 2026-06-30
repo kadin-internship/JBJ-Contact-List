@@ -6,6 +6,35 @@ full diffs); it's the "what would a non-technical teammate need to know"
 summary, especially for anything that affects data, security, or how
 staff use the app day to day.
 
+## 2026-06-30 — Email builder, step 3: send to an address + attachments + visible formatting
+
+Three fixes/additions from trying step 2: (1) the drag-and-drop block
+canvas was unreliable in testing, so step 2 was reworked into a single
+Gmail-style compose pane with a formatting toolbar instead -- typing and
+selecting text directly rather than dragging blocks; (2) toolbar buttons
+(Bold/Italic/Underline/etc.) now highlight solid maroon when the cursor
+is in text using that formatting, so it's clear something is actually
+applied instead of looking like plain text; (3) added a Send button --
+type a recipient address and optionally attach up to 5 files (15MB
+total), and it sends via SMTP (configure `SMTP_HOST`/etc, see README --
+sending is disabled with a clear error until that's set up). This is a
+single-recipient send/test capability, not the bulk "send to my filtered
+contact list" feature -- that needs batching, an unsubscribe mechanism,
+and background dispatch since it could reach hundreds of real contacts,
+and isn't built yet.
+
+## 2026-06-30 — Email builder, step 2: drag-and-drop canvas
+
+New `/email-builder` page -- build your own email by dragging blocks
+(Heading, Paragraph, Image, Button, Divider, Spacer, Logo) onto a canvas,
+reorder by drag, edit each block's text inline and its style (color,
+size, alignment, etc.) from a right-hand panel, toggle a desktop/mobile
+preview width, and Save. Lives alongside the existing AI Draft Email tool
+as a separate option (linked from the header), not a replacement for it.
+Single-column blocks only for now; sending and the final email-safe HTML
+rendering are still to come in later steps -- this step is build-and-save
+only.
+
 ## 2026-06-30 — Email/flyer builder, step 1: data model only
 
 First of several PRs toward a real drag-and-drop email builder and a

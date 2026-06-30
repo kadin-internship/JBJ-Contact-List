@@ -860,6 +860,24 @@ function bindDraftEmail(){
       : 'Drafting for all contacts (no filter applied).'
   }
 
+  let caseStudiesLoaded = false
+  const loadCaseStudyOptions = async ()=>{
+    if(caseStudiesLoaded) return
+    const sel = el('draftEmailCaseStudy')
+    if(!sel) return
+    try{
+      const res = await fetch('/api/case-studies')
+      const j = await res.json()
+      ;(j.case_studies || []).forEach(cs=>{
+        const opt = document.createElement('option')
+        opt.value = cs.id
+        opt.textContent = cs.sector ? `${cs.title} (${cs.sector})` : cs.title
+        sel.appendChild(opt)
+      })
+      caseStudiesLoaded = true
+    }catch(e){ console.error(e) }
+  }
+
   btn.addEventListener('click', ()=>{
     describeAudience()
     el('draftEmailPrompt').value = ''
@@ -867,6 +885,9 @@ function bindDraftEmail(){
     el('draftEmailOutput').value = ''
     el('draftEmailCopyBtn').style.display = 'none'
     el('draftEmailStatus').textContent = ''
+    const csSelect = el('draftEmailCaseStudy')
+    if(csSelect) csSelect.value = ''
+    loadCaseStudyOptions()
     modal.style.display = ''
     el('draftEmailPrompt').focus()
   })
@@ -893,6 +914,7 @@ function bindDraftEmail(){
           org_tag: state.view === 'organizations' ? state.tags.join(',') : undefined,
           followup: state.view === 'organizations' ? undefined : (state.followup || undefined),
           favorites_only: state.view === 'organizations' ? undefined : (state.favoritesOnly || undefined),
+          case_study_id: el('draftEmailCaseStudy') ? (el('draftEmailCaseStudy').value || undefined) : undefined,
         })
       })
       const j = await res.json()

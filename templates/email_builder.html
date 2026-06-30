@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ template.name }} — Email Builder — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/email-builder" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <input id="ebNameInput" type="text" class="eb-name-input" value="{{ template.name }}" placeholder="Untitled email">
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <span id="ebSaveStatus" class="muted" style="font-size:13px;"></span>
+        <div class="view-toggle" role="group" aria-label="Preview width">
+          <button id="ebDesktopBtn" class="view-toggle-btn active" type="button" title="Desktop width"><i class="fas fa-desktop"></i></button>
+          <button id="ebMobileBtn" class="view-toggle-btn" type="button" title="Mobile width"><i class="fas fa-mobile-screen-button"></i></button>
+        </div>
+        <button id="ebSaveBtn" class="btn"><i class="fas fa-check"></i> Save</button>
+        <button id="ebSendBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container eb-compose-wrap">
+    <div class="eb-compose">
+      <input id="ebSubjectInput" type="text" class="eb-subject-input" value="{{ template.subject or '' }}" placeholder="Subject">
+
+      <div class="eb-toolbar" role="toolbar" aria-label="Formatting">
+        <select id="ebFormatSelect" title="Text style">
+          <option value="P">Normal text</option>
+          <option value="H2">Heading</option>
+          <option value="H3">Subheading</option>
+        </select>
+        <span class="eb-toolbar-sep"></span>
+        <button type="button" data-cmd="bold" title="Bold"><i class="fas fa-bold"></i></button>
+        <button type="button" data-cmd="italic" title="Italic"><i class="fas fa-italic"></i></button>
+        <button type="button" data-cmd="underline" title="Underline"><i class="fas fa-underline"></i></button>
+        <button type="button" data-cmd="strikeThrough" title="Strikethrough"><i class="fas fa-strikethrough"></i></button>
+        <span class="eb-toolbar-sep"></span>
+        <button type="button" data-cmd="insertUnorderedList" title="Bullet list"><i class="fas fa-list-ul"></i></button>
+        <button type="button" data-cmd="insertOrderedList" title="Numbered list"><i class="fas fa-list-ol"></i></button>
+        <span class="eb-toolbar-sep"></span>
+        <button type="button" data-cmd="justifyLeft" title="Align left"><i class="fas fa-align-left"></i></button>
+        <button type="button" data-cmd="justifyCenter" title="Align center"><i class="fas fa-align-center"></i></button>
+        <button type="button" data-cmd="justifyRight" title="Align right"><i class="fas fa-align-right"></i></button>
+        <span class="eb-toolbar-sep"></span>
+        <label class="eb-toolbar-color" title="Text color">
+          <i class="fas fa-palette"></i>
+          <input type="color" id="ebColorInput" value="#000000">
+        </label>
+        <div class="export-wrap">
+          <button type="button" id="ebAttachBtn" title="Attach a file, or insert an image/link from a URL"><i class="fas fa-paperclip"></i></button>
+          <div id="ebAttachMenu" class="export-menu" style="display:none;">
+            <button type="button" class="export-menu-item" id="ebAttachFileItem"><i class="fas fa-paperclip"></i> Attach a file</button>
+            <button type="button" class="export-menu-item" data-action="image"><i class="fas fa-image"></i> Insert image from URL</button>
+            <button type="button" class="export-menu-item" data-action="link"><i class="fas fa-link"></i> Insert link to a website</button>
+          </div>
+        </div>
+        <input type="file" id="ebFileInput" multiple style="display:none;">
+        <button type="button" data-action="button" title="Insert button"><i class="fas fa-square"></i></button>
+        <button type="button" data-action="divider" title="Insert divider"><i class="fas fa-grip-lines"></i></button>
+        <button type="button" data-action="logo" title="Insert logo"><i class="fas fa-star"></i></button>
+        <span class="eb-toolbar-sep"></span>
+        <button type="button" data-cmd="removeFormat" title="Clear formatting"><i class="fas fa-text-slash"></i></button>
+      </div>
+
+      <div id="ebAttachmentList" class="eb-attachment-list"></div>
+
+      <div class="eb-canvas-wrap">
+        <div id="ebEditor" class="eb-canvas eb-canvas-desktop" contenteditable="true"></div>
+      </div>
+    </div>
+  </main>
+
+  <div id="sendEmailModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="sendEmailTitle">
+      <button id="closeSendEmailModal" class="close">×</button>
+      <h3 id="sendEmailTitle">Send Email</h3>
+      <p class="muted">Sends the current compose content to one address -- useful for a test send or a one-off email. To send to your filtered contact list, use a future bulk-send feature (not built yet).</p>
+      <label for="sendEmailTo">To<br><input id="sendEmailTo" type="email" placeholder="name@example.com" required></label>
+      <p id="sendEmailAttachmentSummary" class="muted" style="margin-top:10px;">No files attached. Use the <i class="fas fa-paperclip"></i> button in the toolbar to attach one.</p>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button id="sendEmailConfirmBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+      </div>
+      <div id="sendEmailStatus" class="muted" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <script>
+    window.EMAIL_TEMPLATE_ID = {{ template.id }}
+    window.EMAIL_TEMPLATE = {{ template.to_dict()|tojson }}
+  </script>
+  <script src="/static/js/email-builder.js"></script>
+</body>
+</html>

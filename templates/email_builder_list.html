@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Email Builder — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/#search" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>Email Builder</h2>
+      </div>
+      <button id="ebNewBtn" class="btn btn-primary"><i class="fas fa-plus"></i> New Email</button>
+    </div>
+  </header>
+
+  <main class="container admin-area">
+    {% if templates %}
+    <div class="results-grid" style="margin-top:16px;">
+      {% for t in templates %}
+      <a class="card" href="/email-builder/{{ t.id }}" style="text-decoration:none;color:inherit;">
+        <h3>{{ t.name }}</h3>
+        {% if t.subject %}<div class="meta">{{ t.subject }}</div>{% endif %}
+        <p class="muted" style="margin:6px 0 0;">{{ t.blocks|length }} block{{ '' if t.blocks|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}</p>
+        <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted" style="margin-top:16px">No email templates yet. <a href="#" id="ebNewBtnInline">Create the first one</a>.</p>
+    {% endif %}
+  </main>
+
+  <script>
+    async function createNewTemplate(){
+      const res = await fetch('/api/email-templates', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: 'Untitled email'}),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) window.location.href = `/email-builder/${j.id}`
+    }
+    async function deleteEmailTemplate(id, name){
+      if (!confirm(`Delete "${name}"? This can't be undone.`)) return
+      const res = await fetch(`/api/email-templates/${id}`, {method: 'DELETE'})
+      if (res.ok) window.location.reload()
+    }
+    document.getElementById('ebNewBtn').addEventListener('click', createNewTemplate)
+    const ebNewBtnInline = document.getElementById('ebNewBtnInline')
+    if (ebNewBtnInline) ebNewBtnInline.addEventListener('click', (e) => { e.preventDefault(); createNewTemplate() })
+  </script>
+</body>
+</html>

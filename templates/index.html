@@ -42,6 +42,7 @@
           <a id="backHomeBtn" class="btn" href="/"><i class="fas fa-house"></i> Back to Home</a>
           <button id="addContactBtn" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add Contact</button>
           <a class="btn" href="/case-studies"><i class="fas fa-book-open"></i> Case Studies</a>
+          <a class="btn" href="/email-builder"><i class="fas fa-envelope-open-text"></i> Email Builder</a>
           {% if current_user.is_admin %}
           <details class="admin-menu">
             <summary class="btn"><i class="fas fa-screwdriver-wrench"></i> Admin <i class="fas fa-chevron-down" style="font-size:11px;"></i></summary>
@@ -168,6 +169,10 @@
       <p id="draftEmailAudience" class="muted"></p>
       <label for="draftEmailPrompt">What's the email about?</label>
       <textarea id="draftEmailPrompt" rows="3" placeholder="e.g. Invite this group to a community meeting in Dallas"></textarea>
+      <label for="draftEmailCaseStudy" style="margin-top:10px;display:block;">Reference a case study (optional)</label>
+      <select id="draftEmailCaseStudy">
+        <option value="">None</option>
+      </select>
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button id="draftEmailGenerateBtn" class="btn btn-primary">Generate</button>
         <button id="draftEmailCopyBtn" class="btn" style="display:none;">Copy to Clipboard</button>

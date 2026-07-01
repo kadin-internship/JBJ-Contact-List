@@ -239,34 +239,63 @@ async function fetchSectionStats(){
   }catch(e){console.warn(e)}
 }
 
+// Returns a deterministic hex color for each unique tag value so the same
+// tag always gets the same color, giving the card grid visual grouping at a
+// glance without manually maintaining a hard-coded palette.
+function tagHue(tag){
+  if(!tag) return null
+  const PALETTE = {
+    'NA / CA / HOA':'#2C5C8A', 'ISD Staff':'#1E7B34', 'JBJ Staff':'#AD0304',
+    'State Senator':'#6D0712', 'State Senator Staff':'#B8740C',
+    'Chamber of Commerce':'#2C5C8A', 'City / Town Council':'#1E7B34',
+    'City / Town Staff':'#3D4041', 'Clergy':'#6D0712', 'Client':'#AD0304',
+    'Advocacy Agency':'#B8740C', 'Prospect':'#2C5C8A',
+    'Legacy - Unverified':'#94999C',
+  }
+  if(PALETTE[tag]) return PALETTE[tag]
+  // Fallback: hash the tag string to pick a hue
+  let h = 0
+  for(let i=0;i<tag.length;i++) h = (h * 31 + tag.charCodeAt(i)) & 0xffffffff
+  const hue = Math.abs(h) % 360
+  return `hsl(${hue},50%,35%)`
+}
+
 function renderCard(c){
   const div = document.createElement('div')
   const key = 'contact:'+c.id
   div.className = 'card' + (state.selectedKey === key ? ' selected' : '')
   div.tabIndex = 0
 
-  const recencyBits = []
   const lastContacted = relativeDays(c.last_contacted_on)
-  const lastEmailed = relativeDays(c.last_emailed_on)
-  if(lastContacted) recencyBits.push(`<i class="fas fa-comment-dots"></i> Last contact: ${lastContacted}`)
-  if(lastEmailed) recencyBits.push(`<i class="fas fa-envelope"></i> Last email: ${lastEmailed}`)
-  const recencyHtml = recencyBits.length ? `<div class="card-recency">${recencyBits.join(' &nbsp;•&nbsp; ')}</div>` : ''
+  const lastEmailed   = relativeDays(c.last_emailed_on)
+  const recencyBits   = []
+  if(lastContacted) recencyBits.push(`<span class="recency-item"><i class="fas fa-comment-dots recency-icon"></i>${lastContacted}</span>`)
+  if(lastEmailed)   recencyBits.push(`<span class="recency-item"><i class="fas fa-envelope recency-icon"></i>${lastEmailed}</span>`)
+  const recencyHtml = recencyBits.length ? `<div class="card-recency">${recencyBits.join('')}</div>` : ''
+
+  const tagColor = tagHue(c.tag)
+  div.style.borderTopColor = tagColor || ''
 
   div.innerHTML = `
     <div class="card-top">
-      <div class="avatar md">${initials(c.first_name, c.last_name)}</div>
-      <div style="flex:1;min-width:0">
-        <h3>${c.first_name||''} ${c.last_name||''}</h3>
-        <div class="meta">${c.organization||''} — ${c.title||''}</div>
+      <div class="avatar md" style="${tagColor ? `background:linear-gradient(140deg,${tagColor}cc,${tagColor}88)` : ''}">
+        ${initials(c.first_name, c.last_name)}
+      </div>
+      <div class="card-info">
+        <h3 class="card-name">${c.first_name||''} ${c.last_name||''}</h3>
+        ${c.organization ? `<div class="card-org"><i class="fas fa-building"></i> ${c.organization}</div>` : ''}
+        ${c.title ? `<div class="card-role">${c.title}</div>` : ''}
       </div>
       <button class="favorite-btn${c.is_favorite? ' is-favorite':''}" title="${c.is_favorite? 'Unstar' : 'Star this contact'}" aria-pressed="${c.is_favorite? 'true':'false'}">
         <i class="${c.is_favorite? 'fas':'far'} fa-star"></i>
       </button>
     </div>
-    <div class="pills">${(c.lists||[]).slice(0,3).map(p=>pillHtml(p)).join('')}</div>
-    ${c.tag ? `<div class="category">${pillHtml(c.tag)}</div>` : ''}
+    <div class="card-meta-row">
+      ${c.tag ? `<span class="card-tag-pill" style="${tagColor ? `background:${tagColor}18;color:${tagColor};border-color:${tagColor}40` : ''}">${c.tag}</span>` : ''}
+      ${c.county ? `<span class="card-county"><i class="fas fa-location-dot"></i> ${c.county}</span>` : ''}
+    </div>
     ${recencyHtml}
-    <div class="card-actions" style="margin-top:8px;display:flex;gap:8px;">
+    <div class="card-actions">
       <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button>
       <button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i> Edit</button>
     </div>

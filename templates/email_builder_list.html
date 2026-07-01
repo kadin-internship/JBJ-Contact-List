@@ -26,9 +26,18 @@
     <div class="results-grid" style="margin-top:16px;">
       {% for t in templates %}
       <a class="card" href="/email-builder/{{ t.id }}" style="text-decoration:none;color:inherit;">
-        <h3>{{ t.name }}</h3>
-        {% if t.subject %}<div class="meta">{{ t.subject }}</div>{% endif %}
-        <p class="muted" style="margin:6px 0 0;">{{ t.blocks|length }} block{{ '' if t.blocks|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}</p>
+        {% set richtext = namespace(html='') %}
+        {% for b in t.blocks %}{% if b.type == 'richtext' and not richtext.html %}{% set richtext.html = b.html %}{% endif %}{% endfor %}
+        {% if t.subject or richtext.html %}
+        <div class="tpl-email-preview">
+          {% if t.subject %}<p class="tpl-email-subject">{{ t.subject }}</p>{% endif %}
+          {% if richtext.html %}<div class="tpl-email-body">{{ richtext.html|striptags }}</div>{% endif %}
+        </div>
+        {% else %}
+        <div class="tpl-no-preview"><i class="fas fa-envelope-open-text"></i> No preview yet</div>
+        {% endif %}
+        <strong style="font-size:14px;">{{ t.name }}</strong>
+        <p class="muted" style="margin:0;">{{ t.blocks|length }} block{{ '' if t.blocks|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}</p>
         <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
       </a>
       {% endfor %}

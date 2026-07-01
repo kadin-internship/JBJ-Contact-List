@@ -1057,6 +1057,10 @@ def create_app(config_class=Config):
     # Flyer / canvas builder                                               #
     # ------------------------------------------------------------------ #
 
+    def _valid_flyer_formats():
+        from flyer_render import CANVAS_FORMATS
+        return set(CANVAS_FORMATS.keys())
+
     @app.route('/flyer-builder')
     def flyer_builder_list():
         templates = FlyerTemplate.query.order_by(FlyerTemplate.updated_at.desc()).all()
@@ -1077,7 +1081,7 @@ def create_app(config_class=Config):
         data = request.get_json(force=True) or {}
         t = FlyerTemplate(
             name=(data.get('name') or '').strip() or 'Untitled flyer',
-            format=data.get('format', 'square') if data.get('format') in ('square', 'portrait') else 'square',
+            format=data.get('format', 'square') if data.get('format') in _valid_flyer_formats() else 'square',
             elements=data.get('elements') or [],
             created_by_id=current_user.id,
         )
@@ -1095,7 +1099,7 @@ def create_app(config_class=Config):
         t = FlyerTemplate.query.get_or_404(template_id)
         data = request.get_json(force=True) or {}
         t.name = (data.get('name') or '').strip() or 'Untitled flyer'
-        if data.get('format') in ('square', 'portrait'):
+        if data.get('format') in _valid_flyer_formats():
             t.format = data['format']
         t.elements = data.get('elements') or []
         db.session.commit()
@@ -1114,7 +1118,7 @@ def create_app(config_class=Config):
     @app.route('/api/flyer-templates/<int:template_id>/render', methods=['POST'])
     def render_flyer_template(template_id):
         import base64
-        from flyer_render import render_flyer_png, DISPLAY_SIZES
+        from flyer_render import render_flyer_png, CANVAS_FORMATS
 
         t = FlyerTemplate.query.get_or_404(template_id)
         data = request.get_json(silent=True) or {}
@@ -1132,8 +1136,8 @@ def create_app(config_class=Config):
         png_bytes = render_flyer_png(elements, fmt=fmt, bg_color=bg, asset_loader=asset_loader)
         return jsonify({
             'image': 'data:image/png;base64,' + base64.b64encode(png_bytes).decode(),
-            'width': DISPLAY_SIZES.get(fmt, (540, 540))[0] * 2,
-            'height': DISPLAY_SIZES.get(fmt, (540, 540))[1] * 2,
+            'width':  CANVAS_FORMATS.get(fmt, CANVAS_FORMATS['square'])['rw'],
+            'height': CANVAS_FORMATS.get(fmt, CANVAS_FORMATS['square'])['rh'],
         })
 
     @app.route('/api/flyer-assets', methods=['POST'])
@@ -1739,7 +1743,7 @@ def create_app(config_class=Config):
 
         data = request.get_json(silent=True) or {}
         prompt = (data.get('prompt') or '').strip()
-        fmt = data.get('format') if data.get('format') in ('square', 'portrait') else 'square'
+        fmt = data.get('format') if data.get('format') in _valid_flyer_formats() else 'square'
         if not prompt:
             return jsonify({'error': 'Describe what the post or flyer is about.'}), 400
 

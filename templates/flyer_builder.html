@@ -19,6 +19,10 @@
       </div>
       <div style="display:flex;gap:10px;align-items:center;">
         <span id="fbSaveStatus" class="muted" style="font-size:13px;"></span>
+        <div class="export-wrap">
+          <button id="fbCanvasSizeBtn" class="btn" type="button"><i class="fas fa-crop-simple"></i> <span id="fbCanvasSizeLabel">{{ template.format }}</span> <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
+          <div id="fbCanvasSizeMenu" class="export-menu fb-size-menu" style="display:none;"></div>
+        </div>
         <button id="fbSaveBtn" class="btn"><i class="fas fa-check"></i> Save</button>
         <button id="fbRenderBtn" class="btn btn-primary"><i class="fas fa-download"></i> Export PNG</button>
       </div>
@@ -26,20 +30,89 @@
   </header>
 
   <main class="container fb-layout">
+
+    <!-- Left: element palette -->
     <aside class="filters-sidebar fb-palette-panel">
       <div class="filters-scroll">
         <h3 class="filters-title">Add Element</h3>
-        <div class="eb-palette-list">
-          <button type="button" class="eb-palette-item" data-add="shape"><i class="fas fa-square"></i> Shape</button>
-          <button type="button" class="eb-palette-item" data-add="heading"><i class="fas fa-heading"></i> Heading</button>
-          <button type="button" class="eb-palette-item" data-add="text"><i class="fas fa-paragraph"></i> Text</button>
-          <button type="button" class="eb-palette-item" data-add="logo"><i class="fas fa-star"></i> Logo</button>
-          <button type="button" class="eb-palette-item" data-add="image"><i class="fas fa-image"></i> Image</button>
+
+        <div class="filter-section">
+          <h4>Shapes</h4>
+          <div class="fb-palette-grid">
+            <button type="button" class="fb-palette-tile" data-add="shape" title="Rectangle">
+              <span class="fb-tile-preview"><span style="width:36px;height:24px;background:#AD0304;display:block;border-radius:3px;margin:0 auto;"></span></span>
+              <span class="fb-tile-label">Rectangle</span>
+            </button>
+            <button type="button" class="fb-palette-tile" data-add="ellipse" title="Circle / Oval">
+              <span class="fb-tile-preview"><span style="width:32px;height:32px;background:#AD0304;display:block;border-radius:50%;margin:0 auto;"></span></span>
+              <span class="fb-tile-label">Ellipse</span>
+            </button>
+            <button type="button" class="fb-palette-tile" data-add="line" title="Line">
+              <span class="fb-tile-preview"><span style="width:40px;height:3px;background:#AD0304;display:block;margin:14px auto;border-radius:2px;"></span></span>
+              <span class="fb-tile-label">Line</span>
+            </button>
+            <button type="button" class="fb-palette-tile" data-add="badge" title="Badge / Pill">
+              <span class="fb-tile-preview"><span style="background:#AD0304;color:#fff;font-size:9px;padding:3px 8px;border-radius:999px;display:inline-block;">BADGE</span></span>
+              <span class="fb-tile-label">Badge</span>
+            </button>
+          </div>
         </div>
+
+        <div class="filter-section">
+          <h4>Text</h4>
+          <div class="fb-palette-grid">
+            <button type="button" class="fb-palette-tile" data-add="heading" title="Large heading">
+              <span class="fb-tile-preview" style="font-size:15px;font-weight:700;font-family:'Archivo Black',sans-serif;">H1</span>
+              <span class="fb-tile-label">Heading</span>
+            </button>
+            <button type="button" class="fb-palette-tile" data-add="subheading" title="Subheading">
+              <span class="fb-tile-preview" style="font-size:12px;font-weight:700;">H2</span>
+              <span class="fb-tile-label">Subheading</span>
+            </button>
+            <button type="button" class="fb-palette-tile" data-add="text" title="Body text">
+              <span class="fb-tile-preview" style="font-size:10px;line-height:1.3;">Body<br>text</span>
+              <span class="fb-tile-label">Body Text</span>
+            </button>
+            <button type="button" class="fb-palette-tile" data-add="caption" title="Small caption">
+              <span class="fb-tile-preview" style="font-size:8px;color:#888;">Caption text</span>
+              <span class="fb-tile-label">Caption</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <h4>Media</h4>
+          <div class="fb-palette-grid">
+            <button type="button" class="fb-palette-tile" data-add="logo" title="Company logo">
+              <span class="fb-tile-preview" style="font-size:8px;font-weight:700;color:#AD0304;letter-spacing:1px;">LOGO</span>
+              <span class="fb-tile-label">Logo</span>
+            </button>
+            <button type="button" class="fb-palette-tile" data-add="image" title="Upload image">
+              <span class="fb-tile-preview" style="font-size:16px;color:#aaa;"><i class="fas fa-image"></i></span>
+              <span class="fb-tile-label">Image</span>
+            </button>
+          </div>
+        </div>
+
         <div class="filter-section">
           <h4>Background</h4>
-          <input type="color" id="fbBgColor" value="#ffffff" style="width:100%;height:36px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);cursor:pointer;">
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <label style="font-size:12px;font-weight:600;">Canvas color
+              <input type="color" id="fbBgColor" value="#ffffff" style="width:100%;height:32px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);cursor:pointer;margin-top:4px;">
+            </label>
+            <div class="fb-color-swatches" id="fbColorSwatches">
+              <button class="fb-swatch" style="background:#ffffff;" data-color="#ffffff" title="White"></button>
+              <button class="fb-swatch" style="background:#1a1a1a;" data-color="#1a1a1a" title="Black"></button>
+              <button class="fb-swatch" style="background:#AD0304;" data-color="#AD0304" title="JBJ Maroon"></button>
+              <button class="fb-swatch" style="background:#6D0712;" data-color="#6D0712" title="JBJ Dark Maroon"></button>
+              <button class="fb-swatch" style="background:#2C5C8A;" data-color="#2C5C8A" title="Navy"></button>
+              <button class="fb-swatch" style="background:#1E7B34;" data-color="#1E7B34" title="Green"></button>
+              <button class="fb-swatch" style="background:#F5F5F0;" data-color="#F5F5F0" title="Off-white"></button>
+              <button class="fb-swatch" style="background:#D68182;" data-color="#D68182" title="Rose"></button>
+            </div>
+          </div>
         </div>
+
         <div class="filter-section">
           <h4>Canvas</h4>
           <p class="muted" style="font-size:12px;margin:0;">{{ 'Square 1080×1080' if template.format == 'square' else 'Portrait 1080×1536' }}</p>
@@ -47,32 +120,38 @@
       </div>
     </aside>
 
+    <!-- Center: canvas -->
     <div class="fb-canvas-area">
-      <div id="fbCanvas" class="fb-canvas fb-canvas-{{ template.format }}"></div>
+      <div class="fb-canvas-container">
+        <div id="fbCanvas" class="fb-canvas fb-canvas-{{ template.format }}"></div>
+      </div>
+      <p class="muted" style="text-align:center;font-size:12px;margin-top:8px;">Click an element to select it · Drag to move · Drag corner to resize</p>
     </div>
 
+    <!-- Right: style panel -->
     <aside id="fbStylePanel" class="filters-sidebar fb-style-panel">
       <div class="filters-scroll">
-        <h3 class="filters-title">Element Style</h3>
-        <div id="fbStylePanelBody"><p class="muted">Select an element to edit it.</p></div>
+        <h3 class="filters-title">Properties</h3>
+        <div id="fbStylePanelBody"><p class="muted" style="font-size:13px;">Click any element on the canvas to edit its properties here.</p></div>
       </div>
     </aside>
   </main>
 
+  <!-- Export PNG modal -->
   <div id="fbRenderModal" class="modal" style="display:none;">
     <div class="modal-content" role="dialog" aria-modal="true">
       <button id="fbCloseRenderModal" class="close">×</button>
-      <h3>Export PNG</h3>
+      <h3><i class="fas fa-image"></i> Export PNG</h3>
       <div id="fbRenderStatus" class="muted" style="margin-bottom:8px;">Rendering…</div>
-      <img id="fbRenderOutput" style="display:none;max-width:100%;border-radius:8px;" alt="Rendered flyer">
-      <div style="margin-top:10px;">
-        <a id="fbDownloadBtn" class="btn btn-primary" download="flyer.png" style="display:none;"><i class="fas fa-download"></i> Download</a>
+      <img id="fbRenderOutput" style="display:none;max-width:100%;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);" alt="Rendered flyer">
+      <div style="margin-top:12px;display:flex;gap:8px;">
+        <a id="fbDownloadBtn" class="btn btn-primary" download="flyer.png" style="display:none;"><i class="fas fa-download"></i> Download PNG</a>
       </div>
     </div>
   </div>
 
-  <!-- File input lives at the top level of <body> so programmatic
-       .click() is never blocked by a parent overflow or scroll container -->
+  <!-- File input at body level so programmatic .click() is never blocked
+       by a parent overflow or scroll container -->
   <input type="file" id="fbImageUpload" accept="image/*" style="display:none;">
 
   <script>

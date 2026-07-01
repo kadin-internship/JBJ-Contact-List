@@ -17,10 +17,7 @@
         <a href="/#search" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
         <h2>Flyer Builder</h2>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button id="fbNewSquareBtn" class="btn"><i class="fas fa-plus"></i> New Square (Social Post)</button>
-        <button id="fbNewPortraitBtn" class="btn btn-primary"><i class="fas fa-plus"></i> New Portrait (Flyer)</button>
-      </div>
+      <button id="fbNewBtn" class="btn btn-primary"><i class="fas fa-plus"></i> New Design</button>
     </div>
   </header>
 
@@ -28,36 +25,155 @@
     {% if templates %}
     <div class="results-grid" style="margin-top:16px;">
       {% for t in templates %}
-      <a class="card" href="/flyer-builder/{{ t.id }}" style="text-decoration:none;color:inherit;">
-        <h3>{{ t.name }}</h3>
-        <div class="meta">{{ 'Square (1080×1080)' if t.format == 'square' else 'Portrait (1080×1536)' }}</div>
-        <p class="muted" style="margin:6px 0 0;">{{ t.elements|length }} element{{ '' if t.elements|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}</p>
+      <a class="card" href="/flyer-builder/{{ t.id }}" style="text-decoration:none;color:inherit;"
+         data-tpl-id="{{ t.id }}"
+         data-fmt="{{ t.format }}">
+        <script type="application/json" id="el-{{ t.id }}">{{ t.elements|tojson }}</script>
+        <div class="tpl-preview" id="preview-{{ t.id }}">
+          {% if t.elements %}
+          <div class="tpl-preview-canvas" style="height:120px;"></div>
+          {% else %}
+          <div class="tpl-no-preview"><i class="fas fa-image"></i> Empty canvas</div>
+          {% endif %}
+        </div>
+        <strong style="font-size:14px;">{{ t.name }}</strong>
+        <div class="muted" style="display:flex;gap:8px;margin:0;">
+          <span>{{ t.format }}</span>
+          <span>·</span>
+          <span>{{ t.elements|length }} element{{ '' if t.elements|length == 1 else 's' }}</span>
+          <span>·</span>
+          <span>{{ t.updated_at.strftime('%b %d') }}</span>
+        </div>
         <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteFlyerTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
       </a>
       {% endfor %}
     </div>
     {% else %}
-    <p class="muted" style="margin-top:16px">No flyers yet — create one above.</p>
+    <p class="muted" style="margin-top:16px">No designs yet — click <strong>New Design</strong> to pick a canvas size and get started.</p>
     {% endif %}
   </main>
 
+  <!-- Canvas size picker modal -->
+  <div id="fbFormatModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" style="max-width:760px;">
+      <button id="fbCloseFormatModal" class="close">×</button>
+      <h3>Choose a canvas size</h3>
+      <div id="fbFormatGroups"></div>
+    </div>
+  </div>
+
   <script>
+    const FORMATS = {
+      'square':      { label: 'Instagram Post (Square)',    group: 'Instagram',   dw: 540, dh: 540,  rw: 1080, rh: 1080 },
+      'in_portrait': { label: 'Instagram Post (Portrait)',  group: 'Instagram',   dw: 540, dh: 675,  rw: 1080, rh: 1350 },
+      'story':       { label: 'Instagram / TikTok Story',   group: 'Instagram',   dw: 405, dh: 720,  rw: 1080, rh: 1920 },
+      'fb_post':     { label: 'Facebook Post',              group: 'Facebook',    dw: 540, dh: 284,  rw: 1200, rh: 630  },
+      'fb_cover':    { label: 'Facebook Cover Photo',       group: 'Facebook',    dw: 540, dh: 200,  rw: 1640, rh: 607  },
+      'twitter':     { label: 'Twitter / X Post',           group: 'Twitter / X', dw: 540, dh: 304,  rw: 1200, rh: 675  },
+      'linkedin':    { label: 'LinkedIn Post',              group: 'LinkedIn',    dw: 540, dh: 283,  rw: 1200, rh: 628  },
+      'pinterest':   { label: 'Pinterest Pin',              group: 'Pinterest',   dw: 480, dh: 720,  rw: 1000, rh: 1500 },
+      'yt_thumb':    { label: 'YouTube Thumbnail',          group: 'YouTube',     dw: 540, dh: 304,  rw: 1280, rh: 720  },
+      'tiktok':      { label: 'TikTok Video Cover',         group: 'TikTok',      dw: 405, dh: 720,  rw: 1080, rh: 1920 },
+      'flyer':       { label: 'Letter Flyer (8.5 × 11 in)','group': 'Print',     dw: 408, dh: 528,  rw: 816,  rh: 1056 },
+      'portrait':    { label: 'Tall Flyer / Poster',        group: 'Print',       dw: 432, dh: 648,  rw: 1080, rh: 1620 },
+      'a4':          { label: 'A4 Poster',                  group: 'Print',       dw: 398, dh: 562,  rw: 794,  rh: 1123 },
+    }
+
+    function buildFormatPicker() {
+      const groups = {}
+      for (const [key, f] of Object.entries(FORMATS)) {
+        if (!groups[f.group]) groups[f.group] = []
+        groups[f.group].push({ key, ...f })
+      }
+      const container = document.getElementById('fbFormatGroups')
+      for (const [group, items] of Object.entries(groups)) {
+        const section = document.createElement('div')
+        section.style.cssText = 'margin-bottom:20px;'
+        section.innerHTML = `<h4 style="margin:0 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">${group}</h4><div class="fb-format-grid"></div>`
+        const grid = section.querySelector('.fb-format-grid')
+        items.forEach(f => {
+          const AR = f.rw / f.rh
+          const th = AR >= 1 ? Math.round(64 / AR) : 64
+          const tw = AR >= 1 ? 64 : Math.round(64 * AR)
+          const btn = document.createElement('button')
+          btn.className = 'fb-format-tile'
+          btn.dataset.fmt = f.key
+          btn.innerHTML = `<span class="fb-format-preview"><span style="width:${tw}px;height:${th}px;background:rgba(173,3,4,0.12);border:2px solid rgba(173,3,4,0.4);border-radius:3px;display:block;"></span></span><span class="fb-format-name">${f.label}</span><span class="fb-format-size">${f.rw} × ${f.rh}</span>`
+          btn.addEventListener('click', () => createFlyer(f.key))
+          grid.appendChild(btn)
+        })
+        container.appendChild(section)
+      }
+    }
+
     async function createFlyer(format) {
+      document.getElementById('fbFormatModal').style.display = 'none'
       const res = await fetch('/api/flyer-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Untitled flyer', format }),
+        body: JSON.stringify({ name: 'Untitled design', format }),
       })
       const j = await res.json().catch(() => ({}))
       if (res.ok) window.location.href = `/flyer-builder/${j.id}`
     }
+
     async function deleteFlyerTemplate(id, name) {
       if (!confirm(`Delete "${name}"? This can't be undone.`)) return
       const res = await fetch(`/api/flyer-templates/${id}`, { method: 'DELETE' })
       if (res.ok) window.location.reload()
     }
-    document.getElementById('fbNewSquareBtn').addEventListener('click', () => createFlyer('square'))
-    document.getElementById('fbNewPortraitBtn').addEventListener('click', () => createFlyer('portrait'))
+
+    document.getElementById('fbNewBtn').addEventListener('click', () => {
+      document.getElementById('fbFormatModal').style.display = ''
+    })
+    document.getElementById('fbCloseFormatModal').addEventListener('click', () => {
+      document.getElementById('fbFormatModal').style.display = 'none'
+    })
+
+    buildFormatPicker()
+
+    // Mini canvas preview for each saved template card
+    function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
+    function alpha8(opacity){ return Math.round((opacity??100)/100*255).toString(16).padStart(2,'0') }
+
+    function renderMiniElement(el, scale) {
+      const x=Math.round((el.x||0)*scale), y=Math.round((el.y||0)*scale)
+      const w=Math.max(2,Math.round((el.width||40)*scale)), h=Math.max(2,Math.round((el.height||20)*scale))
+      let inner = ''
+      if(el.type==='shape')      inner=`<div style="width:100%;height:100%;background:${el.color||'#AD0304'}${alpha8(el.opacity)};${el.radius?'border-radius:'+Math.round(el.radius*scale)+'px;':''}"></div>`
+      else if(el.type==='ellipse') inner=`<div style="width:100%;height:100%;background:${el.color||'#AD0304'}${alpha8(el.opacity)};border-radius:50%;"></div>`
+      else if(el.type==='line')  inner=`<div style="width:100%;height:100%;background:${el.color||'#AD0304'}${alpha8(el.opacity)};"></div>`
+      else if(el.type==='badge') inner=`<div style="width:100%;height:100%;background:${el.color||'#AD0304'};border-radius:999px;"></div>`
+      else if(['heading','subheading','text','caption'].includes(el.type)){
+        const fs=Math.max(6,Math.round((el.fontSize||16)*scale))
+        inner=`<div style="font-size:${fs}px;color:${el.color||'#000'};font-weight:${el.bold?700:400};text-align:${el.align||'left'};overflow:hidden;white-space:nowrap;line-height:1.2;">${esc(el.text||'')}</div>`
+      } else if(el.type==='logo'){
+        inner=`<img src="/static/img/logo.png" style="width:100%;height:100%;object-fit:contain;">`
+      }
+      if(!inner) return ''
+      return `<div class="tpl-preview-el" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;">${inner}</div>`
+    }
+
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.card[data-tpl-id]').forEach(card => {
+        const id = card.dataset.tplId
+        const canvas = card.querySelector('.tpl-preview-canvas')
+        if(!canvas) return
+        const scriptTag = document.getElementById('el-' + id)
+        if(!scriptTag) return
+        let elements
+        try { elements = JSON.parse(scriptTag.textContent) } catch(err) { console.warn('flyer preview parse error', id, err); return }
+        if(!Array.isArray(elements) || !elements.length) return
+        const fmt = card.dataset.fmt || 'square'
+        const f = FORMATS[fmt] || FORMATS['square']
+        const previewW = canvas.offsetWidth || 260
+        const scale = previewW / f.dw
+        const previewH = Math.round(f.dh * scale)
+        canvas.style.height = previewH + 'px'
+        canvas.innerHTML = elements.map(e => renderMiniElement(e, scale)).join('')
+        console.log('flyer preview rendered', id, elements.length, 'elements, scale', scale.toFixed(3))
+      })
+    })
   </script>
 </body>
 </html>

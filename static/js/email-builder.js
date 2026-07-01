@@ -83,9 +83,32 @@ function setupToolbar() {
     runCmd('formatBlock', el('ebFormatSelect').value)
   })
 
+  const fontSizeSelect = el('ebFontSizeSelect')
+  if (fontSizeSelect) {
+    fontSizeSelect.addEventListener('change', () => {
+      const size = fontSizeSelect.value
+      if (!size) return
+      el('ebEditor').focus()
+      document.execCommand('fontSize', false, '7')
+      el('ebEditor').querySelectorAll('font[size="7"]').forEach(node => {
+        node.removeAttribute('size')
+        node.style.fontSize = size
+      })
+      fontSizeSelect.value = ''
+      updateToolbarState()
+      markDirty()
+    })
+  }
+
   const colorInput = el('ebColorInput')
   colorInput.addEventListener('mousedown', () => el('ebEditor').focus())
   colorInput.addEventListener('input', () => runCmd('foreColor', colorInput.value))
+
+  const highlightInput = el('ebHighlightInput')
+  if (highlightInput) {
+    highlightInput.addEventListener('mousedown', () => el('ebEditor').focus())
+    highlightInput.addEventListener('input', () => runCmd('hiliteColor', highlightInput.value))
+  }
 
   document.querySelectorAll('.eb-toolbar button[data-action]').forEach((btn) => {
     btn.addEventListener('mousedown', (e) => {
@@ -266,9 +289,48 @@ async function saveTemplate() {
   }
 }
 
+const BLOCKS = {
+  heading:      () => `<h2 style="font-family:'Archivo Black',sans-serif;color:#AD0304;border-bottom:2px solid #AD0304;padding-bottom:8px;margin:20px 0 12px;">Section Heading</h2>`,
+  subheading:   () => `<h3 style="color:#3D4041;margin:16px 0 8px;">Subheading</h3>`,
+  paragraph:    () => `<p style="line-height:1.6;color:#333;margin:0 0 12px;">Your paragraph text here.</p>`,
+  quote:        () => `<blockquote style="border-left:4px solid #AD0304;margin:16px 0;padding:12px 16px;background:#fafafa;font-style:italic;color:#555;">"Your quote text here."</blockquote>`,
+  divider:      () => `<hr style="border:none;border-top:2px solid #e0e0e0;margin:20px 0;">`,
+  spacer:       () => `<div style="height:32px;">&nbsp;</div>`,
+  columns:      () => `<table width="100%" style="border-collapse:collapse;margin:12px 0;"><tr><td width="48%" style="padding-right:8px;vertical-align:top;">Left column text here.</td><td width="4%"></td><td width="48%" style="padding-left:8px;vertical-align:top;">Right column text here.</td></tr></table>`,
+  announcement: () => `<div style="background:#1a1a1a;color:#ffffff;padding:16px 20px;border-radius:8px;text-align:center;margin:16px 0;"><strong style="font-size:18px;">📢 Important Announcement</strong><p style="margin:8px 0 0;opacity:0.85;">Your announcement message here.</p></div>`,
+  logo:         () => `<div style="text-align:center;margin:16px 0;"><img src="/static/img/logo.png" alt="JBJ Management" style="width:160px;max-width:100%;"></div>`,
+  cta:          () => {
+    const text = prompt('Button text:', 'Register Here') || 'Register Here'
+    const url  = prompt('Button link URL:', 'https://') || '#'
+    return `<div style="text-align:center;margin:20px 0;"><a href="${escapeAttr(url)}" style="background:#AD0304;color:#ffffff;display:inline-block;padding:14px 32px;border-radius:999px;font-weight:600;text-decoration:none;font-size:16px;">${escapeAttr(text)}</a></div>`
+  },
+  image:        () => {
+    const url = prompt('Image URL:', 'https://')
+    if (!url) return null
+    return `<div style="text-align:center;margin:12px 0;"><img src="${escapeAttr(url)}" alt="" style="max-width:100%;border-radius:6px;"></div>`
+  },
+  social:       () => `<div style="text-align:center;padding:14px 0;font-size:14px;letter-spacing:0.5px;"><a href="#" style="color:#AD0304;text-decoration:none;margin:0 10px;font-weight:600;">Facebook</a><span style="color:#ccc;">·</span><a href="#" style="color:#AD0304;text-decoration:none;margin:0 10px;font-weight:600;">Instagram</a><span style="color:#ccc;">·</span><a href="#" style="color:#AD0304;text-decoration:none;margin:0 10px;font-weight:600;">LinkedIn</a></div>`,
+  signature:    () => `<div style="margin:24px 0 0;padding-top:16px;border-top:1px solid #eee;font-size:14px;line-height:1.6;"><strong>Your Name</strong><br><span style="color:#555;">Title · JBJ Management</span><br><span style="color:#888;">email@jbj-management.com · (555) 000-0000</span></div>`,
+  footer:       () => `<div style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;margin-top:24px;border-top:1px solid #eee;line-height:1.6;">JBJ Management · Dallas, TX<br>This email was sent to you because you are part of our outreach network.<br><a href="#" style="color:#aaa;">Unsubscribe</a></div>`,
+}
+
+function setupBlockPalette() {
+  document.querySelectorAll('[data-insert]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.insert
+      if (!BLOCKS[type]) return
+      const html = BLOCKS[type]()
+      if (!html) return
+      el('ebEditor').focus()
+      insertHtmlAtCursor(html)
+    })
+  })
+}
+
 function init() {
   el('ebEditor').innerHTML = existingHtml()
   setupToolbar()
+  setupBlockPalette()
   setupAttachments()
   setupSendModal()
   el('ebEditor').addEventListener('input', markDirty)

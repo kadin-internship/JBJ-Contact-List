@@ -29,35 +29,142 @@
     </div>
   </header>
 
-  <main class="container eb-compose-wrap">
+  <main class="container eb-builder-layout">
+
+    <!-- Left: content blocks palette -->
+    <aside class="filters-sidebar eb-blocks-sidebar">
+      <div class="filters-scroll">
+        <h3 class="filters-title">Content Blocks</h3>
+
+        <div class="filter-section">
+          <h4>Text</h4>
+          <div class="eb-block-palette">
+            <button class="eb-block-tile" data-insert="heading" type="button">
+              <span class="eb-block-tile-preview" style="font-size:15px;font-weight:700;border-bottom:2px solid #AD0304;padding-bottom:2px;">Heading</span>
+              <span class="eb-block-tile-label">Heading</span>
+            </button>
+            <button class="eb-block-tile" data-insert="subheading" type="button">
+              <span class="eb-block-tile-preview" style="font-size:12px;font-weight:700;color:#555;">Subheading</span>
+              <span class="eb-block-tile-label">Subheading</span>
+            </button>
+            <button class="eb-block-tile" data-insert="paragraph" type="button">
+              <span class="eb-block-tile-preview" style="font-size:10px;line-height:1.4;">Lorem ipsum body text paragraph.</span>
+              <span class="eb-block-tile-label">Paragraph</span>
+            </button>
+            <button class="eb-block-tile" data-insert="quote" type="button">
+              <span class="eb-block-tile-preview" style="border-left:3px solid #AD0304;padding-left:6px;font-style:italic;font-size:10px;">"Great quote"</span>
+              <span class="eb-block-tile-label">Quote</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <h4>Layout</h4>
+          <div class="eb-block-palette">
+            <button class="eb-block-tile" data-insert="divider" type="button">
+              <span class="eb-block-tile-preview"><hr style="border:none;border-top:2px solid #ccc;margin:8px 0;"></span>
+              <span class="eb-block-tile-label">Divider</span>
+            </button>
+            <button class="eb-block-tile" data-insert="spacer" type="button">
+              <span class="eb-block-tile-preview" style="background:repeating-linear-gradient(45deg,#f5f5f5,#f5f5f5 3px,#fff 3px,#fff 8px);height:20px;display:block;border-radius:4px;"></span>
+              <span class="eb-block-tile-label">Spacer</span>
+            </button>
+            <button class="eb-block-tile" data-insert="columns" type="button">
+              <span class="eb-block-tile-preview" style="display:flex;gap:3px;"><span style="flex:1;background:#f0f0f0;height:20px;border-radius:2px;"></span><span style="flex:1;background:#f0f0f0;height:20px;border-radius:2px;"></span></span>
+              <span class="eb-block-tile-label">2 Columns</span>
+            </button>
+            <button class="eb-block-tile" data-insert="announcement" type="button">
+              <span class="eb-block-tile-preview" style="background:#1a1a1a;color:#fff;font-size:9px;padding:4px 6px;border-radius:4px;text-align:center;">📢 Announcement</span>
+              <span class="eb-block-tile-label">Announcement</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <h4>Media & Actions</h4>
+          <div class="eb-block-palette">
+            <button class="eb-block-tile" data-insert="logo" type="button">
+              <span class="eb-block-tile-preview" style="text-align:center;font-size:9px;font-weight:700;color:#AD0304;letter-spacing:1px;">JBJ LOGO</span>
+              <span class="eb-block-tile-label">Logo</span>
+            </button>
+            <button class="eb-block-tile" data-insert="image" type="button">
+              <span class="eb-block-tile-preview" style="background:#f0f0f0;display:flex;align-items:center;justify-content:center;height:20px;border-radius:4px;font-size:12px;color:#aaa;"><i class="fas fa-image"></i></span>
+              <span class="eb-block-tile-label">Image</span>
+            </button>
+            <button class="eb-block-tile" data-insert="cta" type="button">
+              <span class="eb-block-tile-preview" style="text-align:center;"><span style="background:#AD0304;color:#fff;font-size:9px;padding:3px 8px;border-radius:999px;display:inline-block;">Click Here</span></span>
+              <span class="eb-block-tile-label">CTA Button</span>
+            </button>
+            <button class="eb-block-tile" data-insert="social" type="button">
+              <span class="eb-block-tile-preview" style="text-align:center;font-size:11px;color:#555;letter-spacing:3px;"><i class="fab fa-facebook-f"></i> <i class="fab fa-instagram"></i> <i class="fab fa-linkedin-in"></i></span>
+              <span class="eb-block-tile-label">Social Links</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <h4>Closings</h4>
+          <div class="eb-block-palette">
+            <button class="eb-block-tile eb-block-tile-wide" data-insert="signature" type="button">
+              <span class="eb-block-tile-preview" style="font-size:9px;"><strong>Your Name</strong><br><span style="color:#888;">Title · Organization</span></span>
+              <span class="eb-block-tile-label">Signature</span>
+            </button>
+            <button class="eb-block-tile eb-block-tile-wide" data-insert="footer" type="button">
+              <span class="eb-block-tile-preview" style="text-align:center;font-size:8px;color:#aaa;">JBJ Management · Dallas, TX<br>Unsubscribe</span>
+              <span class="eb-block-tile-label">Footer</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center: compose pane -->
     <div class="eb-compose">
       <input id="ebSubjectInput" type="text" class="eb-subject-input" value="{{ template.subject or '' }}" placeholder="Subject">
 
       <div class="eb-toolbar" role="toolbar" aria-label="Formatting">
         <select id="ebFormatSelect" title="Text style">
-          <option value="P">Normal text</option>
+          <option value="P">Normal</option>
           <option value="H2">Heading</option>
           <option value="H3">Subheading</option>
+          <option value="H4">Small heading</option>
+        </select>
+        <select id="ebFontSizeSelect" title="Font size">
+          <option value="">Size</option>
+          <option value="12px">12</option>
+          <option value="14px">14</option>
+          <option value="16px">16</option>
+          <option value="18px">18</option>
+          <option value="20px">20</option>
+          <option value="24px">24</option>
+          <option value="28px">28</option>
+          <option value="32px">32</option>
         </select>
         <span class="eb-toolbar-sep"></span>
-        <button type="button" data-cmd="bold" title="Bold"><i class="fas fa-bold"></i></button>
-        <button type="button" data-cmd="italic" title="Italic"><i class="fas fa-italic"></i></button>
-        <button type="button" data-cmd="underline" title="Underline"><i class="fas fa-underline"></i></button>
+        <button type="button" data-cmd="bold" title="Bold (Cmd+B)"><i class="fas fa-bold"></i></button>
+        <button type="button" data-cmd="italic" title="Italic (Cmd+I)"><i class="fas fa-italic"></i></button>
+        <button type="button" data-cmd="underline" title="Underline (Cmd+U)"><i class="fas fa-underline"></i></button>
         <button type="button" data-cmd="strikeThrough" title="Strikethrough"><i class="fas fa-strikethrough"></i></button>
         <span class="eb-toolbar-sep"></span>
         <button type="button" data-cmd="insertUnorderedList" title="Bullet list"><i class="fas fa-list-ul"></i></button>
         <button type="button" data-cmd="insertOrderedList" title="Numbered list"><i class="fas fa-list-ol"></i></button>
+        <button type="button" data-cmd="indent" title="Indent"><i class="fas fa-indent"></i></button>
+        <button type="button" data-cmd="outdent" title="Outdent"><i class="fas fa-outdent"></i></button>
         <span class="eb-toolbar-sep"></span>
         <button type="button" data-cmd="justifyLeft" title="Align left"><i class="fas fa-align-left"></i></button>
         <button type="button" data-cmd="justifyCenter" title="Align center"><i class="fas fa-align-center"></i></button>
         <button type="button" data-cmd="justifyRight" title="Align right"><i class="fas fa-align-right"></i></button>
         <span class="eb-toolbar-sep"></span>
         <label class="eb-toolbar-color" title="Text color">
-          <i class="fas fa-palette"></i>
+          <i class="fas fa-font"></i>
           <input type="color" id="ebColorInput" value="#000000">
         </label>
+        <label class="eb-toolbar-color" title="Highlight color" style="background:rgba(255,220,0,0.25);">
+          <i class="fas fa-highlighter"></i>
+          <input type="color" id="ebHighlightInput" value="#ffff00">
+        </label>
         <div class="export-wrap">
-          <button type="button" id="ebAttachBtn" title="Attach a file, or insert an image/link from a URL"><i class="fas fa-paperclip"></i></button>
+          <button type="button" id="ebAttachBtn" title="Attach / insert image or link"><i class="fas fa-paperclip"></i></button>
           <div id="ebAttachMenu" class="export-menu" style="display:none;">
             <button type="button" class="export-menu-item" id="ebAttachFileItem"><i class="fas fa-paperclip"></i> Attach a file</button>
             <button type="button" class="export-menu-item" data-action="image"><i class="fas fa-image"></i> Insert image from URL</button>
@@ -65,9 +172,6 @@
           </div>
         </div>
         <input type="file" id="ebFileInput" multiple style="display:none;">
-        <button type="button" data-action="button" title="Insert button"><i class="fas fa-square"></i></button>
-        <button type="button" data-action="divider" title="Insert divider"><i class="fas fa-grip-lines"></i></button>
-        <button type="button" data-action="logo" title="Insert logo"><i class="fas fa-star"></i></button>
         <span class="eb-toolbar-sep"></span>
         <button type="button" data-cmd="removeFormat" title="Clear formatting"><i class="fas fa-text-slash"></i></button>
       </div>
@@ -84,8 +188,8 @@
     <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="sendEmailTitle">
       <button id="closeSendEmailModal" class="close">×</button>
       <h3 id="sendEmailTitle">Send Email</h3>
-      <p class="muted">Sends the current compose content to one address -- useful for a test send or a one-off email. To send to your filtered contact list, use a future bulk-send feature (not built yet).</p>
-      <label for="sendEmailTo">To<br><input id="sendEmailTo" type="email" placeholder="name@example.com" required></label>
+      <p class="muted">Sends the current compose content to one address. To send to your filtered contact list, a bulk-send feature is coming soon.</p>
+      <label for="sendEmailTo" style="display:block;margin-top:10px;">To<br><input id="sendEmailTo" type="email" placeholder="name@example.com" required></label>
       <p id="sendEmailAttachmentSummary" class="muted" style="margin-top:10px;">No files attached. Use the <i class="fas fa-paperclip"></i> button in the toolbar to attach one.</p>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button id="sendEmailConfirmBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>

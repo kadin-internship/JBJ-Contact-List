@@ -435,6 +435,80 @@ function setupRenderModal() {
   el('fbCloseRenderModal').addEventListener('click', () => { el('fbRenderModal').style.display = 'none' })
 }
 
+function setupSendModal() {
+  const modal = el('fbSendModal')
+  if (!modal) return
+
+  el('fbSendBtn').addEventListener('click', async () => {
+    el('fbSendStatus').textContent = ''
+    el('fbSendConfirmBtn').disabled = false
+    // Pre-fill subject with template name
+    if (!el('fbSendSubject').value) el('fbSendSubject').value = el('fbNameInput').value.trim()
+    modal.style.display = ''
+    // Load tags
+    const tagSel = el('fbSendTag')
+    if (tagSel.options.length <= 1) {
+      try {
+        const res = await fetch('/api/tags')
+        const j = await res.json()
+        ;(Array.isArray(j) ? j : j.tags || []).filter(Boolean).sort().forEach(t => {
+          const o = document.createElement('option')
+          o.value = t; o.textContent = t
+          tagSel.appendChild(o)
+        })
+      } catch {}
+    }
+  })
+
+  el('fbCloseSendModal').addEventListener('click', () => { modal.style.display = 'none' })
+  el('fbSendCancelBtn').addEventListener('click', () => { modal.style.display = 'none' })
+
+  el('fbSendConfirmBtn').addEventListener('click', async () => {
+    const status = el('fbSendStatus')
+    const subject = el('fbSendSubject').value.trim()
+    if (!subject) { status.textContent = 'Enter a subject line.'; status.style.color = 'var(--danger,#c00)'; return }
+
+    const btn = el('fbSendConfirmBtn')
+    btn.disabled = true
+    status.style.color = 'var(--muted)'
+    status.textContent = 'Rendering flyer and sending… this may take a moment.'
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 120000)
+
+    try {
+      const res = await fetch(`/api/flyer-templates/${window.FLYER_TEMPLATE_ID}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          subject,
+          message: el('fbSendMessage').value.trim(),
+          tag: el('fbSendTag').value,
+          county: el('fbSendCounty').value.trim(),
+          background: state.background || '#ffffff',
+        }),
+      })
+      clearTimeout(timer)
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) {
+        status.style.color = 'green'
+        status.textContent = `Sent to ${j.sent} contact${j.sent === 1 ? '' : 's'}${j.failed ? `, ${j.failed} failed` : ''}.`
+        btn.disabled = false
+      } else {
+        status.style.color = 'var(--danger,#c00)'
+        status.textContent = j.error || 'Could not send.'
+        btn.disabled = false
+      }
+    } catch (e) {
+      clearTimeout(timer)
+      status.style.color = 'var(--danger,#c00)'
+      status.textContent = e.name === 'AbortError' ? 'Timed out — the send may still be in progress.' : 'Could not reach the server.'
+      btn.disabled = false
+    }
+  })
+}
+
 function init() {
   applyCanvasSize()
   renderCanvas()
@@ -444,6 +518,7 @@ function init() {
   setupBackground()
   setupCanvasSizeMenu()
   setupRenderModal()
+  setupSendModal()
   el('fbSaveBtn').addEventListener('click', saveTemplate)
   el('fbNameInput').addEventListener('input', markDirty)
   window.addEventListener('beforeunload', e => {

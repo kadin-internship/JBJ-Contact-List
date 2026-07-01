@@ -243,11 +243,15 @@ function setupSendModal() {
     const btn = el('sendEmailConfirmBtn')
     btn.disabled = true
     status.textContent = 'Sending…'
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 45000)
     try {
       const res = await fetch(`/api/email-templates/${window.EMAIL_TEMPLATE_ID}/send`, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       })
+      clearTimeout(timer)
       const j = await res.json().catch(() => ({}))
       if (res.ok) {
         status.textContent = `Sent to ${to}.`
@@ -256,7 +260,8 @@ function setupSendModal() {
         status.textContent = j.error || 'Could not send.'
       }
     } catch (e) {
-      status.textContent = 'Could not reach the server.'
+      clearTimeout(timer)
+      status.textContent = e.name === 'AbortError' ? 'Timed out — check your SMTP settings or try again.' : 'Could not reach the server.'
     } finally {
       btn.disabled = false
     }

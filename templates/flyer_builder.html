@@ -24,6 +24,7 @@
           <div id="fbCanvasSizeMenu" class="export-menu fb-size-menu" style="display:none;"></div>
         </div>
         <button id="fbSaveBtn" class="btn"><i class="fas fa-check"></i> Save</button>
+        <button id="fbSendBtn" class="btn"><i class="fas fa-paper-plane"></i> Send to Contacts</button>
         <button id="fbRenderBtn" class="btn btn-primary"><i class="fas fa-download"></i> Export PNG</button>
       </div>
     </div>
@@ -136,6 +137,48 @@
       </div>
     </aside>
   </main>
+
+  <!-- Send to Contacts modal -->
+  <div id="fbSendModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" style="max-width:520px;">
+      <button id="fbCloseSendModal" class="close">×</button>
+      <h3><i class="fas fa-paper-plane"></i> Send Flyer to Contacts</h3>
+      <p class="muted" style="margin:0 0 16px;font-size:13px;">The flyer will be sent as a PNG attachment. Only contacts with an email address who haven't unsubscribed will receive it.</p>
+
+      <label style="display:block;margin-bottom:8px;">
+        <span style="font-weight:600;font-size:13px;">Subject line</span>
+        <input id="fbSendSubject" type="text" style="display:block;width:100%;margin-top:4px;" placeholder="e.g. JBJ Management — Upcoming Event">
+      </label>
+
+      <label style="display:block;margin-bottom:8px;">
+        <span style="font-weight:600;font-size:13px;">Message (optional)</span>
+        <textarea id="fbSendMessage" rows="3" style="display:block;width:100%;margin-top:4px;" placeholder="Short intro text before the flyer attachment…"></textarea>
+      </label>
+
+      <div style="margin-bottom:8px;">
+        <span style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Filter contacts <span class="muted">(leave blank to send to everyone)</span></span>
+        <div style="display:flex;gap:8px;">
+          <label style="flex:1;">
+            <span style="font-size:12px;color:var(--muted);">Tag</span>
+            <select id="fbSendTag" style="display:block;width:100%;margin-top:2px;">
+              <option value="">All tags</option>
+            </select>
+          </label>
+          <label style="flex:1;">
+            <span style="font-size:12px;color:var(--muted);">County</span>
+            <input id="fbSendCounty" type="text" style="display:block;width:100%;margin-top:2px;" placeholder="e.g. Dallas">
+          </label>
+        </div>
+      </div>
+
+      <div id="fbSendStatus" style="margin-bottom:12px;font-size:13px;min-height:20px;"></div>
+
+      <div style="display:flex;gap:8px;">
+        <button id="fbSendConfirmBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+        <button id="fbSendCancelBtn" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Export PNG modal -->
   <div id="fbRenderModal" class="modal" style="display:none;">

@@ -203,6 +203,7 @@ ACTION_LABELS = {
     'flyer_template_created': 'Created flyer',
     'flyer_template_updated': 'Edited flyer',
     'flyer_template_deleted': 'Deleted flyer',
+    'flyer_template_sent': 'Sent flyer',
 }
 
 
@@ -438,6 +439,62 @@ def send_email_smtp(to_email, subject, html_body, attachments=None):
         if username and password:
             server.login(username, password)
         server.sendmail(from_email, [to_email], msg.as_string())
+
+
+def send_flyer_bulk_smtp(recipients, subject, html_body, png_bytes=None, png_filename='flyer.png'):
+    """BCC-batch send a flyer PNG to a list of recipient emails.
+    Sends in batches of 50 so no single SMTP call carries hundreds of
+    addresses. The To: header shows the sender's own address; BCC
+    addresses are passed only in the SMTP envelope so recipients don't
+    see each other. Returns (sent_count, failed_count)."""
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.application import MIMEApplication
+
+    host = os.environ.get('SMTP_HOST')
+    if not host:
+        raise RuntimeError('Email sending is not configured on the server.')
+    port      = int(os.environ.get('SMTP_PORT', '587'))
+    username  = os.environ.get('SMTP_USERNAME')
+    password  = os.environ.get('SMTP_PASSWORD')
+    from_email = os.environ.get('SMTP_FROM_EMAIL') or username
+    from_name  = os.environ.get('SMTP_FROM_NAME', 'JBJ Management')
+    use_tls    = os.environ.get('SMTP_USE_TLS', 'true').strip().lower() not in ('0', 'false', 'no')
+
+    BATCH = 50
+    sent = failed = 0
+
+    with smtplib.SMTP(host, port, timeout=30) as server:
+        if use_tls:
+            server.starttls()
+        if username and password:
+            server.login(username, password)
+
+        for i in range(0, len(recipients), BATCH):
+            batch = recipients[i:i + BATCH]
+            msg = MIMEMultipart('mixed')
+            msg['Subject'] = subject or '(no subject)'
+            msg['From']    = f'{from_name} <{from_email}>'
+            msg['To']      = f'{from_name} <{from_email}>'
+            # Bcc header intentionally omitted so recipients can't see each other
+
+            alt = MIMEMultipart('alternative')
+            alt.attach(MIMEText(html_body, 'html'))
+            msg.attach(alt)
+
+            if png_bytes:
+                part = MIMEApplication(png_bytes, Name=png_filename)
+                part['Content-Disposition'] = f'attachment; filename="{png_filename}"'
+                msg.attach(part)
+
+            try:
+                server.sendmail(from_email, [from_email] + batch, msg.as_string())
+                sent += len(batch)
+            except Exception:
+                failed += len(batch)
+
+    return sent, failed
 
 
 def create_app(config_class=Config):
@@ -1114,6 +1171,69 @@ def create_app(config_class=Config):
         db.session.commit()
         log_audit('flyer_template_deleted', 'flyer_template', template_id, label)
         return jsonify({'deleted': True})
+
+    @app.route('/api/flyer-templates/<int:template_id>/send', methods=['POST'])
+    @login_required
+    def send_flyer_template(template_id):
+        t = FlyerTemplate.query.get_or_404(template_id)
+        data = request.get_json(force=True) or {}
+
+        subject         = (data.get('subject') or '').strip() or t.name
+        message         = (data.get('message') or '').strip()
+        tag             = data.get('tag', '')
+        county          = data.get('county', '')
+        q               = data.get('q', '')
+        followup        = data.get('followup', '')
+        favorites_only  = bool(data.get('favorites_only', False))
+        background      = data.get('background', '#ffffff')
+
+        contacts = filtered_contacts_query(
+            q=q, tag=tag, county=county, followup=followup, favorites_only=favorites_only
+        ).filter(
+            Contact.email.isnot(None),
+            Contact.email != '',
+            Contact.unsubscribed == False,
+        ).all()
+
+        if not contacts:
+            return jsonify({'error': 'No contacts with email addresses match this filter.'}), 400
+
+        from flyer_render import render_flyer_png
+
+        def asset_loader(asset_id):
+            try:
+                a = FlyerAsset.query.get(int(asset_id))
+                return a.data if a else None
+            except (TypeError, ValueError):
+                return None
+
+        png_bytes = render_flyer_png(t.elements, fmt=t.format, bg_color=background, asset_loader=asset_loader)
+
+        msg_part = f'<p style="margin:0 0 16px;">{message}</p>' if message else ''
+        html_body = (
+            '<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;padding:16px;">'
+            f'{msg_part}'
+            '<p style="color:#666;font-size:13px;margin:12px 0 0;">See the attached flyer.</p>'
+            '</div>'
+        )
+
+        safe_name = ''.join(c if c.isalnum() or c in ' -_' else '_' for c in t.name)
+        png_filename = f'{safe_name}.png'
+        recipients = [c.email for c in contacts]
+        template_id_val, template_name = t.id, t.name
+        db.session.close()
+
+        try:
+            sent, failed = send_flyer_bulk_smtp(recipients, subject, html_body, png_bytes, png_filename)
+        except RuntimeError as e:
+            return jsonify({'error': str(e)}), 500
+        except Exception as e:
+            return jsonify({'error': f'Could not send: {e}'}), 502
+
+        log_audit('flyer_template_sent', 'flyer_template', template_id_val, template_name, {
+            'recipient_count': len(recipients), 'sent': sent, 'failed': failed,
+        })
+        return jsonify({'sent': sent, 'failed': failed, 'total': len(recipients)})
 
     @app.route('/api/flyer-templates/<int:template_id>/render', methods=['POST'])
     def render_flyer_template(template_id):

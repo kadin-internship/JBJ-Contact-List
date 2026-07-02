@@ -395,58 +395,22 @@ def absolutize_static_urls(html, base_url):
     return re.sub(r'(src|href)="(/static/[^"]*)"', lambda m: f'{m.group(1)}="{base}{m.group(2)}"', html)
 
 
+def _sg_from():
+    """Returns (from_email, from_name) from env vars."""
+    from_email = os.environ.get('SMTP_FROM_EMAIL') or os.environ.get('SENDGRID_FROM_EMAIL')
+    from_name  = os.environ.get('SMTP_FROM_NAME', 'JBJ Management')
+    return from_email, from_name
+
+
 def send_email_smtp(to_email, subject, html_body, attachments=None):
-    """Sends one email via a generic SMTP relay, configured entirely
-    through env vars (SMTP_HOST/PORT/USERNAME/PASSWORD/FROM_EMAIL/
-    FROM_NAME/USE_TLS) so it works with whatever provider gets set up --
-    SendGrid, Mailgun, Postmark, etc -- without code changes, the same way
-    ANTHROPIC_API_KEY/OPENAI_API_KEY/SENTRY_DSN are optional and
-    provider-agnostic. Raises RuntimeError if SMTP_HOST isn't set, so
-    callers can return a clear "not configured" error instead of a raw
-    connection failure."""
-    import smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from email.mime.application import MIMEApplication
-
-    host = os.environ.get('SMTP_HOST')
-    if not host:
-        raise RuntimeError('Email sending is not configured on the server.')
-    port = int(os.environ.get('SMTP_PORT', '587'))
-    username = os.environ.get('SMTP_USERNAME')
-    password = os.environ.get('SMTP_PASSWORD')
-    from_email = os.environ.get('SMTP_FROM_EMAIL') or username
-    from_name = os.environ.get('SMTP_FROM_NAME', 'JBJ Management')
-    use_tls = os.environ.get('SMTP_USE_TLS', 'true').strip().lower() not in ('0', 'false', 'no')
-
-    msg = MIMEMultipart('mixed')
-    msg['Subject'] = subject or '(no subject)'
-    msg['From'] = f'{from_name} <{from_email}>'
-    msg['To'] = to_email
-
-    alt = MIMEMultipart('alternative')
-    alt.attach(MIMEText(html_body, 'html'))
-    msg.attach(alt)
-
-    for filename, mimetype, data in (attachments or []):
-        part = MIMEApplication(data, Name=filename)
-        part['Content-Disposition'] = f'attachment; filename="{filename}"'
-        msg.attach(part)
-
-    with smtplib.SMTP(host, port, timeout=20) as server:
-        if use_tls:
-            server.starttls()
-        if username and password:
-            server.login(username, password)
-        server.sendmail(from_email, [to_email], msg.as_string())
-
-
-def send_flyer_bulk_smtp(recipients, subject, html_body, png_bytes=None, png_filename='flyer.png'):
-    """BCC-batch send a flyer PNG to a list of recipient emails.
-    Sends in batches of 50 so no single SMTP call carries hundreds of
-    addresses. The To: header shows the sender's own address; BCC
-    addresses are passed only in the SMTP envelope so recipients don't
-    see each other. Returns (sent_count, failed_count)."""
+    """Send one email. Uses SendGrid HTTP API if SENDGRID_API_KEY is set
+    (bypasses SMTP port blocking on cloud hosts); falls back to SMTP
+    otherwise."""
+    api_key = os.environ.get('SENDGRID_API_KEY')
+    if api_key:
+        _sendgrid_api_single(api_key, to_email, subject, html_body, attachments)
+        return
+    # SMTP fallback
     import smtplib
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
@@ -458,42 +422,148 @@ def send_flyer_bulk_smtp(recipients, subject, html_body, png_bytes=None, png_fil
     port      = int(os.environ.get('SMTP_PORT', '587'))
     username  = os.environ.get('SMTP_USERNAME')
     password  = os.environ.get('SMTP_PASSWORD')
-    from_email = os.environ.get('SMTP_FROM_EMAIL') or username
-    from_name  = os.environ.get('SMTP_FROM_NAME', 'JBJ Management')
-    use_tls    = os.environ.get('SMTP_USE_TLS', 'true').strip().lower() not in ('0', 'false', 'no')
+    from_email, from_name = _sg_from()
+    from_email = from_email or username
+    use_tls = os.environ.get('SMTP_USE_TLS', 'true').strip().lower() not in ('0', 'false', 'no')
+
+    msg = MIMEMultipart('mixed')
+    msg['Subject'] = subject or '(no subject)'
+    msg['From'] = f'{from_name} <{from_email}>'
+    msg['To'] = to_email
+    alt = MIMEMultipart('alternative')
+    alt.attach(MIMEText(html_body, 'html'))
+    msg.attach(alt)
+    for filename, mimetype, data in (attachments or []):
+        part = MIMEApplication(data, Name=filename)
+        part['Content-Disposition'] = f'attachment; filename="{filename}"'
+        msg.attach(part)
+    with smtplib.SMTP(host, port, timeout=20) as server:
+        if use_tls:
+            server.starttls()
+        if username and password:
+            server.login(username, password)
+        server.sendmail(from_email, [to_email], msg.as_string())
+
+
+def _sendgrid_api_single(api_key, to_email, subject, html_body, attachments=None):
+    """Send one email via SendGrid HTTP API (HTTPS, never blocked)."""
+    import requests, base64
+    from_email, from_name = _sg_from()
+    if not from_email:
+        raise RuntimeError('Set SMTP_FROM_EMAIL in environment variables.')
+
+    payload = {
+        'personalizations': [{'to': [{'email': to_email}]}],
+        'from': {'email': from_email, 'name': from_name},
+        'subject': subject or '(no subject)',
+        'content': [{'type': 'text/html', 'value': html_body}],
+    }
+    if attachments:
+        payload['attachments'] = [
+            {'content': base64.b64encode(data).decode(), 'filename': fname,
+             'type': mime, 'disposition': 'attachment'}
+            for fname, mime, data in attachments
+        ]
+    res = requests.post(
+        'https://api.sendgrid.com/v3/mail/send',
+        headers={'Authorization': f'Bearer {api_key}'},
+        json=payload, timeout=30,
+    )
+    if res.status_code not in (200, 202):
+        raise RuntimeError(f'SendGrid error {res.status_code}: {res.text[:300]}')
+
+
+def send_flyer_bulk_smtp(recipients, subject, html_body, png_bytes=None, png_filename='flyer.png'):
+    """Bulk-send a flyer to a list of recipients. Uses SendGrid HTTP API
+    when SENDGRID_API_KEY is set (BCC batches of 500); falls back to
+    SMTP BCC batches of 50. Returns (sent_count, failed_count)."""
+    api_key = os.environ.get('SENDGRID_API_KEY')
+    if api_key:
+        return _sendgrid_api_bulk(api_key, recipients, subject, html_body, png_bytes, png_filename)
+    # SMTP fallback
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.application import MIMEApplication
+
+    host = os.environ.get('SMTP_HOST')
+    if not host:
+        raise RuntimeError('Email sending is not configured on the server.')
+    port      = int(os.environ.get('SMTP_PORT', '587'))
+    username  = os.environ.get('SMTP_USERNAME')
+    password  = os.environ.get('SMTP_PASSWORD')
+    from_email, from_name = _sg_from()
+    from_email = from_email or username
+    use_tls = os.environ.get('SMTP_USE_TLS', 'true').strip().lower() not in ('0', 'false', 'no')
 
     BATCH = 50
     sent = failed = 0
-
     with smtplib.SMTP(host, port, timeout=30) as server:
         if use_tls:
             server.starttls()
         if username and password:
             server.login(username, password)
-
         for i in range(0, len(recipients), BATCH):
             batch = recipients[i:i + BATCH]
             msg = MIMEMultipart('mixed')
             msg['Subject'] = subject or '(no subject)'
-            msg['From']    = f'{from_name} <{from_email}>'
-            msg['To']      = f'{from_name} <{from_email}>'
-            # Bcc header intentionally omitted so recipients can't see each other
-
+            msg['From'] = f'{from_name} <{from_email}>'
+            msg['To']   = f'{from_name} <{from_email}>'
             alt = MIMEMultipart('alternative')
             alt.attach(MIMEText(html_body, 'html'))
             msg.attach(alt)
-
             if png_bytes:
                 part = MIMEApplication(png_bytes, Name=png_filename)
                 part['Content-Disposition'] = f'attachment; filename="{png_filename}"'
                 msg.attach(part)
-
             try:
                 server.sendmail(from_email, [from_email] + batch, msg.as_string())
                 sent += len(batch)
             except Exception:
                 failed += len(batch)
+    return sent, failed
 
+
+def _sendgrid_api_bulk(api_key, recipients, subject, html_body, png_bytes=None, png_filename='flyer.png'):
+    """Bulk-send via SendGrid HTTP API using BCC personalizations."""
+    import requests, base64
+    from_email, from_name = _sg_from()
+    if not from_email:
+        raise RuntimeError('Set SMTP_FROM_EMAIL in environment variables.')
+
+    attachment = None
+    if png_bytes:
+        attachment = {'content': base64.b64encode(png_bytes).decode(),
+                      'filename': png_filename, 'type': 'image/png',
+                      'disposition': 'attachment'}
+
+    BATCH = 500
+    sent = failed = 0
+    for i in range(0, len(recipients), BATCH):
+        batch = recipients[i:i + BATCH]
+        payload = {
+            'personalizations': [{
+                'to': [{'email': from_email}],
+                'bcc': [{'email': e} for e in batch],
+            }],
+            'from': {'email': from_email, 'name': from_name},
+            'subject': subject or '(no subject)',
+            'content': [{'type': 'text/html', 'value': html_body}],
+        }
+        if attachment:
+            payload['attachments'] = [attachment]
+        try:
+            res = requests.post(
+                'https://api.sendgrid.com/v3/mail/send',
+                headers={'Authorization': f'Bearer {api_key}'},
+                json=payload, timeout=60,
+            )
+            if res.status_code in (200, 202):
+                sent += len(batch)
+            else:
+                failed += len(batch)
+        except Exception:
+            failed += len(batch)
     return sent, failed
 
 

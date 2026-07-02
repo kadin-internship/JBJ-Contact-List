@@ -36,13 +36,21 @@
           <div class="tpl-no-preview"><i class="fas fa-image"></i> Empty canvas</div>
           {% endif %}
         </div>
-        <strong style="font-size:14px;">{{ t.name }}</strong>
-        <div class="muted" style="display:flex;gap:8px;margin:0;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <strong style="font-size:14px;">{{ t.name }}</strong>
+          {% if t.is_public %}
+          <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#e6f4ea;color:#1e7b34;border:1px solid #b7dfc0;"><i class="fas fa-globe" style="font-size:10px;"></i> Public</span>
+          {% else %}
+          <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#f4f4f4;color:#888;border:1px solid #ddd;"><i class="fas fa-lock" style="font-size:10px;"></i> Private</span>
+          {% endif %}
+        </div>
+        <div class="muted" style="display:flex;gap:8px;margin:0;flex-wrap:wrap;">
           <span>{{ t.format }}</span>
           <span>·</span>
           <span>{{ t.elements|length }} element{{ '' if t.elements|length == 1 else 's' }}</span>
           <span>·</span>
           <span>{{ t.updated_at.strftime('%b %d') }}</span>
+          {% if t.created_by_id != current_user_id %}<span>· by {{ t.created_by.display_name if t.created_by else 'Unknown' }}</span>{% endif %}
         </div>
         <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteFlyerTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
       </a>

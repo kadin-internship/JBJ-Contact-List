@@ -36,8 +36,18 @@
         {% else %}
         <div class="tpl-no-preview"><i class="fas fa-envelope-open-text"></i> No preview yet</div>
         {% endif %}
-        <strong style="font-size:14px;">{{ t.name }}</strong>
-        <p class="muted" style="margin:0;">{{ t.blocks|length }} block{{ '' if t.blocks|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}</p>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <strong style="font-size:14px;">{{ t.name }}</strong>
+          {% if t.is_public %}
+          <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#e6f4ea;color:#1e7b34;border:1px solid #b7dfc0;"><i class="fas fa-globe" style="font-size:10px;"></i> Public</span>
+          {% else %}
+          <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#f4f4f4;color:#888;border:1px solid #ddd;"><i class="fas fa-lock" style="font-size:10px;"></i> Private</span>
+          {% endif %}
+        </div>
+        <p class="muted" style="margin:0;">
+          {{ t.blocks|length }} block{{ '' if t.blocks|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}
+          {% if t.created_by_id != current_user_id %} · by {{ t.created_by.display_name if t.created_by else 'Unknown' }}{% endif %}
+        </p>
         <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
       </a>
       {% endfor %}

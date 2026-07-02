@@ -7,6 +7,7 @@
 const el = (id) => document.getElementById(id)
 
 let dirty = false
+let isPublic = !!(window.EMAIL_TEMPLATE && window.EMAIL_TEMPLATE.is_public)
 let pendingAttachments = []
 const MAX_ATTACHMENTS = 5
 const MAX_ATTACHMENTS_BYTES = 15 * 1024 * 1024
@@ -275,6 +276,7 @@ async function saveTemplate() {
     name: el('ebNameInput').value.trim() || 'Untitled email',
     subject: el('ebSubjectInput').value.trim(),
     blocks: [{ id: 'body', type: 'richtext', html: el('ebEditor').innerHTML }],
+    is_public: isPublic,
   }
   try {
     const res = await fetch(`/api/email-templates/${window.EMAIL_TEMPLATE_ID}`, {
@@ -332,12 +334,29 @@ function setupBlockPalette() {
   })
 }
 
+function setupVisibilityToggle() {
+  const btn = el('ebVisibilityBtn')
+  if (!btn) return
+  function refresh() {
+    el('ebVisibilityIcon').className = isPublic ? 'fas fa-globe' : 'fas fa-lock'
+    el('ebVisibilityLabel').textContent = isPublic ? 'Public' : 'Private'
+    btn.style.color = isPublic ? 'var(--success, green)' : ''
+  }
+  refresh()
+  btn.addEventListener('click', () => {
+    isPublic = !isPublic
+    refresh()
+    markDirty()
+  })
+}
+
 function init() {
   el('ebEditor').innerHTML = existingHtml()
   setupToolbar()
   setupBlockPalette()
   setupAttachments()
   setupSendModal()
+  setupVisibilityToggle()
   el('ebEditor').addEventListener('input', markDirty)
   el('ebSaveBtn').addEventListener('click', saveTemplate)
   el('ebNameInput').addEventListener('input', markDirty)

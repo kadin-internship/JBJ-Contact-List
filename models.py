@@ -219,7 +219,9 @@ class EmailTemplate(db.Model):
     name = db.Column(db.String(256), nullable=False)
     subject = db.Column(db.String(512), nullable=True)
     blocks = db.Column(db.JSON, nullable=False, default=list)
+    is_public = db.Column(db.Boolean, default=False, nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_by = db.relationship('User', foreign_keys=[created_by_id], lazy='joined')
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -229,7 +231,9 @@ class EmailTemplate(db.Model):
             'name': self.name,
             'subject': self.subject,
             'blocks': self.blocks or [],
+            'is_public': self.is_public,
             'created_by_id': self.created_by_id,
+            'created_by_name': self.created_by.display_name if self.created_by else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -245,7 +249,9 @@ class FlyerTemplate(db.Model):
     name = db.Column(db.String(256), nullable=False)
     format = db.Column(db.String(16), nullable=False, default='square')  # 'square' | 'portrait'
     elements = db.Column(db.JSON, nullable=False, default=list)
+    is_public = db.Column(db.Boolean, default=False, nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_by = db.relationship('User', foreign_keys=[created_by_id], lazy='joined')
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -255,7 +261,9 @@ class FlyerTemplate(db.Model):
             'name': self.name,
             'format': self.format,
             'elements': self.elements or [],
+            'is_public': self.is_public,
             'created_by_id': self.created_by_id,
+            'created_by_name': self.created_by.display_name if self.created_by else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

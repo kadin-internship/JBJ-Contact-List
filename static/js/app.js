@@ -7,7 +7,7 @@ const API = {
   counties: '/api/counties',
 }
 
-let state = { page: 1, limit: 25, q: '', tags: [], counties: [], followup: '', favoritesOnly: false, total: 0, view: 'people', selectedKey: null }
+let state = { page: 1, limit: 25, q: '', tags: [], counties: [], followup: '', favoritesOnly: false, total: 0, view: 'people', selectedKey: null, layout: 'grid' }
 
 // Clicking a card a second time hides the detail panel instead of leaving
 // it open forever -- this is also what drives the "selected card" highlight
@@ -311,6 +311,31 @@ function renderCard(c){
   return div
 }
 
+function renderRow(c) {
+  const key = 'contact:' + c.id
+  const row = document.createElement('div')
+  row.className = 'list-row' + (state.selectedKey === key ? ' selected' : '')
+  const tagColor = tagHue(c.tag)
+  const avatarStyle = tagColor ? `background:linear-gradient(140deg,${tagColor}cc,${tagColor}88)` : ''
+  row.innerHTML = `
+    <div class="list-avatar" style="${avatarStyle}">${initials(c.first_name, c.last_name)}</div>
+    <div class="list-name">${c.first_name || ''} ${c.last_name || ''}</div>
+    <div class="list-org">${c.organization || '<span style="color:#ccc">—</span>'}</div>
+    <div class="list-title">${c.title || '<span style="color:#ccc">—</span>'}</div>
+    <div>${c.tag ? `<span class="list-tag" style="${tagColor ? `background:${tagColor}18;color:${tagColor};border-color:${tagColor}40` : ''}">${c.tag}</span>` : ''}</div>
+    <div class="list-actions">
+      <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i></button>
+      <button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i></button>
+    </div>
+  `
+  row.addEventListener('click', (ev) => {
+    if (ev.target && ev.target.closest('.edit-btn')) return
+    selectCard(key, row, () => showContactDetail(c))
+  })
+  row.querySelector('.edit-btn').addEventListener('click', (e) => { e.stopPropagation(); openProfile(c.id) })
+  return row
+}
+
 async function toggleFavorite(c, btnEl){
   const next = !c.is_favorite
   try{
@@ -595,7 +620,17 @@ async function search(){
       out.innerHTML = ''
       state.total = j.total || 0
       if(!j.contacts || j.contacts.length===0){ out.innerHTML = '<div>No results</div>'; renderPagination(state.total); return }
-      j.contacts.forEach(c=>out.appendChild(renderCard(c)))
+      if(state.layout === 'list'){
+        out.className = 'results-list'
+        const header = document.createElement('div')
+        header.className = 'list-header'
+        header.innerHTML = '<span></span><span>Name</span><span>Organization</span><span>Title</span><span>Tag</span><span></span>'
+        out.appendChild(header)
+        j.contacts.forEach(c => out.appendChild(renderRow(c)))
+      } else {
+        out.className = 'results-grid'
+        j.contacts.forEach(c => out.appendChild(renderCard(c)))
+      }
       renderPagination(state.total)
     }
   }catch(e){ if(mySeq===searchSeq) out.innerHTML = '<div>Error loading results</div>'; console.error(e) }
@@ -742,6 +777,21 @@ function bind(){
   const viewOrgBtn = el('viewOrgBtn')
   if(viewPeopleBtn) viewPeopleBtn.addEventListener('click', ()=> switchView('people', true))
   if(viewOrgBtn) viewOrgBtn.addEventListener('click', ()=> switchView('organizations', true))
+
+  const layoutGridBtn = el('layoutGridBtn')
+  const layoutListBtn = el('layoutListBtn')
+  if(layoutGridBtn) layoutGridBtn.addEventListener('click', () => {
+    state.layout = 'grid'
+    layoutGridBtn.classList.add('active')
+    layoutListBtn.classList.remove('active')
+    search()
+  })
+  if(layoutListBtn) layoutListBtn.addEventListener('click', () => {
+    state.layout = 'list'
+    layoutListBtn.classList.add('active')
+    layoutGridBtn.classList.remove('active')
+    search()
+  })
 
   document.querySelectorAll('input[name=followupRadio]').forEach(r => {
     r.addEventListener('change', ()=>{ if(r.checked) state.followup = r.value })

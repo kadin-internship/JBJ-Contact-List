@@ -30,6 +30,7 @@ const state = {
 function cw() { return (CANVAS_FORMATS[state.format] || CANVAS_FORMATS['square']).dw }
 function ch() { return (CANVAS_FORMATS[state.format] || CANVAS_FORMATS['square']).dh }
 let dirty = false
+let isPublic = !!(window.FLYER_TEMPLATE && window.FLYER_TEMPLATE.is_public)
 let drag = null   // { id, startX, startY, startElX, startElY }
 let resize = null // { id, startX, startY, startW, startH }
 
@@ -394,6 +395,7 @@ async function saveTemplate() {
     name: el('fbNameInput').value.trim() || 'Untitled flyer',
     format: state.format,
     elements: state.elements,
+    is_public: isPublic,
   }
   try {
     const res = await fetch(`/api/flyer-templates/${window.FLYER_TEMPLATE_ID}`, {
@@ -509,6 +511,22 @@ function setupSendModal() {
   })
 }
 
+function setupVisibilityToggle() {
+  const btn = el('fbVisibilityBtn')
+  if (!btn) return
+  function refresh() {
+    el('fbVisibilityIcon').className = isPublic ? 'fas fa-globe' : 'fas fa-lock'
+    el('fbVisibilityLabel').textContent = isPublic ? 'Public' : 'Private'
+    btn.style.color = isPublic ? 'var(--success, green)' : ''
+  }
+  refresh()
+  btn.addEventListener('click', () => {
+    isPublic = !isPublic
+    refresh()
+    markDirty()
+  })
+}
+
 function init() {
   applyCanvasSize()
   renderCanvas()
@@ -519,6 +537,7 @@ function init() {
   setupCanvasSizeMenu()
   setupRenderModal()
   setupSendModal()
+  setupVisibilityToggle()
   el('fbSaveBtn').addEventListener('click', saveTemplate)
   el('fbNameInput').addEventListener('input', markDirty)
   window.addEventListener('beforeunload', e => {

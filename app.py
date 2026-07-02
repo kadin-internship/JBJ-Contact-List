@@ -1065,8 +1065,10 @@ def create_app(config_class=Config):
         everyone logged in, same as Draft Email/Create Flyer -- this is a
         drafting tool, not a sensitive admin page. Sending (a later step)
         is where a real-people-get-emailed confirmation belongs, not here."""
-        templates = EmailTemplate.query.order_by(EmailTemplate.updated_at.desc()).all()
-        return render_template('email_builder_list.html', templates=templates)
+        templates = EmailTemplate.query.filter(
+            db.or_(EmailTemplate.is_public == True, EmailTemplate.created_by_id == current_user.id)
+        ).order_by(EmailTemplate.updated_at.desc()).all()
+        return render_template('email_builder_list.html', templates=templates, current_user_id=current_user.id)
 
     @app.route('/email-builder/<int:template_id>')
     def email_builder_edit(template_id):
@@ -1075,7 +1077,9 @@ def create_app(config_class=Config):
 
     @app.route('/api/email-templates', methods=['GET'])
     def list_email_templates():
-        items = EmailTemplate.query.order_by(EmailTemplate.updated_at.desc()).all()
+        items = EmailTemplate.query.filter(
+            db.or_(EmailTemplate.is_public == True, EmailTemplate.created_by_id == current_user.id)
+        ).order_by(EmailTemplate.updated_at.desc()).all()
         return jsonify({'email_templates': [t.to_dict() for t in items]})
 
     @app.route('/api/email-templates', methods=['POST'])
@@ -1105,6 +1109,8 @@ def create_app(config_class=Config):
         t.name = (data.get('name') or '').strip() or 'Untitled email'
         t.subject = (data.get('subject') or '').strip() or None
         t.blocks = data.get('blocks') or []
+        if 'is_public' in data:
+            t.is_public = bool(data['is_public'])
         db.session.commit()
         log_audit('email_template_updated', 'email_template', t.id, t.name)
         return jsonify(t.to_dict())
@@ -1190,8 +1196,10 @@ def create_app(config_class=Config):
 
     @app.route('/flyer-builder')
     def flyer_builder_list():
-        templates = FlyerTemplate.query.order_by(FlyerTemplate.updated_at.desc()).all()
-        return render_template('flyer_builder_list.html', templates=templates)
+        templates = FlyerTemplate.query.filter(
+            db.or_(FlyerTemplate.is_public == True, FlyerTemplate.created_by_id == current_user.id)
+        ).order_by(FlyerTemplate.updated_at.desc()).all()
+        return render_template('flyer_builder_list.html', templates=templates, current_user_id=current_user.id)
 
     @app.route('/flyer-builder/<int:template_id>')
     def flyer_builder_edit(template_id):
@@ -1200,7 +1208,9 @@ def create_app(config_class=Config):
 
     @app.route('/api/flyer-templates', methods=['GET'])
     def list_flyer_templates():
-        items = FlyerTemplate.query.order_by(FlyerTemplate.updated_at.desc()).all()
+        items = FlyerTemplate.query.filter(
+            db.or_(FlyerTemplate.is_public == True, FlyerTemplate.created_by_id == current_user.id)
+        ).order_by(FlyerTemplate.updated_at.desc()).all()
         return jsonify({'flyer_templates': [t.to_dict() for t in items]})
 
     @app.route('/api/flyer-templates', methods=['POST'])
@@ -1229,6 +1239,8 @@ def create_app(config_class=Config):
         if data.get('format') in _valid_flyer_formats():
             t.format = data['format']
         t.elements = data.get('elements') or []
+        if 'is_public' in data:
+            t.is_public = bool(data['is_public'])
         db.session.commit()
         log_audit('flyer_template_updated', 'flyer_template', t.id, t.name)
         return jsonify(t.to_dict())

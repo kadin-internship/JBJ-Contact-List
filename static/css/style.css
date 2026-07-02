@@ -59,6 +59,18 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,Helvetica,sans-
 
 main{padding:24px 0}
 .results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:24px}
+.results-list{display:flex;flex-direction:column;gap:0;border:1px solid rgba(148,153,156,0.2);border-radius:12px;overflow:hidden}
+.list-header{display:grid;grid-template-columns:36px 1fr 1fr 1fr 120px 110px;align-items:center;gap:12px;padding:8px 16px;background:#f4f4f4;font-weight:600;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid rgba(148,153,156,0.2)}
+.list-row{display:grid;grid-template-columns:36px 1fr 1fr 1fr 120px 110px;align-items:center;gap:12px;padding:10px 16px;background:#fff;border-bottom:1px solid rgba(148,153,156,0.12);cursor:pointer;transition:background 0.12s}
+.list-row:last-child{border-bottom:none}
+.list-row:hover{background:#f7f7f7}
+.list-row.selected{background:rgba(173,3,4,0.04)}
+.list-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;background:var(--primary);flex-shrink:0}
+.list-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list-org{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list-title{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+.list-actions{display:flex;gap:6px;justify-content:flex-end}
 .card{background:var(--bg);border-radius:var(--radius);box-shadow:var(--card-shadow);padding:18px;padding-top:16px;display:flex;flex-direction:column;gap:10px;border:1px solid transparent;border-top:3px solid rgba(148,153,156,0.35);transition:transform 0.15s,box-shadow 0.15s,border-color 0.15s,background 0.15s}
 .card:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(0,0,0,0.14)}
 .card.selected{border-color:var(--maroon);border-top-color:var(--maroon);background:rgba(214,129,130,0.10);box-shadow:0 6px 20px rgba(173,3,4,0.18)}

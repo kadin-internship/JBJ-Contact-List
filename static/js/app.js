@@ -406,6 +406,38 @@ function renderOrgCard(item){
   return div
 }
 
+function renderOrgRow(item) {
+  const key = 'org:' + item.organization
+  const row = document.createElement('div')
+  row.className = 'list-row' + (state.selectedKey === key ? ' selected' : '')
+  const tagColor = tagHue(item.tag)
+  const avatarStyle = tagColor ? `background:linear-gradient(140deg,${tagColor}cc,${tagColor}88)` : ''
+  if (tagColor) row.style.borderLeft = `3px solid ${tagColor}`
+  row.innerHTML = `
+    <div class="list-avatar" style="${avatarStyle}">${(item.organization || '?').charAt(0).toUpperCase()}</div>
+    <div class="list-name">${item.organization || ''}</div>
+    <div class="list-org">
+      ${tagColor ? `<span class="list-tag" style="background:${tagColor}18;color:${tagColor};border-color:${tagColor}40">${item.tag}</span>` : ''}
+      <span style="margin-left:${tagColor ? '6px' : '0'}">${item.contact_count || 0} contact${item.contact_count === 1 ? '' : 's'}</span>
+    </div>
+    <div class="list-title">${item.notes ? item.notes.replace(/\|\|/g, ', ') : '<span style="color:#ccc">—</span>'}</div>
+    <div></div>
+    <div class="list-actions">
+      <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i></button>
+      <button class="btn btn-sm add-btn"><i class="fas fa-plus"></i></button>
+    </div>
+  `
+  row.addEventListener('click', (ev) => {
+    if (ev.target && ev.target.closest('.add-btn')) return
+    selectCard(key, row, () => showOrgDetail(item))
+  })
+  row.querySelector('.add-btn').addEventListener('click', (e) => {
+    e.stopPropagation()
+    openProfile(null, { organization: item.organization, tag: item.tag || '' })
+  })
+  return row
+}
+
 async function showContactDetail(contact){
   try{
     let c = contact
@@ -615,7 +647,17 @@ async function search(){
       out.innerHTML = ''
       state.total = j.total || 0
       if(!j.organizations || j.organizations.length === 0){ out.innerHTML = '<div>No organizations found</div>'; renderPagination(state.total); return }
-      j.organizations.forEach(item=>out.appendChild(renderOrgCard(item)))
+      if(state.layout === 'list'){
+        out.className = 'results-list'
+        const header = document.createElement('div')
+        header.className = 'list-header'
+        header.innerHTML = '<span></span><span>Organization</span><span>Contacts</span><span>Notes</span><span></span><span></span>'
+        out.appendChild(header)
+        j.organizations.forEach(item => out.appendChild(renderOrgRow(item)))
+      } else {
+        out.className = 'results-grid'
+        j.organizations.forEach(item => out.appendChild(renderOrgCard(item)))
+      }
       renderPagination(state.total)
     } else {
       const res = await fetch(API.contacts + '?' + params.toString())

@@ -27,12 +27,14 @@
   </header>
 
   <main class="container admin-area">
-    <section class="card">
+    <section class="cs-search-bar">
       <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
-        <label style="flex:1;min-width:220px;">Search<br>
+        <label style="flex:1;min-width:220px;">
+          <span style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Search</span>
           <input type="text" name="q" value="{{ q }}" placeholder="Search title, client, or text...">
         </label>
-        <label>Sector<br>
+        <label>
+          <span style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Sector</span>
           <select name="sector">
             <option value="">All Sectors</option>
             {% for s in sectors %}
@@ -40,33 +42,51 @@
             {% endfor %}
           </select>
         </label>
-        <button type="submit" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
-        {% if q or sector %}<a class="btn" href="/case-studies">Clear</a>{% endif %}
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
+          {% if q or sector %}<a class="btn" href="/case-studies">Clear</a>{% endif %}
+        </div>
       </form>
     </section>
 
     {% if items %}
-    <div class="results-grid" style="margin-top:16px;">
+    <div class="cs-grid" style="margin-top:20px;">
       {% for cs in items %}
-      <a class="card" href="/case-studies/{{ cs.id }}" style="text-decoration:none;color:inherit;">
-        <h3>{{ cs.title }}{% if cs.file_name %} <i class="fas fa-paperclip" style="font-size:13px;color:var(--muted);"></i>{% endif %}</h3>
-        {% if cs.client %}<div class="meta">{{ cs.client }}</div>{% endif %}
-        {% if cs.sector %}<span class="flag flag-info">{{ cs.sector }}</span>{% endif %}
+      <a class="cs-card" href="/case-studies/{{ cs.id }}">
+        <div class="cs-card-header">
+          <div class="cs-card-icon"><i class="fas fa-book-open"></i></div>
+          <div class="cs-card-meta">
+            {% if cs.sector %}<span class="cs-sector-badge">{{ cs.sector }}</span>{% endif %}
+            {% if cs.file_name %}<span class="cs-attachment-badge"><i class="fas fa-paperclip"></i> File attached</span>{% endif %}
+          </div>
+        </div>
+        <h3 class="cs-card-title">{{ cs.title }}</h3>
+        {% if cs.client %}
+        <div class="cs-card-client"><i class="fas fa-building"></i> {{ cs.client }}</div>
+        {% endif %}
         {% set preview = cs.challenges or cs.extracted_text %}
-        {% if preview %}<p class="muted" style="margin:6px 0 0;">{{ preview[:160] }}{{ '…' if preview|length > 160 else '' }}</p>{% endif %}
+        {% if preview %}
+        <p class="cs-card-preview">{{ preview[:150] }}{{ '…' if preview|length > 150 else '' }}</p>
+        {% endif %}
+        <div class="cs-card-footer">
+          <span>View case study <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+        </div>
       </a>
       {% endfor %}
     </div>
-    <nav class="pagination" aria-label="Pagination" style="margin-top:14px">
+    <nav class="pagination" aria-label="Pagination" style="margin-top:20px">
       {% if page > 1 %}<a class="page-btn btn" href="{{ url_for('case_studies_list', q=q or None, sector=sector or None, page=page - 1) }}"><i class="fas fa-chevron-left"></i> Previous</a>{% endif %}
       <span class="muted" style="padding:0 10px">Page {{ page }} of {{ pages }}</span>
       {% if page < pages %}<a class="page-btn btn" href="{{ url_for('case_studies_list', q=q or None, sector=sector or None, page=page + 1) }}">Next <i class="fas fa-chevron-right"></i></a>{% endif %}
     </nav>
     {% else %}
-    <p class="muted" style="margin-top:16px">
-      {% if q or sector %}No case studies match that search.{% else %}No case studies yet.{% endif %}
-      {% if current_user.is_admin and not q and not sector %}<a href="/case-studies/new">Add the first one</a>.{% endif %}
-    </p>
+    <div class="cs-empty">
+      <i class="fas fa-book-open" style="font-size:40px;color:var(--muted);margin-bottom:12px;"></i>
+      <p>{% if q or sector %}No case studies match that search.{% else %}No case studies yet.{% endif %}</p>
+      {% if current_user.is_admin and not q and not sector %}
+      <a href="/case-studies/new" class="btn btn-primary"><i class="fas fa-plus"></i> Add the first one</a>
+      {% endif %}
+    </div>
     {% endif %}
   </main>
 </body>

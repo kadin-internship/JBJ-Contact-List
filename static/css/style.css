@@ -448,3 +448,32 @@ main{padding:24px 0}
 .bar-row-clickable{cursor:pointer;border-radius:8px;padding:4px;margin:-4px}
 .bar-row-clickable:hover{background:rgba(173,3,4,0.06)}
 .bar-row-clickable:hover .bar-fill{background:var(--maroon-dark)}
+
+/* Case studies */
+.cs-search-bar{background:var(--bg);border-radius:var(--radius);box-shadow:var(--card-shadow);padding:20px;border:1px solid rgba(148,153,156,0.15)}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.cs-card{display:flex;flex-direction:column;gap:10px;background:var(--bg);border-radius:var(--radius);box-shadow:var(--card-shadow);padding:0;border:1px solid rgba(148,153,156,0.15);text-decoration:none;color:inherit;overflow:hidden;transition:transform 0.15s,box-shadow 0.15s}
+.cs-card:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(0,0,0,0.12)}
+.cs-card-header{background:linear-gradient(135deg,var(--maroon),#6d0712);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cs-card-icon{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex-shrink:0}
+.cs-card-meta{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.cs-sector-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3)}
+.cs-attachment-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:500;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8)}
+.cs-card-title{font-size:15px;font-weight:700;padding:14px 18px 0;color:var(--black);line-height:1.3;margin:0}
+.cs-card-client{font-size:13px;color:var(--muted);padding:0 18px;display:flex;align-items:center;gap:6px}
+.cs-card-preview{font-size:13px;color:var(--muted);padding:0 18px;line-height:1.5;margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.cs-card-footer{margin-top:auto;padding:12px 18px;font-size:12px;font-weight:600;color:var(--maroon);border-top:1px solid rgba(148,153,156,0.1)}
+.cs-empty{text-align:center;padding:60px 20px;display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--muted)}
+
+/* Case study detail */
+.cs-detail-hero{background:linear-gradient(135deg,var(--maroon),#6d0712);border-radius:var(--radius);padding:28px 32px;display:flex;gap:20px;align-items:flex-start;margin-bottom:20px;color:#fff}
+.cs-detail-hero-icon{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;margin-top:2px}
+.cs-detail-hero-body{flex:1;min-width:0}
+.cs-detail-title{font-size:22px;font-weight:700;margin:0 0 12px;color:#fff;line-height:1.3}
+.cs-detail-badges{display:flex;gap:8px;flex-wrap:wrap}
+.cs-detail-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:500;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.25);text-decoration:none}
+.cs-detail-badge-link:hover{background:rgba(255,255,255,0.25)}
+.cs-detail-hero .cs-sector-badge{background:rgba(255,255,255,0.2);color:#fff;border-color:rgba(255,255,255,0.3)}
+.cs-section{background:var(--bg);border-radius:var(--radius);box-shadow:var(--card-shadow);border:1px solid rgba(148,153,156,0.15);margin-bottom:16px;overflow:hidden}
+.cs-section-label{padding:14px 24px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--maroon);background:rgba(173,3,4,0.04);border-bottom:1px solid rgba(173,3,4,0.1);display:flex;align-items:center;gap:8px}
+.cs-section-body{padding:20px 24px;font-size:14px;line-height:1.7;color:var(--black)}

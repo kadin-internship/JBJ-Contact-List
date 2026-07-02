@@ -15,7 +15,7 @@
     <div class="container header-inner">
       <div class="brand">
         <a href="/case-studies" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
-        <h2>{{ cs.title }}</h2>
+        <h2>Case Study</h2>
       </div>
       {% if current_user.is_admin %}
       <div style="display:flex;gap:8px;">
@@ -26,36 +26,58 @@
     </div>
   </header>
 
-  <main class="container admin-area">
-    <section class="card">
-      {% if cs.client %}<div class="detail-row"><strong>Client:</strong> {{ cs.client }}</div>{% endif %}
-      {% if cs.sector %}<div class="detail-row" style="margin-top:6px;"><span class="flag flag-info">{{ cs.sector }}</span></div>{% endif %}
-      {% if cs.file_name %}
-      <div class="detail-row" style="margin-top:6px;">
-        <a class="btn" href="/case-studies/{{ cs.id }}/file"><i class="fas fa-download"></i> Download Original File ({{ cs.file_name }})</a>
+  <main class="container admin-area" style="max-width:860px;">
+
+    <!-- Hero header -->
+    <div class="cs-detail-hero">
+      <div class="cs-detail-hero-icon"><i class="fas fa-book-open"></i></div>
+      <div class="cs-detail-hero-body">
+        <h1 class="cs-detail-title">{{ cs.title }}</h1>
+        <div class="cs-detail-badges">
+          {% if cs.client %}
+          <span class="cs-detail-badge"><i class="fas fa-building"></i> {{ cs.client }}</span>
+          {% endif %}
+          {% if cs.sector %}
+          <span class="cs-sector-badge">{{ cs.sector }}</span>
+          {% endif %}
+          {% if cs.file_name %}
+          <a class="cs-detail-badge cs-detail-badge-link" href="/case-studies/{{ cs.id }}/file">
+            <i class="fas fa-download"></i> {{ cs.file_name }}
+          </a>
+          {% endif %}
+        </div>
       </div>
-      {% endif %}
+    </div>
 
-      {% if cs.challenges %}
-      <h4 style="margin-top:18px;">Challenges</h4>
-      <div class="case-study-text">{{ cs.challenges }}</div>
-      {% endif %}
+    <!-- Sections -->
+    {% if cs.challenges %}
+    <div class="cs-section">
+      <div class="cs-section-label"><i class="fas fa-triangle-exclamation"></i> Challenges</div>
+      <div class="cs-section-body">{{ cs.challenges }}</div>
+    </div>
+    {% endif %}
 
-      {% if cs.solution %}
-      <h4 style="margin-top:18px;">Solution</h4>
-      <div class="case-study-text">{{ cs.solution }}</div>
-      {% endif %}
+    {% if cs.solution %}
+    <div class="cs-section">
+      <div class="cs-section-label"><i class="fas fa-lightbulb"></i> Solution</div>
+      <div class="cs-section-body">{{ cs.solution }}</div>
+    </div>
+    {% endif %}
 
-      {% if cs.results %}
-      <h4 style="margin-top:18px;">Results</h4>
-      <div class="case-study-text">{{ cs.results }}</div>
-      {% endif %}
+    {% if cs.results %}
+    <div class="cs-section">
+      <div class="cs-section-label"><i class="fas fa-chart-line"></i> Results</div>
+      <div class="cs-section-body">{{ cs.results }}</div>
+    </div>
+    {% endif %}
 
-      {% if cs.extracted_text and not (cs.challenges or cs.solution or cs.results) %}
-      <h4 style="margin-top:18px;">Document Text</h4>
-      <div class="case-study-text">{{ cs.extracted_text }}</div>
-      {% endif %}
-    </section>
+    {% if cs.extracted_text and not (cs.challenges or cs.solution or cs.results) %}
+    <div class="cs-section">
+      <div class="cs-section-label"><i class="fas fa-file-lines"></i> Document Text</div>
+      <div class="cs-section-body">{{ cs.extracted_text }}</div>
+    </div>
+    {% endif %}
+
   </main>
 
   {% if current_user.is_admin %}
@@ -63,11 +85,8 @@
     document.getElementById('deleteCaseStudyBtn').addEventListener('click', async () => {
       if (!confirm('Delete "{{ cs.title }}"? This cannot be undone.')) return
       const res = await fetch('/api/case-studies/{{ cs.id }}', { method: 'DELETE' })
-      if (res.ok) {
-        window.location.href = '/case-studies'
-      } else {
-        alert('Could not delete this case study.')
-      }
+      if (res.ok) window.location.href = '/case-studies'
+      else alert('Could not delete this case study.')
     })
   </script>
   {% endif %}

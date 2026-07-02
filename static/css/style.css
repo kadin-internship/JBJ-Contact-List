@@ -388,7 +388,7 @@ main{padding:24px 0}
 
 /* Results + Detail layout */
 .results-and-detail{display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start}
-.contact-detail{background:#fff;border-radius:18px;box-shadow:var(--card-shadow);padding:16px;border-top:4px solid var(--maroon)}
+.contact-detail{background:#fff;border-radius:18px;box-shadow:var(--card-shadow);padding:16px;border-top:4px solid var(--maroon);position:sticky;top:80px;max-height:calc(100vh - 100px);overflow-y:auto}
 .detail-card{display:flex;flex-direction:column;gap:10px}
 .detail-photo{align-self:center;width:96px;height:96px;border-radius:50%;background:linear-gradient(160deg,var(--charcoal),#1f2122);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;font-family:var(--font-display);flex-shrink:0}
 .detail-main{width:100%;min-width:0}

@@ -440,6 +440,10 @@ async function showContactDetail(contact){
       </div>
     `
     panel.style.display = ''
+    panel.scrollTop = 0
+    // On desktop the panel is sticky so it's always visible — no scroll needed.
+    // On mobile it stacks below the results, so scroll it into view.
+    if(window.innerWidth < 768) panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
     const edit = el('detailEditBtn'); if(edit) edit.addEventListener('click', ()=> openProfile(c.id))
     const favBtn = el('detailFavoriteBtn'); if(favBtn) favBtn.addEventListener('click', ()=> toggleFavorite(c, favBtn))
     const deleteBtn = el('detailDeleteBtn'); if(deleteBtn) deleteBtn.addEventListener('click', ()=> deleteContact(c))

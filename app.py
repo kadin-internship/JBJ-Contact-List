@@ -711,9 +711,9 @@ def create_app(config_class=Config):
         db.create_all()
         # Add columns that didn't exist in earlier schema versions
         for stmt in [
-            "ALTER TABLE users ADD COLUMN can_post_social BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE tasks ADD COLUMN notes TEXT",
-            "ALTER TABLE contacts ADD COLUMN pipeline_stage VARCHAR(32)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_post_social BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notes TEXT",
+            "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pipeline_stage VARCHAR(32)",
         ]:
             try:
                 db.session.execute(db.text(stmt))

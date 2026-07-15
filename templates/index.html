@@ -41,6 +41,8 @@
           <span class="current-user">{{ current_user.display_name }}</span>
           <a id="backHomeBtn" class="btn" href="/"><i class="fas fa-house"></i> Back to Home</a>
           <button id="addContactBtn" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add Contact</button>
+          <button id="tasksBtn" class="btn task-nav-btn"><i class="fas fa-list-check"></i> Tasks <span id="taskBadge" class="task-badge" style="display:none;"></span></button>
+          <button id="pipelineBtn" class="btn"><i class="fas fa-diagram-project"></i> Pipeline</button>
           <a class="btn" href="/case-studies"><i class="fas fa-book-open"></i> Case Studies</a>
           <a class="btn" href="/email-builder"><i class="fas fa-envelope-open-text"></i> Email Builder</a>
           <a class="btn" href="/flyer-builder"><i class="fas fa-image"></i> Flyer Builder</a>
@@ -52,6 +54,10 @@
               <a class="export-menu-item" href="/admin/users"><i class="fas fa-users-gear"></i> Manage Users</a>
               <a class="export-menu-item" href="/admin/audit"><i class="fas fa-clipboard-list"></i> Audit Log</a>
               <a class="export-menu-item" href="/admin/analytics"><i class="fas fa-chart-column"></i> Analytics</a>
+              <a class="export-menu-item" href="/campaign-history"><i class="fas fa-envelope-open-text"></i> Campaign History</a>
+              <a class="export-menu-item" href="/admin/scheduler"><i class="fas fa-calendar-check"></i> Meeting Scheduler</a>
+              <a class="export-menu-item" href="/admin/landing-pages"><i class="fas fa-file-circle-plus"></i> Landing Pages</a>
+              <a class="export-menu-item" href="/admin/sequences"><i class="fas fa-envelope-circle-check"></i> Email Sequences</a>
             </div>
           </details>
           {% endif %}
@@ -88,6 +94,7 @@
                 <button id="toolsMenuBtn" class="btn"><i class="fas fa-wand-magic-sparkles"></i> AI Tools <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
                 <div id="toolsMenu" class="export-menu" style="display:none;">
                   <button id="draftEmailBtn" class="export-menu-item"><i class="fas fa-wand-magic-sparkles"></i> Draft Email</button>
+                  <button id="sendCampaignBtn" class="export-menu-item"><i class="fas fa-paper-plane"></i> Send Campaign</button>
                   <button id="createFlyerBtn" class="export-menu-item"><i class="fas fa-image"></i> Create Flyer/Post</button>
                 </div>
               </div>
@@ -176,6 +183,86 @@
     <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <button id="closeModal" class="close">×</button>
       <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div id="tasksPanelModal" class="modal" style="display:none;">
+    <div class="modal-content tasks-modal-content" role="dialog" aria-modal="true" aria-label="My Tasks">
+      <button id="closeTasksPanel" class="close">×</button>
+      <h3 style="margin:0 0 14px;"><i class="fas fa-list-check"></i> My Tasks</h3>
+      <div class="task-tab-row">
+        <button id="taskViewPending" class="task-tab active" type="button">Pending</button>
+        <button id="taskViewCompleted" class="task-tab" type="button">Completed</button>
+        <button id="showAddGlobalTaskBtn" class="btn btn-primary btn-sm" style="margin-left:auto;"><i class="fas fa-plus"></i> New Task</button>
+      </div>
+      <div id="addGlobalTaskForm" class="task-add-form" style="display:none;">
+        <input id="newTaskTitle" class="task-input" placeholder="What needs to be done?" />
+        <textarea id="newTaskNotes" class="task-input task-notes-input" rows="3" placeholder="Notes (optional)"></textarea>
+        <div class="task-add-row">
+          <input type="date" id="newTaskDue" class="task-input task-input-date" />
+          <button id="saveGlobalTaskBtn" class="btn btn-primary btn-sm"><i class="fas fa-check"></i> Add</button>
+          <button id="cancelGlobalTaskBtn" class="btn btn-sm">Cancel</button>
+        </div>
+      </div>
+      <div id="tasksPanelContent" class="tasks-panel-content">Loading…</div>
+    </div>
+  </div>
+
+  <div id="campaignModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="campaignTitle">
+      <button id="closeCampaignModal" class="close">×</button>
+      <h3 id="campaignTitle"><i class="fas fa-paper-plane"></i> Send Campaign</h3>
+      <p id="campaignAudience" class="muted" style="margin-bottom:12px;"></p>
+
+      <div id="campaignStep1">
+        <label for="campaignPrompt">What's this email about?</label>
+        <textarea id="campaignPrompt" rows="3" placeholder="e.g. Invite this group to a community forum next month"></textarea>
+        <label for="campaignCaseStudy" style="margin-top:10px;display:block;">Reference a case study (optional)</label>
+        <select id="campaignCaseStudy"><option value="">None</option></select>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button id="campaignGenerateBtn" class="btn btn-primary"><i class="fas fa-wand-magic-sparkles"></i> Generate Draft</button>
+        </div>
+        <div id="campaignGenStatus" class="muted" style="margin-top:8px;"></div>
+      </div>
+
+      <div id="campaignStep2" style="display:none;margin-top:4px;">
+        <label for="campaignSubject">Subject</label>
+        <input id="campaignSubject" type="text" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);font-size:14px;font-family:inherit;margin-bottom:8px;" placeholder="Email subject" />
+        <label for="campaignBody">Body</label>
+        <textarea id="campaignBody" rows="12" placeholder="Email body…"></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+          <button id="campaignSendBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+          <button id="campaignBackBtn" class="btn"><i class="fas fa-arrow-left"></i> Edit prompt</button>
+          <span id="campaignSendStatus" class="muted"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="pipelineModal" class="modal pipeline-modal" style="display:none;">
+    <div class="modal-content pipeline-modal-content" role="dialog" aria-modal="true" aria-label="Pipeline">
+      <div class="pipeline-header">
+        <h3><i class="fas fa-kanban"></i> Pipeline</h3>
+        <button id="closePipelineModal" class="close">×</button>
+      </div>
+
+      <div class="pipeline-search-row">
+        <input id="pipelineSearchInput" class="pipeline-search-input" placeholder="Search contacts by name or organization to add or move…" autocomplete="off" />
+        <div id="pipelineSearchResults" class="pipeline-search-results" style="display:none;"></div>
+      </div>
+
+      <div class="pipeline-stage-tabs">
+        <button class="pipeline-tab active" data-stage="">All</button>
+        <button class="pipeline-tab" data-stage="Lead">Lead</button>
+        <button class="pipeline-tab" data-stage="Engaged">Engaged</button>
+        <button class="pipeline-tab" data-stage="Proposal">Proposal</button>
+        <button class="pipeline-tab" data-stage="Client">Client</button>
+        <button class="pipeline-tab" data-stage="Inactive">Inactive</button>
+      </div>
+
+      <div id="pipelineList" class="pipeline-list">
+        <div class="pipeline-loading">Loading…</div>
+      </div>
     </div>
   </div>
 

@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, time as dtime
 from sqlalchemy import Index
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
@@ -15,6 +15,7 @@ class User(db.Model, UserMixin):
     display_name = db.Column(db.String(120), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    can_post_social = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     def set_password(self, password):
@@ -29,6 +30,7 @@ class User(db.Model, UserMixin):
             'username': self.username,
             'display_name': self.display_name,
             'is_admin': bool(self.is_admin),
+            'can_post_social': bool(self.can_post_social),
         }
 
 
@@ -58,6 +60,7 @@ class Contact(db.Model):
     # id) so the link can't be used to guess-unsubscribe other contacts.
     unsubscribed = db.Column(db.Boolean, default=False, nullable=False, index=True)
     unsubscribe_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
+    pipeline_stage = db.Column(db.String(32), nullable=True, index=True)
 
     __table_args__ = (
         Index('ix_contacts_name', 'first_name', 'last_name'),
@@ -82,6 +85,7 @@ class Contact(db.Model):
             'data_complete': bool(self.data_complete),
             'is_favorite': bool(self.is_favorite),
             'unsubscribed': bool(self.unsubscribed),
+            'pipeline_stage': self.pipeline_stage,
         }
 
 
@@ -285,6 +289,286 @@ class FlyerAsset(db.Model):
             'id': self.id,
             'mimetype': self.mimetype,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Task(db.Model):
+    """A scheduled follow-up action tied to a contact. Overdue/due-today
+    tasks drive the header badge so nothing slips through the cracks."""
+    __tablename__ = 'tasks'
+
+    id = db.Column(db.Integer, primary_key=True)
+    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'), nullable=True, index=True)
+    title = db.Column(db.String(512), nullable=False)
+    due_date = db.Column(db.Date, nullable=True)
+    completed = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    contact = db.relationship('Contact', backref=db.backref('task_list', lazy='dynamic'))
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+    def to_dict(self):
+        contact_name = None
+        if self.contact:
+            contact_name = ' '.join(
+                p for p in [self.contact.first_name or '', self.contact.last_name or ''] if p
+            ).strip() or None
+        return {
+            'id': self.id,
+            'contact_id': self.contact_id,
+            'contact_name': contact_name,
+            'title': self.title,
+            'due_date': self.due_date.isoformat() if self.due_date else None,
+            'completed': bool(self.completed),
+            'notes': self.notes,
+            'created_by_name': self.created_by.display_name if self.created_by else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+
+class EmailEvent(db.Model):
+    """One open or click event from a SendGrid webhook for a campaign send."""
+    __tablename__ = 'email_events'
+
+    id = db.Column(db.Integer, primary_key=True)
+    send_id = db.Column(db.Integer, db.ForeignKey('email_sends.id'), nullable=True, index=True)
+    contact_id = db.Column(db.Integer, nullable=True, index=True)
+    email = db.Column(db.String(320), nullable=True, index=True)
+    event_type = db.Column(db.String(32), nullable=False, index=True)  # open | click | delivered | bounce
+    url = db.Column(db.Text, nullable=True)
+    sg_message_id = db.Column(db.String(256), nullable=True)
+    occurred_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'send_id': self.send_id,
+            'contact_id': self.contact_id,
+            'email': self.email,
+            'event_type': self.event_type,
+            'url': self.url,
+            'occurred_at': self.occurred_at.isoformat() if self.occurred_at else None,
+        }
+
+
+class SocialToken(db.Model):
+    """OAuth token for a connected social platform (LinkedIn or Facebook page).
+    Only one row per platform — re-connecting overwrites the previous token."""
+    __tablename__ = 'social_tokens'
+
+    id = db.Column(db.Integer, primary_key=True)
+    platform = db.Column(db.String(32), nullable=False, unique=True)  # 'linkedin' | 'facebook'
+    access_token = db.Column(db.Text, nullable=False)
+    account_name = db.Column(db.String(256), nullable=True)
+    account_id = db.Column(db.String(128), nullable=True)
+    page_id = db.Column(db.String(128), nullable=True)
+    page_name = db.Column(db.String(256), nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'platform': self.platform,
+            'account_name': self.account_name,
+            'page_name': self.page_name,
+            'connected': True,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+        }
+
+
+class EmailSequence(db.Model):
+    __tablename__ = 'email_sequences'
+
+    id            = db.Column(db.Integer, primary_key=True)
+    name          = db.Column(db.String(200), nullable=False)
+    trigger_stage = db.Column(db.String(32), nullable=False)  # pipeline stage that triggers enrollment
+    is_active     = db.Column(db.Boolean, default=False, nullable=False)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    steps       = db.relationship('EmailSequenceStep', backref='sequence', lazy=True,
+                                  cascade='all, delete-orphan', order_by='EmailSequenceStep.step_order')
+    enrollments = db.relationship('EmailSequenceEnrollment', backref='sequence', lazy=True,
+                                  cascade='all, delete-orphan')
+
+    def to_dict(self, include_counts=False):
+        d = {
+            'id': self.id,
+            'name': self.name,
+            'trigger_stage': self.trigger_stage,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat(),
+            'steps': [s.to_dict() for s in self.steps],
+        }
+        if include_counts:
+            d['active_enrollments'] = sum(1 for e in self.enrollments if e.status == 'active')
+            d['completed_enrollments'] = sum(1 for e in self.enrollments if e.status == 'completed')
+        return d
+
+
+class EmailSequenceStep(db.Model):
+    __tablename__ = 'email_sequence_steps'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    sequence_id = db.Column(db.Integer, db.ForeignKey('email_sequences.id'), nullable=False, index=True)
+    step_order  = db.Column(db.Integer, nullable=False, default=0)
+    day_offset  = db.Column(db.Integer, nullable=False, default=1)  # days after enrollment (or previous step)
+    subject     = db.Column(db.String(512), nullable=False)
+    body        = db.Column(db.Text, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sequence_id': self.sequence_id,
+            'step_order': self.step_order,
+            'day_offset': self.day_offset,
+            'subject': self.subject,
+            'body': self.body,
+        }
+
+
+class EmailSequenceEnrollment(db.Model):
+    __tablename__ = 'email_sequence_enrollments'
+
+    id              = db.Column(db.Integer, primary_key=True)
+    sequence_id     = db.Column(db.Integer, db.ForeignKey('email_sequences.id'), nullable=False, index=True)
+    contact_id      = db.Column(db.Integer, db.ForeignKey('contacts.id'), nullable=False, index=True)
+    enrolled_at     = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    next_step_index = db.Column(db.Integer, nullable=False, default=0)
+    next_send_at    = db.Column(db.DateTime, nullable=True, index=True)
+    status          = db.Column(db.String(20), nullable=False, default='active', index=True)  # active|completed|cancelled
+
+    contact = db.relationship('Contact', backref='sequence_enrollments', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sequence_id': self.sequence_id,
+            'contact_id': self.contact_id,
+            'enrolled_at': self.enrolled_at.isoformat(),
+            'next_step_index': self.next_step_index,
+            'next_send_at': self.next_send_at.isoformat() if self.next_send_at else None,
+            'status': self.status,
+        }
+
+
+class LandingPage(db.Model):
+    __tablename__ = 'landing_pages'
+
+    id             = db.Column(db.Integer, primary_key=True)
+    slug           = db.Column(db.String(120), nullable=False, unique=True, index=True)
+    title          = db.Column(db.String(300), nullable=False)
+    subtitle       = db.Column(db.String(500), nullable=True)
+    body           = db.Column(db.Text, nullable=True)
+    bg_color       = db.Column(db.String(20), nullable=False, default='#ffffff')
+    text_color     = db.Column(db.String(20), nullable=False, default='#111111')
+    button_text    = db.Column(db.String(80), nullable=False, default='Get in Touch')
+    button_color   = db.Column(db.String(20), nullable=False, default='#AD0304')
+    show_phone     = db.Column(db.Boolean, default=True, nullable=False)
+    show_message   = db.Column(db.Boolean, default=True, nullable=False)
+    pipeline_stage = db.Column(db.String(32), nullable=True)
+    is_active      = db.Column(db.Boolean, default=True, nullable=False)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    submissions    = db.relationship('LandingPageSubmission', backref='page', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self, include_count=False):
+        d = {
+            'id': self.id,
+            'slug': self.slug,
+            'title': self.title,
+            'subtitle': self.subtitle,
+            'body': self.body,
+            'bg_color': self.bg_color,
+            'text_color': self.text_color,
+            'button_text': self.button_text,
+            'button_color': self.button_color,
+            'show_phone': self.show_phone,
+            'show_message': self.show_message,
+            'pipeline_stage': self.pipeline_stage,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat(),
+        }
+        if include_count:
+            d['submission_count'] = len(self.submissions)
+        return d
+
+
+class LandingPageSubmission(db.Model):
+    __tablename__ = 'landing_page_submissions'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    page_id    = db.Column(db.Integer, db.ForeignKey('landing_pages.id'), nullable=False, index=True)
+    name       = db.Column(db.String(200), nullable=False)
+    email      = db.Column(db.String(320), nullable=False, index=True)
+    phone      = db.Column(db.String(40), nullable=True)
+    message    = db.Column(db.Text, nullable=True)
+    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'page_id': self.page_id,
+            'name': self.name,
+            'email': self.email,
+            'phone': self.phone,
+            'message': self.message,
+            'contact_id': self.contact_id,
+            'created_at': self.created_at.isoformat(),
+        }
+
+
+class AvailabilityRule(db.Model):
+    """Weekly recurring availability for the meeting scheduler.
+    One row per day-of-week that has open hours."""
+    __tablename__ = 'availability_rules'
+
+    id            = db.Column(db.Integer, primary_key=True)
+    day_of_week   = db.Column(db.Integer, nullable=False)   # 0=Mon … 6=Sun
+    start_hour    = db.Column(db.Integer, nullable=False, default=9)   # 24h
+    end_hour      = db.Column(db.Integer, nullable=False, default=17)
+    slot_minutes  = db.Column(db.Integer, nullable=False, default=30)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'day_of_week': self.day_of_week,
+            'start_hour': self.start_hour,
+            'end_hour': self.end_hour,
+            'slot_minutes': self.slot_minutes,
+        }
+
+
+class Booking(db.Model):
+    __tablename__ = 'bookings'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    date        = db.Column(db.Date, nullable=False, index=True)
+    start_time  = db.Column(db.Time, nullable=False)
+    end_time    = db.Column(db.Time, nullable=False)
+    name        = db.Column(db.String(200), nullable=False)
+    email       = db.Column(db.String(320), nullable=False, index=True)
+    phone       = db.Column(db.String(40), nullable=True)
+    notes       = db.Column(db.Text, nullable=True)
+    status      = db.Column(db.String(20), nullable=False, default='confirmed')  # confirmed|cancelled
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'date': self.date.isoformat(),
+            'start_time': self.start_time.strftime('%H:%M'),
+            'end_time': self.end_time.strftime('%H:%M'),
+            'name': self.name,
+            'email': self.email,
+            'phone': self.phone,
+            'notes': self.notes,
+            'status': self.status,
+            'created_at': self.created_at.isoformat(),
         }
 
 

@@ -467,6 +467,9 @@ async function showContactDetail(contact){
             <a id="detailExport" class="btn" href="/api/export?id=${encodeURIComponent(c.id||'')}"><i class="fas fa-download"></i> Export</a>
             ${window.IS_ADMIN ? '<button id="detailDeleteBtn" class="btn" style="color:#9b1c1c;"><i class="fas fa-trash"></i> Delete</button>' : ''}
           </div>
+          ${pipelineStageSectionHtml(c.pipeline_stage || '')}
+          ${taskSectionHtml()}
+          <div class="email-stats-section detail-section"></div>
           ${activitySectionHtml()}
         </div>
       </div>
@@ -479,6 +482,16 @@ async function showContactDetail(contact){
     const edit = el('detailEditBtn'); if(edit) edit.addEventListener('click', ()=> openProfile(c.id))
     const favBtn = el('detailFavoriteBtn'); if(favBtn) favBtn.addEventListener('click', ()=> toggleFavorite(c, favBtn))
     const deleteBtn = el('detailDeleteBtn'); if(deleteBtn) deleteBtn.addEventListener('click', ()=> deleteContact(c))
+    const stageSelect = el('pipelineStageSelect')
+    if(stageSelect) stageSelect.addEventListener('change', async ()=>{
+      await movePipelineContact(c.id, stageSelect.value)
+      toast(stageSelect.value ? `Moved to ${stageSelect.value}` : 'Removed from pipeline')
+    })
+    const taskContainer = panel.querySelector('.task-section-inline')
+    loadContactTaskSection(taskContainer, c.id)
+    bindContactTaskForm(taskContainer, c.id)
+    const emailStatsContainer = panel.querySelector('.email-stats-section')
+    if(emailStatsContainer) loadEmailStats(emailStatsContainer, c.id)
     const activityContainer = panel.querySelector('.activity-section')
     loadActivitySection(activityContainer, 'contact', c.id)
     bindActivityForm(activityContainer, 'contact', c.id)
@@ -582,6 +595,27 @@ function activityUrl(scopeType, scopeId){
     : `/api/organizations/${encodeURIComponent(scopeId)}/activity`
 }
 
+async function loadEmailStats(container, contactId){
+  if(!container) return
+  try{
+    const res  = await fetch(`/api/contacts/${contactId}/email-events`)
+    const data = await res.json()
+    const s    = data.summary || {}
+    if(!Object.keys(s).length){ container.innerHTML = ''; return }
+    const opens  = s.open  || 0
+    const clicks = s.click || 0
+    const rows = [
+      opens  ? `<span><i class="fas fa-envelope-open" style="color:var(--blue);"></i> ${opens} open${opens!==1?'s':''}</span>` : '',
+      clicks ? `<span><i class="fas fa-arrow-pointer" style="color:var(--green);"></i> ${clicks} click${clicks!==1?'s':''}</span>` : '',
+    ].filter(Boolean).join('  ·  ')
+    if(!rows){ container.innerHTML = ''; return }
+    container.innerHTML = `
+      <h4 class="detail-section-title"><i class="fas fa-chart-line"></i> Email Engagement</h4>
+      <div style="font-size:13px;display:flex;gap:14px;flex-wrap:wrap;">${rows}</div>
+    `
+  }catch(e){ container.innerHTML = '' }
+}
+
 async function loadActivitySection(container, scopeType, scopeId){
   if(!container) return
   const listEl = container.querySelector('.activity-list')
@@ -622,6 +656,274 @@ function bindActivityForm(container, scopeType, scopeId){
       loadActivitySection(container, scopeType, scopeId)
       toast('Outreach logged')
     }catch(e){ toast('Could not log outreach.', 'error'); console.error(e) }
+  })
+}
+
+// ------------------------------------------------------------------ //
+// Tasks                                                                //
+// ------------------------------------------------------------------ //
+
+async function loadTaskBadge(){
+  try{
+    const res = await fetch('/api/tasks/count')
+    const json = await res.json()
+    const badge = el('taskBadge')
+    if(!badge) return
+    if(json.count > 0){
+      badge.textContent = json.count
+      badge.style.display = ''
+    } else {
+      badge.style.display = 'none'
+    }
+  }catch(e){ console.warn('task badge', e) }
+}
+
+function taskItemHtml(t, showContact){
+  const urgency = t.urgency || 'no_date'
+  const dueLabel = t.due_date ? new Date(t.due_date+'T00:00:00').toLocaleDateString() : ''
+  const dueClass = urgency === 'overdue' ? 'overdue' : urgency === 'today' ? 'today' : ''
+  const contactSpan = showContact && t.contact_name ? `<span class="task-contact">↳ ${t.contact_name}</span>` : ''
+  const notesHtml = t.notes ? `<div class="task-notes">${t.notes.replace(/\n/g,'<br>')}</div>` : ''
+  return `
+    <div class="task-item task-${urgency}${t.completed ? ' task-done' : ''}">
+      <button class="task-complete-btn" data-id="${t.id}" data-completed="${t.completed}" title="${t.completed ? 'Reopen' : 'Mark complete'}">
+        <i class="${t.completed ? 'fas' : 'far'} fa-circle-check"></i>
+      </button>
+      <div class="task-body">
+        <div class="task-title">${t.title}</div>
+        <div class="task-meta">
+          ${dueLabel ? `<span class="task-due ${dueClass}">${dueLabel}</span>` : ''}
+          ${contactSpan}
+        </div>
+        ${notesHtml}
+      </div>
+      <button class="task-delete-btn btn btn-sm" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
+    </div>`
+}
+
+function renderGlobalTaskList(tasks){
+  if(!tasks.length) return '<div class="muted" style="text-align:center;padding:24px;">No pending tasks.</div>'
+  const overdue = tasks.filter(t => t.urgency === 'overdue')
+  const today   = tasks.filter(t => t.urgency === 'today')
+  const upcoming= tasks.filter(t => t.urgency === 'upcoming')
+  const noDate  = tasks.filter(t => t.urgency === 'no_date')
+  const section = (title, items, cls) => !items.length ? '' : `
+    <div class="task-section">
+      <div class="task-section-header task-section-${cls}">${title} (${items.length})</div>
+      ${items.map(t => taskItemHtml(t, true)).join('')}
+    </div>`
+  return [
+    section('Overdue', overdue, 'overdue'),
+    section('Due Today', today, 'today'),
+    section('Upcoming', upcoming, 'upcoming'),
+    section('No Date', noDate, 'nodate'),
+  ].join('')
+}
+
+function bindTaskItems(container, afterAction){
+  container.querySelectorAll('.task-complete-btn').forEach(btn => {
+    btn.addEventListener('click', async ()=>{
+      const completed = btn.dataset.completed === 'true' ? false : true
+      await fetch(`/api/tasks/${btn.dataset.id}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({completed})
+      })
+      loadTaskBadge()
+      afterAction()
+    })
+  })
+  container.querySelectorAll('.task-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Delete this task?')) return
+      await fetch(`/api/tasks/${btn.dataset.id}`, {method: 'DELETE'})
+      loadTaskBadge()
+      afterAction()
+    })
+  })
+}
+
+let taskPanelView = 'pending'
+
+async function refreshTasksPanel(){
+  const content = el('tasksPanelContent')
+  if(!content) return
+  content.innerHTML = 'Loading…'
+  try{
+    const url = taskPanelView === 'completed' ? '/api/tasks?completed=true' : '/api/tasks'
+    const res = await fetch(url)
+    const json = await res.json()
+    const tasks = json.tasks || []
+    if(taskPanelView === 'completed'){
+      content.innerHTML = renderCompletedTaskList(tasks)
+    } else {
+      content.innerHTML = renderGlobalTaskList(tasks)
+    }
+    bindTaskItems(content, refreshTasksPanel)
+  }catch(e){ content.innerHTML = '<div class="muted">Could not load tasks.</div>' }
+}
+
+function renderCompletedTaskList(tasks){
+  if(!tasks.length) return '<div class="muted" style="text-align:center;padding:24px;">No completed tasks yet.</div>'
+  return tasks.map(t => {
+    const completedDate = t.completed_at ? new Date(t.completed_at).toLocaleDateString() : ''
+    const contactSpan = t.contact_name ? `<span class="task-contact">↳ ${t.contact_name}</span>` : ''
+    return `
+      <div class="task-item task-done">
+        <button class="task-complete-btn" data-id="${t.id}" data-completed="true" title="Reopen task">
+          <i class="fas fa-circle-check"></i>
+        </button>
+        <div class="task-body">
+          <div class="task-title">${t.title}</div>
+          <div class="task-meta">
+            ${completedDate ? `<span>Completed ${completedDate}</span>` : ''}
+            ${contactSpan}
+          </div>
+        </div>
+        <button class="task-delete-btn btn btn-sm" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
+      </div>`
+  }).join('')
+}
+
+function bindTasksPanel(){
+  const btn = el('tasksBtn')
+  const modal = el('tasksPanelModal')
+  const closeBtn = el('closeTasksPanel')
+  const showAddBtn = el('showAddGlobalTaskBtn')
+  const addForm = el('addGlobalTaskForm')
+  const saveBtn = el('saveGlobalTaskBtn')
+  const cancelBtn = el('cancelGlobalTaskBtn')
+
+  if(!btn || !modal) return
+
+  btn.addEventListener('click', ()=>{
+    taskPanelView = 'pending'
+    const pb = el('taskViewPending'); const cb = el('taskViewCompleted')
+    if(pb){ pb.classList.add('active'); pb.classList.add('task-tab') }
+    if(cb) cb.classList.remove('active')
+    const addGlobalTaskBtn = el('showAddGlobalTaskBtn')
+    if(addGlobalTaskBtn) addGlobalTaskBtn.style.display = ''
+    modal.style.display = ''
+    refreshTasksPanel()
+  })
+  if(closeBtn) closeBtn.addEventListener('click', ()=>{ modal.style.display = 'none' })
+  modal.addEventListener('click', (e)=>{ if(e.target === modal) modal.style.display = 'none' })
+
+  const pendingBtn = el('taskViewPending')
+  const completedBtn = el('taskViewCompleted')
+  if(pendingBtn && completedBtn){
+    pendingBtn.addEventListener('click', ()=>{
+      taskPanelView = 'pending'
+      pendingBtn.classList.add('active'); completedBtn.classList.remove('active')
+      const f = el('addGlobalTaskForm'); if(f) f.style.display = 'none'
+      const b = el('showAddGlobalTaskBtn'); if(b) b.style.display = ''
+      refreshTasksPanel()
+    })
+    completedBtn.addEventListener('click', ()=>{
+      taskPanelView = 'completed'
+      completedBtn.classList.add('active'); pendingBtn.classList.remove('active')
+      const f = el('addGlobalTaskForm'); if(f) f.style.display = 'none'
+      const b = el('showAddGlobalTaskBtn'); if(b) b.style.display = 'none'
+      refreshTasksPanel()
+    })
+  }
+
+  if(showAddBtn && addForm){
+    showAddBtn.addEventListener('click', ()=>{
+      addForm.style.display = addForm.style.display === 'none' ? '' : 'none'
+      if(addForm.style.display !== 'none'){
+        const inp = el('newTaskTitle'); if(inp) inp.focus()
+      }
+    })
+  }
+  if(cancelBtn) cancelBtn.addEventListener('click', ()=>{ addForm.style.display = 'none' })
+  if(saveBtn){
+    saveBtn.addEventListener('click', async ()=>{
+      const title = (el('newTaskTitle').value || '').trim()
+      if(!title){ toast('Enter a task title.', 'error'); return }
+      const due_date = el('newTaskDue').value || null
+      const notesEl = el('newTaskNotes')
+      const notes = (notesEl ? notesEl.value : '').trim() || null
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title, due_date, notes})
+      })
+      if(!res.ok){ toast('Could not save task.', 'error'); return }
+      el('newTaskTitle').value = ''
+      el('newTaskDue').value = ''
+      const notesField = el('newTaskNotes'); if(notesField) notesField.value = ''
+      addForm.style.display = 'none'
+      loadTaskBadge()
+      refreshTasksPanel()
+      toast('Task added')
+    })
+  }
+}
+
+// Contact-level task section (embedded in the contact detail panel)
+
+function taskSectionHtml(){
+  return `
+    <div class="task-section-inline">
+      <h4><i class="fas fa-list-check"></i> Tasks</h4>
+      <div class="task-list-inline">Loading…</div>
+      <div class="task-inline-form">
+        <input type="text" class="task-inline-input" placeholder="Add a task…" />
+        <input type="date" class="task-inline-date" />
+        <button class="btn btn-sm btn-primary task-inline-add"><i class="fas fa-plus"></i> Add</button>
+      </div>
+      <textarea class="task-inline-notes" rows="2" placeholder="Notes (optional)" style="display:none;"></textarea>
+    </div>`
+}
+
+async function loadContactTaskSection(container, contactId){
+  const listEl = container.querySelector('.task-list-inline')
+  if(!listEl) return
+  try{
+    const res = await fetch(`/api/contacts/${contactId}/tasks`)
+    const json = await res.json()
+    const tasks = json.tasks || []
+    if(!tasks.length){
+      listEl.innerHTML = '<div class="muted" style="font-size:13px;margin-bottom:6px;">No tasks yet.</div>'
+    } else {
+      listEl.innerHTML = tasks.map(t => taskItemHtml(t, false)).join('')
+      bindTaskItems(listEl, ()=>{ loadContactTaskSection(container, contactId); loadTaskBadge() })
+    }
+  }catch(e){ listEl.innerHTML = '<div class="muted">Could not load tasks.</div>' }
+}
+
+function bindContactTaskForm(container, contactId){
+  const addBtn = container.querySelector('.task-inline-add')
+  const titleInput = container.querySelector('.task-inline-input')
+  const notesEl = container.querySelector('.task-inline-notes')
+  if(!addBtn) return
+
+  // Show notes textarea when the title has something typed
+  if(titleInput && notesEl){
+    titleInput.addEventListener('input', ()=>{
+      notesEl.style.display = titleInput.value.trim() ? '' : 'none'
+    })
+  }
+
+  addBtn.addEventListener('click', async ()=>{
+    const dateInput = container.querySelector('.task-inline-date')
+    const title = (titleInput.value || '').trim()
+    if(!title){ toast('Enter a task title.', 'error'); return }
+    const due_date = dateInput.value || null
+    const notes = (notesEl ? notesEl.value : '').trim() || null
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title, due_date, notes, contact_id: contactId})
+    })
+    if(!res.ok){ toast('Could not save task.', 'error'); return }
+    titleInput.value = ''
+    dateInput.value = ''
+    if(notesEl){ notesEl.value = ''; notesEl.style.display = 'none' }
+    loadContactTaskSection(container, contactId)
+    loadTaskBadge()
+    toast('Task added')
   })
 }
 
@@ -875,10 +1177,13 @@ function bind(){
   bindExportMenu()
   bindToolsMenu()
   bindDraftEmail()
+  bindSendCampaign()
+  bindPipeline()
   bindCreateFlyer()
   bindCountyFilter()
   bindTagFilter()
   bindAdminMenu()
+  bindTasksPanel()
 }
 
 // The Admin nav dropdown is a native <details>/<summary> (no JS needed to
@@ -1064,6 +1369,307 @@ function bindDraftEmail(){
   })
 }
 
+function bindSendCampaign(){
+  const openBtn = el('sendCampaignBtn')
+  const modal   = el('campaignModal')
+  if(!openBtn || !modal) return
+
+  function currentFilterParams(){
+    const p = new URLSearchParams()
+    if(state.q) p.set('q', state.q)
+    if(state.tags.length) p.set('tag', state.tags.join(','))
+    if(state.counties.length) p.set('county', state.counties.join(','))
+    if(state.followup) p.set('followup', state.followup)
+    if(state.favoritesOnly) p.set('favorites_only', 'true')
+    return p
+  }
+
+  async function loadCampaignPreview(){
+    const aud = el('campaignAudience')
+    if(!aud) return
+    aud.textContent = 'Counting recipients…'
+    try{
+      const res = await fetch('/api/campaign/preview?' + currentFilterParams())
+      const json = await res.json()
+      const n = json.recipient_count || 0
+      const snd = el('campaignSendBtn')
+      if(n === 0){
+        aud.textContent = 'No contacts with email addresses match the current filter.'
+        if(snd) snd.textContent = 'Send (0 recipients)'
+      } else {
+        const sample = (json.sample || []).join(', ')
+        aud.textContent = `Will send to ${n} contact${n===1?'':'s'}${sample ? ' — e.g. ' + sample : ''}.`
+        if(snd) snd.textContent = `Send to ${n} contact${n===1?'':'s'}`
+      }
+    }catch(e){ if(el('campaignAudience')) el('campaignAudience').textContent = 'Could not count recipients.' }
+  }
+
+  openBtn.addEventListener('click', async ()=>{
+    // Reset to step 1
+    const s1 = el('campaignStep1'); const s2 = el('campaignStep2')
+    if(s1) s1.style.display = ''
+    if(s2) s2.style.display = 'none'
+    const p = el('campaignPrompt'); if(p) p.value = ''
+    const gs = el('campaignGenStatus'); if(gs) gs.textContent = ''
+    const ss = el('campaignSendStatus'); if(ss) ss.textContent = ''
+    modal.style.display = ''
+    loadCampaignPreview()
+    // Populate case study dropdown (same as draft email)
+    try{
+      const r = await fetch('/api/case-studies')
+      const cs = (await r.json()).case_studies || []
+      const sel = el('campaignCaseStudy')
+      if(sel){
+        sel.innerHTML = '<option value="">None</option>'
+        cs.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.title; sel.appendChild(o) })
+      }
+    }catch(e){}
+  })
+
+  el('closeCampaignModal').addEventListener('click', ()=>{ modal.style.display = 'none' })
+  modal.addEventListener('click', e=>{ if(e.target===modal) modal.style.display='none' })
+
+  el('campaignGenerateBtn').addEventListener('click', async ()=>{
+    const prompt = (el('campaignPrompt').value || '').trim()
+    if(!prompt){ toast('Describe what the email is about.', 'error'); return }
+    const gs = el('campaignGenStatus'); gs.textContent = 'Generating draft…'
+    el('campaignGenerateBtn').disabled = true
+    try{
+      const params = Object.fromEntries(currentFilterParams())
+      const res = await fetch('/api/draft-email', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          prompt,
+          case_study_id: el('campaignCaseStudy').value || null,
+          ...params,
+        })
+      })
+      const json = await res.json()
+      if(!res.ok){ gs.textContent = json.error || 'Could not generate draft.'; return }
+
+      // Parse "Subject: ..." line from draft
+      const draft = json.draft || ''
+      const lines = draft.split('\n')
+      let subject = '', bodyLines = []
+      let pastSubject = false
+      for(const line of lines){
+        if(!pastSubject && line.toLowerCase().startsWith('subject:')){
+          subject = line.replace(/^subject:\s*/i, '').trim()
+          pastSubject = true
+        } else if(pastSubject || subject){
+          bodyLines.push(line)
+        } else {
+          bodyLines.push(line)
+        }
+      }
+      const body = bodyLines.join('\n').replace(/^\n+/, '')
+
+      el('campaignSubject').value = subject
+      el('campaignBody').value = body
+      el('campaignStep1').style.display = 'none'
+      el('campaignStep2').style.display = ''
+      gs.textContent = ''
+    }catch(e){ gs.textContent = 'Error generating draft.' }
+    finally{ el('campaignGenerateBtn').disabled = false }
+  })
+
+  el('campaignBackBtn').addEventListener('click', ()=>{
+    el('campaignStep1').style.display = ''
+    el('campaignStep2').style.display = 'none'
+    el('campaignSendStatus').textContent = ''
+  })
+
+  el('campaignSendBtn').addEventListener('click', async ()=>{
+    const subject = (el('campaignSubject').value || '').trim()
+    const body    = (el('campaignBody').value || '').trim()
+    if(!subject){ toast('Add a subject line before sending.', 'error'); return }
+    if(!body){ toast('The email body is empty.', 'error'); return }
+    const ss = el('campaignSendStatus')
+    ss.textContent = 'Sending…'
+    el('campaignSendBtn').disabled = true
+    try{
+      const params = Object.fromEntries(currentFilterParams())
+      const res = await fetch('/api/campaign/send', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({subject, body, ...params})
+      })
+      const json = await res.json()
+      if(!res.ok){ ss.textContent = json.error || 'Send failed.'; return }
+      modal.style.display = 'none'
+      toast(`Campaign sent: ${json.sent} delivered, ${json.failed} failed.`)
+    }catch(e){ ss.textContent = 'Send failed — check your connection.' }
+    finally{ el('campaignSendBtn').disabled = false }
+  })
+}
+
+const PIPELINE_STAGES = ['Lead', 'Engaged', 'Proposal', 'Client', 'Inactive']
+
+async function movePipelineContact(contactId, stage){
+  const res = await fetch(`/api/pipeline/${contactId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({pipeline_stage: stage})
+  })
+  if(!res.ok){ toast('Could not update stage', 'error'); return false }
+  return true
+}
+
+function pipelineStageOpts(current){
+  return ['', ...PIPELINE_STAGES].map(s =>
+    `<option value="${s}" ${s===current?'selected':''}>${s||'— Remove —'}</option>`
+  ).join('')
+}
+
+function pipelineListRowHtml(c){
+  return `<div class="pipeline-list-row" data-id="${c.id}">
+    <div class="pipeline-list-info">
+      <div class="pipeline-list-name">${c.name}</div>
+      ${c.organization ? `<div class="pipeline-list-org">${c.organization}</div>` : ''}
+    </div>
+    <select class="pipeline-list-stage-select" data-id="${c.id}">
+      ${pipelineStageOpts(c.pipeline_stage)}
+    </select>
+    <button class="pipeline-list-remove" data-id="${c.id}" title="Remove from pipeline">✕</button>
+  </div>`
+}
+
+let _pipelineData = {contacts: {}}
+let _pipelineStageFilter = ''
+
+function renderPipelineList(){
+  const list = el('pipelineList')
+  if(!list) return
+  let rows = []
+  if(_pipelineStageFilter){
+    rows = _pipelineData.contacts[_pipelineStageFilter] || []
+  } else {
+    PIPELINE_STAGES.forEach(s => { rows = rows.concat(_pipelineData.contacts[s] || []) })
+  }
+  if(!rows.length){
+    list.innerHTML = '<div class="pipeline-empty">No contacts in this stage yet.<br>Search above to add one.</div>'
+    return
+  }
+  list.innerHTML = rows.map(pipelineListRowHtml).join('')
+  list.querySelectorAll('.pipeline-list-stage-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const id = parseInt(sel.dataset.id)
+      const ok = await movePipelineContact(id, sel.value)
+      if(ok) await loadPipelineData()
+    })
+  })
+  list.querySelectorAll('.pipeline-list-remove').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const ok = await movePipelineContact(parseInt(btn.dataset.id), '')
+      if(ok) await loadPipelineData()
+    })
+  })
+}
+
+async function loadPipelineData(){
+  const list = el('pipelineList')
+  if(list) list.innerHTML = '<div class="pipeline-loading">Loading…</div>'
+  const res = await fetch('/api/pipeline')
+  _pipelineData = await res.json()
+  // Update tab counts
+  document.querySelectorAll('.pipeline-tab').forEach(tab => {
+    const stage = tab.dataset.stage
+    const count = stage
+      ? (_pipelineData.contacts[stage] || []).length
+      : PIPELINE_STAGES.reduce((n, s) => n + (_pipelineData.contacts[s] || []).length, 0)
+    const label = stage || 'All'
+    tab.textContent = `${label} (${count})`
+  })
+  renderPipelineList()
+}
+
+function pipelineStageSectionHtml(currentStage){
+  const opts = ['', ...PIPELINE_STAGES].map(s =>
+    `<option value="${s}" ${s===currentStage?'selected':''}>${s||'— Not in pipeline —'}</option>`
+  ).join('')
+  return `<div class="detail-section pipeline-stage-section">
+    <h4 class="detail-section-title"><i class="fas fa-kanban"></i> Pipeline Stage</h4>
+    <select id="pipelineStageSelect" class="pipeline-stage-select">${opts}</select>
+  </div>`
+}
+
+let _pipelineSearchTimer = null
+
+function bindPipeline(){
+  const openBtn = el('pipelineBtn')
+  const modal   = el('pipelineModal')
+  if(!openBtn || !modal) return
+
+  openBtn.addEventListener('click', ()=>{
+    modal.style.display = ''
+    _pipelineStageFilter = ''
+    document.querySelectorAll('.pipeline-tab').forEach(t => t.classList.toggle('active', t.dataset.stage === ''))
+    el('pipelineSearchInput').value = ''
+    el('pipelineSearchResults').style.display = 'none'
+    loadPipelineData()
+  })
+
+  el('closePipelineModal').addEventListener('click', ()=>{ modal.style.display = 'none' })
+  modal.addEventListener('click', e=>{ if(e.target===modal) modal.style.display='none' })
+
+  // Stage tabs
+  document.querySelectorAll('.pipeline-tab').forEach(tab => {
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.pipeline-tab').forEach(t => t.classList.remove('active'))
+      tab.classList.add('active')
+      _pipelineStageFilter = tab.dataset.stage
+      renderPipelineList()
+    })
+  })
+
+  // Search to add/find contacts
+  const searchInput = el('pipelineSearchInput')
+  const searchResults = el('pipelineSearchResults')
+
+  searchInput.addEventListener('input', ()=>{
+    clearTimeout(_pipelineSearchTimer)
+    const q = searchInput.value.trim()
+    if(!q){ searchResults.style.display = 'none'; return }
+    _pipelineSearchTimer = setTimeout(async ()=>{
+      const res = await fetch(`/api/contacts?q=${encodeURIComponent(q)}&per_page=8`)
+      const data = await res.json()
+      const contacts = data.contacts || []
+      if(!contacts.length){ searchResults.style.display = 'none'; return }
+      searchResults.innerHTML = contacts.map(c => {
+        const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.organization || '(no name)'
+        return `<div class="pipeline-search-result" data-id="${c.id}">
+          <div>
+            <div class="pipeline-search-result-name">${name}</div>
+            ${c.organization ? `<div class="pipeline-search-result-org">${c.organization}</div>` : ''}
+          </div>
+          <select class="pipeline-search-result-select" data-id="${c.id}" data-name="${name}">
+            ${pipelineStageOpts(c.pipeline_stage || '')}
+          </select>
+        </div>`
+      }).join('')
+      searchResults.style.display = ''
+
+      searchResults.querySelectorAll('.pipeline-search-result-select').forEach(sel => {
+        sel.addEventListener('change', async ()=>{
+          const ok = await movePipelineContact(parseInt(sel.dataset.id), sel.value)
+          if(ok){
+            toast(sel.value ? `${sel.dataset.name} → ${sel.value}` : `Removed from pipeline`)
+            await loadPipelineData()
+          }
+        })
+      })
+    }, 250)
+  })
+
+  // Close search results when clicking outside
+  document.addEventListener('click', e=>{
+    if(!searchInput.contains(e.target) && !searchResults.contains(e.target)){
+      searchResults.style.display = 'none'
+    }
+  })
+}
+
 function bindCreateFlyer(){
   const btn = el('createFlyerBtn')
   const modal = el('createFlyerModal')
@@ -1114,6 +1720,7 @@ function bindCreateFlyer(){
 
 window.addEventListener('load', async ()=>{
   bind();
+  loadTaskBadge();
   await fetchCounties();
   if(window.location.hash === '#search' || window.location.hash === '#search_roles'){
     const view = window.location.hash === '#search_roles' ? 'organizations' : 'people'

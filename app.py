@@ -10,7 +10,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from config import Config
 from db import db
-from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy, EmailTemplate, FlyerTemplate, FlyerAsset
+from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy, EmailTemplate, FlyerTemplate, FlyerAsset, Task, SocialToken, EmailEvent, AvailabilityRule, Booking, LandingPage, LandingPageSubmission, EmailSequence, EmailSequenceStep, EmailSequenceEnrollment
 from schemas import ContactSchema
 from utils import (
     read_uploaded_file, clean_dataframe, clean_outreach_orgs,
@@ -567,6 +567,139 @@ def _sendgrid_api_bulk(api_key, recipients, subject, html_body, png_bytes=None, 
     return sent, failed
 
 
+def _sendgrid_campaign_tracked(api_key, recipients, subject, html_body, send_id):
+    """Send campaign with one personalization per recipient so SendGrid webhooks
+    can include custom_args (send_id + contact_id) for per-contact tracking.
+    Uses up to 1000 personalizations per request (SendGrid limit)."""
+    import requests
+    from_email, from_name = _sg_from()
+    if not from_email:
+        raise RuntimeError('Set SMTP_FROM_EMAIL in environment variables.')
+
+    BATCH = 1000
+    sent = failed = 0
+    for i in range(0, len(recipients), BATCH):
+        batch = recipients[i:i + BATCH]
+        payload = {
+            'personalizations': [
+                {
+                    'to': [{'email': r['email']}],
+                    'custom_args': {
+                        'send_id': str(send_id),
+                        'contact_id': str(r['contact_id']),
+                    },
+                }
+                for r in batch
+            ],
+            'from': {'email': from_email, 'name': from_name},
+            'subject': subject or '(no subject)',
+            'content': [{'type': 'text/html', 'value': html_body}],
+            'tracking_settings': {
+                'click_tracking': {'enable': True},
+                'open_tracking': {'enable': True},
+            },
+        }
+        try:
+            res = requests.post(
+                'https://api.sendgrid.com/v3/mail/send',
+                headers={'Authorization': f'Bearer {api_key}'},
+                json=payload, timeout=60,
+            )
+            if res.status_code in (200, 202):
+                sent += len(batch)
+            else:
+                failed += len(batch)
+        except Exception:
+            failed += len(batch)
+    return sent, failed
+
+
+def _enroll_contact_in_sequences(contact_id, stage):
+    """Enroll a contact in all active sequences triggered by the given stage,
+    skipping if already enrolled and active."""
+    from datetime import datetime as _dt, timedelta
+    sequences = EmailSequence.query.filter_by(trigger_stage=stage, is_active=True).all()
+    for seq in sequences:
+        if not seq.steps:
+            continue
+        already = EmailSequenceEnrollment.query.filter_by(
+            sequence_id=seq.id, contact_id=contact_id, status='active'
+        ).first()
+        if already:
+            continue
+        first_step = seq.steps[0]
+        enrollment = EmailSequenceEnrollment(
+            sequence_id=seq.id,
+            contact_id=contact_id,
+            next_step_index=0,
+            next_send_at=_dt.utcnow() + timedelta(days=first_step.day_offset),
+            status='active',
+        )
+        db.session.add(enrollment)
+    db.session.commit()
+
+
+def _process_sequence_emails(app):
+    """Send any sequence emails that are due. Called by the scheduler."""
+    import json as _json, urllib.request as _urlreq
+    from datetime import datetime as _dt
+    with app.app_context():
+        now = _dt.utcnow()
+        due = EmailSequenceEnrollment.query.filter(
+            EmailSequenceEnrollment.status == 'active',
+            EmailSequenceEnrollment.next_send_at <= now,
+        ).all()
+        sg_key = os.environ.get('SENDGRID_API_KEY') or (
+            os.environ.get('SMTP_PASSWORD', '').startswith('SG.') and os.environ.get('SMTP_PASSWORD')
+        ) or None
+        from_email = os.environ.get('MAIL_FROM', os.environ.get('SMTP_USERNAME', ''))
+        for enrollment in due:
+            seq = enrollment.sequence
+            if not seq.is_active:
+                continue
+            steps = seq.steps
+            if enrollment.next_step_index >= len(steps):
+                enrollment.status = 'completed'
+                db.session.commit()
+                continue
+            step = steps[enrollment.next_step_index]
+            contact = enrollment.contact
+            if not contact or not contact.email:
+                enrollment.status = 'cancelled'
+                db.session.commit()
+                continue
+            # Send email
+            if sg_key and from_email:
+                try:
+                    payload = {
+                        'personalizations': [{'to': [{'email': contact.email,
+                                                       'name': f'{contact.first_name or ""} {contact.last_name or ""}'.strip()}]}],
+                        'from': {'email': from_email},
+                        'subject': step.subject,
+                        'content': [{'type': 'text/html', 'value': step.body}],
+                    }
+                    req = _urlreq.Request(
+                        'https://api.sendgrid.com/v3/mail/send',
+                        data=_json.dumps(payload).encode(),
+                        headers={'Authorization': f'Bearer {sg_key}', 'Content-Type': 'application/json'},
+                        method='POST',
+                    )
+                    _urlreq.urlopen(req, timeout=15)
+                except Exception:
+                    continue  # leave next_send_at as-is; retry next run
+            # Advance to next step
+            next_idx = enrollment.next_step_index + 1
+            if next_idx >= len(steps):
+                enrollment.status = 'completed'
+                enrollment.next_step_index = next_idx
+            else:
+                next_step = steps[next_idx]
+                from datetime import timedelta
+                enrollment.next_step_index = next_idx
+                enrollment.next_send_at = now + timedelta(days=next_step.day_offset)
+            db.session.commit()
+
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -576,7 +709,30 @@ def create_app(config_class=Config):
 
     with app.app_context():
         db.create_all()
+        # Add columns that didn't exist in earlier schema versions
+        for stmt in [
+            "ALTER TABLE users ADD COLUMN can_post_social BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE tasks ADD COLUMN notes TEXT",
+            "ALTER TABLE contacts ADD COLUMN pipeline_stage VARCHAR(32)",
+        ]:
+            try:
+                db.session.execute(db.text(stmt))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
         _bootstrap_admin_user()
+
+    # Start background scheduler for email sequences
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        _scheduler = BackgroundScheduler(daemon=True)
+        _scheduler.add_job(
+            _process_sequence_emails, 'interval', hours=1,
+            args=[app], id='seq_emails', replace_existing=True,
+        )
+        _scheduler.start()
+    except Exception:
+        pass
 
     contact_schema = ContactSchema()
     contacts_schema = ContactSchema(many=True)
@@ -722,7 +878,11 @@ def create_app(config_class=Config):
         if not current_user.is_admin:
             return redirect(url_for('index'))
         users = User.query.order_by(User.username).all()
-        return render_template('users.html', users=users)
+        social = {t.platform: t for t in SocialToken.query.all()}
+        li_configured = bool(_social_cfg('LINKEDIN_CLIENT_ID'))
+        fb_configured = bool(_social_cfg('FACEBOOK_APP_ID'))
+        return render_template('users.html', users=users, social=social,
+                               li_configured=li_configured, fb_configured=fb_configured)
 
     @app.route('/admin/audit')
     def audit_log():
@@ -950,6 +1110,18 @@ def create_app(config_class=Config):
         db.session.commit()
         log_audit('password_reset', 'user', user.id, user.username)
         return jsonify({'ok': True})
+
+    @app.route('/api/users/<int:user_id>/toggle-social', methods=['POST'])
+    @login_required
+    def toggle_user_social(user_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        user = User.query.get_or_404(user_id)
+        user.can_post_social = not user.can_post_social
+        db.session.commit()
+        log_audit('social_permission_changed', 'user', user.id, user.username,
+                  {'can_post_social': user.can_post_social})
+        return jsonify({'ok': True, 'can_post_social': user.can_post_social})
 
     def _case_study_fields(data):
         return {
@@ -2076,6 +2248,1156 @@ def create_app(config_class=Config):
             'headline': headline,
             'body': body,
         })
+
+    # ------------------------------------------------------------------ #
+    # Send Campaign                                                        #
+    # ------------------------------------------------------------------ #
+
+    def _text_to_html(text):
+        """Plain-text body → minimal HTML paragraphs suitable for email."""
+        paragraphs = text.split('\n\n')
+        parts = []
+        for p in paragraphs:
+            p = p.strip()
+            if p:
+                parts.append(
+                    f'<p style="margin:0 0 12px;line-height:1.6;">{p.replace(chr(10),"<br>")}</p>'
+                )
+        return (
+            '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;'
+            'margin:0 auto;padding:16px;">'
+            + ''.join(parts)
+            + '</div>'
+        )
+
+    @app.route('/api/campaign/preview', methods=['GET'])
+    def campaign_preview():
+        q        = request.args.get('q')
+        tag      = request.args.get('tag')
+        county   = request.args.get('county')
+        followup = request.args.get('followup')
+        favorites_only = request.args.get('favorites_only') == 'true'
+        contacts = filtered_contacts_query(
+            q=q, tag=tag, county=county, followup=followup, favorites_only=favorites_only
+        ).filter(
+            Contact.email.isnot(None),
+            Contact.email != '',
+            Contact.unsubscribed == False,
+        ).all()
+        sample = [
+            f"{(c.first_name or '')} {(c.last_name or '')}".strip() or c.email
+            for c in contacts[:5]
+        ]
+        return jsonify({'recipient_count': len(contacts), 'sample': sample})
+
+    @app.route('/api/campaign/send', methods=['POST'])
+    def campaign_send():
+        data    = request.get_json() or {}
+        subject = (data.get('subject') or '').strip()
+        body    = (data.get('body') or '').strip()
+        if not subject:
+            return jsonify({'error': 'Subject is required.'}), 400
+        if not body:
+            return jsonify({'error': 'Email body is required.'}), 400
+
+        q        = data.get('q')
+        tag      = data.get('tag')
+        county   = data.get('county')
+        followup = data.get('followup')
+        favorites_only = bool(data.get('favorites_only'))
+
+        contacts = filtered_contacts_query(
+            q=q, tag=tag, county=county, followup=followup, favorites_only=favorites_only
+        ).filter(
+            Contact.email.isnot(None),
+            Contact.email != '',
+            Contact.unsubscribed == False,
+        ).all()
+
+        if not contacts:
+            return jsonify({'error': 'No contacts with email addresses match this filter.'}), 400
+
+        html_body  = _text_to_html(body)
+        recipients = [c.email for c in contacts]
+        contact_ids = [c.id for c in contacts]
+        sent_by    = current_user.display_name
+
+        # Snapshot the send record before releasing the DB connection
+        send_rec = EmailSend(
+            sent_by_name=sent_by,
+            subject=subject,
+            filter_snapshot={'q': q, 'tag': tag, 'county': county, 'followup': followup},
+            recipient_count=len(contacts),
+            status='sending',
+            started_at=datetime.utcnow(),
+        )
+        db.session.add(send_rec)
+        db.session.commit()
+        send_id = send_rec.id
+
+        # Release connection before the slow network call (same pattern as
+        # the email-template send route -- avoids idle-connection SSL errors).
+        db.session.close()
+
+        # Use tracked per-recipient sends when SendGrid API key is available
+        sg_key = os.environ.get('SENDGRID_API_KEY') or (
+            os.environ.get('SMTP_PASSWORD', '').startswith('SG.') and os.environ.get('SMTP_PASSWORD')
+        ) or None
+        recipients_with_ids = [{'email': c.email, 'contact_id': c.id} for c in contacts]
+        try:
+            if sg_key:
+                sent, failed = _sendgrid_campaign_tracked(sg_key, recipients_with_ids, subject, html_body, send_id)
+            else:
+                sent, failed = send_flyer_bulk_smtp(recipients, subject, html_body)
+        except RuntimeError as e:
+            return jsonify({'error': str(e)}), 500
+        except Exception as e:
+            return jsonify({'error': f'Could not send: {e}'}), 502
+
+        # Update the send record status and log one outreach activity per contact
+        send_rec2 = EmailSend.query.get(send_id)
+        if send_rec2:
+            send_rec2.sent_count = sent
+            send_rec2.failed_count = failed
+            send_rec2.status = 'completed'
+            send_rec2.completed_at = datetime.utcnow()
+            db.session.commit()
+
+        for cid in contact_ids:
+            act = Activity(
+                contact_id=cid,
+                employee_name=sent_by,
+                channel='Email',
+                summary=f'Campaign email sent: {subject}',
+                contacted_on=date.today(),
+            )
+            db.session.add(act)
+        db.session.commit()
+
+        log_audit('campaign_sent', 'campaign', send_id, subject, {
+            'recipient_count': len(recipients), 'sent': sent, 'failed': failed,
+        })
+        return jsonify({'sent': sent, 'failed': failed, 'total': len(recipients)})
+
+    # ------------------------------------------------------------------ #
+    # Tasks                                                                #
+    # ------------------------------------------------------------------ #
+
+    def _task_urgency(task, today):
+        if task.due_date is None:
+            return 'no_date'
+        if task.due_date < today:
+            return 'overdue'
+        if task.due_date == today:
+            return 'today'
+        return 'upcoming'
+
+    @app.route('/api/tasks/count', methods=['GET'])
+    def task_count():
+        today = date.today()
+        count = Task.query.filter(
+            Task.created_by_id == current_user.id,
+            Task.completed == False,
+            Task.due_date != None,
+            Task.due_date <= today,
+        ).count()
+        return jsonify({'count': count})
+
+    @app.route('/api/tasks', methods=['GET'])
+    def list_tasks():
+        today = date.today()
+        show_completed = request.args.get('completed', 'false').lower() == 'true'
+        query = Task.query.filter_by(completed=show_completed, created_by_id=current_user.id)
+
+        if show_completed:
+            tasks = query.order_by(Task.completed_at.desc()).all()
+        else:
+            tasks = query.all()
+
+            def sort_key(t):
+                urgency = _task_urgency(t, today)
+                order = {'overdue': 0, 'today': 1, 'upcoming': 2, 'no_date': 3}
+                d = t.due_date or date.max
+                return (order[urgency], d)
+
+            tasks.sort(key=sort_key)
+
+        result = []
+        for t in tasks:
+            d = t.to_dict()
+            d['urgency'] = _task_urgency(t, today) if not t.completed else 'done'
+            result.append(d)
+        return jsonify({'tasks': result})
+
+    @app.route('/api/contacts/<int:contact_id>/tasks', methods=['GET'])
+    def contact_tasks(contact_id):
+        Contact.query.get_or_404(contact_id)
+        today = date.today()
+        tasks = Task.query.filter_by(contact_id=contact_id).order_by(
+            Task.completed.asc(), Task.due_date.asc()
+        ).all()
+        result = []
+        for t in tasks:
+            d = t.to_dict()
+            d['urgency'] = _task_urgency(t, today) if not t.completed else 'done'
+            result.append(d)
+        return jsonify({'tasks': result})
+
+    @app.route('/api/tasks', methods=['POST'])
+    def create_task():
+        data = request.get_json() or {}
+        title = (data.get('title') or '').strip()
+        if not title:
+            return jsonify({'error': 'title required'}), 400
+        due_date = None
+        if data.get('due_date'):
+            try:
+                due_date = date.fromisoformat(data['due_date'])
+            except ValueError:
+                return jsonify({'error': 'invalid due_date'}), 400
+        task = Task(
+            contact_id=data.get('contact_id') or None,
+            title=title,
+            due_date=due_date,
+            notes=(data.get('notes') or '').strip() or None,
+            created_by_id=current_user.id,
+        )
+        db.session.add(task)
+        db.session.commit()
+        d = task.to_dict()
+        today = date.today()
+        d['urgency'] = _task_urgency(task, today)
+        return jsonify(d), 201
+
+    @app.route('/api/tasks/<int:task_id>', methods=['PATCH'])
+    def update_task(task_id):
+        task = Task.query.get_or_404(task_id)
+        data = request.get_json() or {}
+        if 'completed' in data:
+            task.completed = bool(data['completed'])
+            task.completed_at = datetime.utcnow() if task.completed else None
+        if 'title' in data:
+            title = (data['title'] or '').strip()
+            if title:
+                task.title = title
+        if 'due_date' in data:
+            if data['due_date']:
+                try:
+                    task.due_date = date.fromisoformat(data['due_date'])
+                except ValueError:
+                    return jsonify({'error': 'invalid due_date'}), 400
+            else:
+                task.due_date = None
+        if 'notes' in data:
+            task.notes = (data['notes'] or '').strip() or None
+        db.session.commit()
+        d = task.to_dict()
+        today = date.today()
+        d['urgency'] = _task_urgency(task, today) if not task.completed else 'done'
+        return jsonify(d)
+
+    @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+    def delete_task(task_id):
+        task = Task.query.get_or_404(task_id)
+        db.session.delete(task)
+        db.session.commit()
+        return '', 204
+
+    # Pipeline                                                               #
+
+    PIPELINE_STAGES = ['Lead', 'Engaged', 'Proposal', 'Client', 'Inactive']
+
+    @app.route('/api/pipeline', methods=['GET'])
+    @login_required
+    def get_pipeline():
+        contacts = Contact.query.filter(
+            Contact.pipeline_stage.isnot(None)
+        ).order_by(Contact.first_name, Contact.last_name).all()
+        grouped = {s: [] for s in PIPELINE_STAGES}
+        for c in contacts:
+            stage = c.pipeline_stage
+            if stage in grouped:
+                grouped[stage].append({
+                    'id': c.id,
+                    'name': ' '.join(p for p in [c.first_name or '', c.last_name or ''] if p).strip() or c.organization or '(no name)',
+                    'organization': c.organization,
+                    'tag': c.tag,
+                    'email': c.email,
+                    'pipeline_stage': stage,
+                })
+        return jsonify({'stages': PIPELINE_STAGES, 'contacts': grouped})
+
+    @app.route('/api/pipeline/<int:contact_id>', methods=['PATCH'])
+    @login_required
+    def update_pipeline_stage(contact_id):
+        c = Contact.query.get_or_404(contact_id)
+        data = request.get_json(force=True)
+        stage = data.get('pipeline_stage')
+        if stage is not None and stage not in PIPELINE_STAGES and stage != '':
+            return jsonify({'error': 'invalid stage'}), 400
+        c.pipeline_stage = stage if stage else None
+        db.session.commit()
+        log_audit('pipeline_stage_changed', 'contact', c.id,
+                  f"{c.first_name or ''} {c.last_name or ''}".strip() or c.organization,
+                  {'stage': stage})
+        # Auto-enroll in active sequences triggered by this stage
+        if stage:
+            _enroll_contact_in_sequences(c.id, stage)
+        return jsonify({'ok': True, 'pipeline_stage': c.pipeline_stage})
+
+    # Email Tracking                                                         #
+
+    with app.app_context():
+        db.create_all()  # creates email_events table if missing
+
+    @app.route('/webhooks/sendgrid', methods=['POST'])
+    def sendgrid_webhook():
+        """Receives open/click/bounce events from SendGrid Event Webhook.
+        Configure in SendGrid: Settings → Mail Settings → Event Webhook
+        URL: https://your-domain.com/webhooks/sendgrid
+        Events to enable: Open, Click, Delivered, Bounce"""
+        events = request.get_json(force=True, silent=True) or []
+        if not isinstance(events, list):
+            events = [events]
+        for ev in events:
+            event_type = ev.get('event', '')
+            if event_type not in ('open', 'click', 'delivered', 'bounce', 'unsubscribe'):
+                continue
+            email = ev.get('email', '')
+            custom = ev.get('custom_args') or {}
+            send_id    = int(custom['send_id'])    if custom.get('send_id')    else None
+            contact_id = int(custom['contact_id']) if custom.get('contact_id') else None
+            ts = ev.get('timestamp')
+            occurred_at = datetime.utcfromtimestamp(int(ts)) if ts else datetime.utcnow()
+            record = EmailEvent(
+                send_id=send_id,
+                contact_id=contact_id,
+                email=email,
+                event_type=event_type,
+                url=ev.get('url'),
+                sg_message_id=ev.get('sg_message_id'),
+                occurred_at=occurred_at,
+            )
+            db.session.add(record)
+            # Auto-unsubscribe on unsubscribe event
+            if event_type == 'unsubscribe' and email:
+                c = Contact.query.filter_by(email=email).first()
+                if c and not c.unsubscribed:
+                    c.unsubscribed = True
+        db.session.commit()
+        return '', 204
+
+    @app.route('/api/contacts/<int:contact_id>/email-events', methods=['GET'])
+    @login_required
+    def contact_email_events(contact_id):
+        events = (EmailEvent.query
+                  .filter_by(contact_id=contact_id)
+                  .order_by(EmailEvent.occurred_at.desc())
+                  .limit(50).all())
+        summary = {}
+        for e in events:
+            summary[e.event_type] = summary.get(e.event_type, 0) + 1
+        return jsonify({'events': [e.to_dict() for e in events], 'summary': summary})
+
+    @app.route('/api/email-sends', methods=['GET'])
+    @login_required
+    def list_email_sends():
+        page     = request.args.get('page', 1, type=int)
+        per_page = 20
+        query    = EmailSend.query.order_by(EmailSend.started_at.desc())
+        total    = query.count()
+        sends    = query.offset((page - 1) * per_page).limit(per_page).all()
+        # Attach open/click counts from email_events
+        send_ids = [s.id for s in sends]
+        from sqlalchemy import func as sqlfunc
+        counts = {}
+        if send_ids:
+            rows = (db.session.query(
+                        EmailEvent.send_id,
+                        EmailEvent.event_type,
+                        sqlfunc.count(EmailEvent.id).label('n'),
+                        sqlfunc.count(sqlfunc.distinct(EmailEvent.contact_id)).label('unique_n'),
+                    )
+                    .filter(EmailEvent.send_id.in_(send_ids))
+                    .group_by(EmailEvent.send_id, EmailEvent.event_type)
+                    .all())
+            for row in rows:
+                counts.setdefault(row.send_id, {})[row.event_type] = {
+                    'total': row.n, 'unique': row.unique_n
+                }
+        result = []
+        for s in sends:
+            d = s.to_dict()
+            d['events'] = counts.get(s.id, {})
+            result.append(d)
+        return jsonify({'sends': result, 'total': total, 'page': page, 'per_page': per_page})
+
+    @app.route('/campaign-history')
+    @login_required
+    def campaign_history():
+        return render_template('campaign_history.html')
+
+    # Social Posting                                                         #
+
+    with app.app_context():
+        db.create_all()  # creates social_tokens table if missing
+
+    import urllib.parse as _urlparse
+    import urllib.request as _urlreq
+    import json as _json
+    import secrets as _secrets
+
+    def _social_cfg(key):
+        return app.config.get(key, '') or ''
+
+    @app.route('/api/social/status', methods=['GET'])
+    @login_required
+    def social_status():
+        tokens = {t.platform: t.to_dict() for t in SocialToken.query.all()}
+        return jsonify({
+            'linkedin': tokens.get('linkedin', {'connected': False}),
+            'facebook': tokens.get('facebook', {'connected': False}),
+        })
+
+    # ── LinkedIn OAuth ──────────────────────────────────────────────────── #
+
+    @app.route('/social/linkedin/connect')
+    @login_required
+    def linkedin_connect():
+        if not current_user.is_admin:
+            return 'Admin only', 403
+        client_id = _social_cfg('LINKEDIN_CLIENT_ID')
+        if not client_id:
+            return 'LINKEDIN_CLIENT_ID not set in .env', 400
+        state = _secrets.token_urlsafe(16)
+        from flask import session
+        session['linkedin_oauth_state'] = state
+        redirect_uri = _social_cfg('APP_BASE_URL') + '/social/linkedin/callback'
+        params = _urlparse.urlencode({
+            'response_type': 'code',
+            'client_id': client_id,
+            'redirect_uri': redirect_uri,
+            'state': state,
+            'scope': 'openid profile w_member_social',
+        })
+        return redirect(f'https://www.linkedin.com/oauth/v2/authorization?{params}')
+
+    @app.route('/social/linkedin/callback')
+    @login_required
+    def linkedin_callback():
+        from flask import session
+        if not current_user.is_admin:
+            return 'Admin only', 403
+        error = request.args.get('error')
+        if error:
+            return redirect(url_for('admin_users') + '?social_error=' + error)
+        code  = request.args.get('code', '')
+        state = request.args.get('state', '')
+        if state != session.pop('linkedin_oauth_state', None):
+            return 'Invalid state', 400
+        client_id     = _social_cfg('LINKEDIN_CLIENT_ID')
+        client_secret = _social_cfg('LINKEDIN_CLIENT_SECRET')
+        redirect_uri  = _social_cfg('APP_BASE_URL') + '/social/linkedin/callback'
+        # Exchange code for token
+        token_data = _urlparse.urlencode({
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': redirect_uri,
+            'client_id': client_id,
+            'client_secret': client_secret,
+        }).encode()
+        req = _urlreq.Request('https://www.linkedin.com/oauth/v2/accessToken',
+                              data=token_data,
+                              headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        try:
+            with _urlreq.urlopen(req, timeout=10) as r:
+                token_json = _json.loads(r.read())
+        except Exception as exc:
+            return f'Token exchange failed: {exc}', 500
+        access_token = token_json.get('access_token', '')
+        expires_in   = token_json.get('expires_in', 0)
+        expires_at   = datetime.utcnow() + timedelta(seconds=int(expires_in)) if expires_in else None
+        # Fetch profile
+        profile_req = _urlreq.Request(
+            'https://api.linkedin.com/v2/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'}
+        )
+        try:
+            with _urlreq.urlopen(profile_req, timeout=10) as r:
+                profile = _json.loads(r.read())
+        except Exception:
+            profile = {}
+        account_name = profile.get('name') or profile.get('localizedFirstName', '') + ' ' + profile.get('localizedLastName', '')
+        account_id   = profile.get('sub', '')
+        tok = SocialToken.query.filter_by(platform='linkedin').first()
+        if not tok:
+            tok = SocialToken(platform='linkedin')
+            db.session.add(tok)
+        tok.access_token = access_token
+        tok.account_name = account_name.strip()
+        tok.account_id   = account_id
+        tok.expires_at   = expires_at
+        db.session.commit()
+        log_audit('social_connected', 'social', None, 'linkedin')
+        return redirect('/admin/users?social_connected=linkedin')
+
+    @app.route('/social/linkedin/disconnect')
+    @login_required
+    def linkedin_disconnect():
+        if not current_user.is_admin:
+            return 'Admin only', 403
+        SocialToken.query.filter_by(platform='linkedin').delete()
+        db.session.commit()
+        return redirect('/admin/users?social_disconnected=linkedin')
+
+    # ── Facebook OAuth ──────────────────────────────────────────────────── #
+
+    @app.route('/social/facebook/connect')
+    @login_required
+    def facebook_connect():
+        if not current_user.is_admin:
+            return 'Admin only', 403
+        app_id = _social_cfg('FACEBOOK_APP_ID')
+        if not app_id:
+            return 'FACEBOOK_APP_ID not set in .env', 400
+        from flask import session
+        state = _secrets.token_urlsafe(16)
+        session['facebook_oauth_state'] = state
+        redirect_uri = _social_cfg('APP_BASE_URL') + '/social/facebook/callback'
+        params = _urlparse.urlencode({
+            'client_id': app_id,
+            'redirect_uri': redirect_uri,
+            'state': state,
+            'scope': 'pages_manage_posts,pages_read_engagement,pages_show_list',
+        })
+        return redirect(f'https://www.facebook.com/dialog/oauth?{params}')
+
+    @app.route('/social/facebook/callback')
+    @login_required
+    def facebook_callback():
+        from flask import session
+        if not current_user.is_admin:
+            return 'Admin only', 403
+        error = request.args.get('error_message') or request.args.get('error')
+        if error:
+            return redirect('/admin/users?social_error=' + _urlparse.quote(error))
+        code  = request.args.get('code', '')
+        state = request.args.get('state', '')
+        if state != session.pop('facebook_oauth_state', None):
+            return 'Invalid state', 400
+        app_id     = _social_cfg('FACEBOOK_APP_ID')
+        app_secret = _social_cfg('FACEBOOK_APP_SECRET')
+        redirect_uri = _social_cfg('APP_BASE_URL') + '/social/facebook/callback'
+        # Exchange code for user token
+        token_url = ('https://graph.facebook.com/oauth/access_token?' +
+                     _urlparse.urlencode({'client_id': app_id, 'redirect_uri': redirect_uri,
+                                          'client_secret': app_secret, 'code': code}))
+        try:
+            with _urlreq.urlopen(token_url, timeout=10) as r:
+                token_json = _json.loads(r.read())
+        except Exception as exc:
+            return f'Token exchange failed: {exc}', 500
+        user_token = token_json.get('access_token', '')
+        # Get list of pages the user manages
+        pages_url = ('https://graph.facebook.com/v19.0/me/accounts?access_token=' + user_token)
+        try:
+            with _urlreq.urlopen(pages_url, timeout=10) as r:
+                pages_json = _json.loads(r.read())
+        except Exception:
+            pages_json = {}
+        pages = pages_json.get('data', [])
+        # Use first page, or fall back to user token
+        if pages:
+            page      = pages[0]
+            page_id   = page['id']
+            page_name = page.get('name', '')
+            page_token = page.get('access_token', user_token)
+        else:
+            page_id = page_name = ''
+            page_token = user_token
+        # Get user name
+        me_url = 'https://graph.facebook.com/v19.0/me?access_token=' + user_token
+        try:
+            with _urlreq.urlopen(me_url, timeout=10) as r:
+                me = _json.loads(r.read())
+        except Exception:
+            me = {}
+        tok = SocialToken.query.filter_by(platform='facebook').first()
+        if not tok:
+            tok = SocialToken(platform='facebook')
+            db.session.add(tok)
+        tok.access_token = page_token
+        tok.account_name = me.get('name', '')
+        tok.page_id      = page_id
+        tok.page_name    = page_name
+        db.session.commit()
+        log_audit('social_connected', 'social', None, 'facebook')
+        return redirect('/admin/users?social_connected=facebook')
+
+    @app.route('/social/facebook/disconnect')
+    @login_required
+    def facebook_disconnect():
+        if not current_user.is_admin:
+            return 'Admin only', 403
+        SocialToken.query.filter_by(platform='facebook').delete()
+        db.session.commit()
+        return redirect('/admin/users?social_disconnected=facebook')
+
+    # ── Post to Social ──────────────────────────────────────────────────── #
+
+    @app.route('/api/social/post', methods=['POST'])
+    @login_required
+    def social_post():
+        if not (current_user.is_admin or current_user.can_post_social):
+            return jsonify({'error': 'You do not have permission to post to social media.'}), 403
+        import base64 as _b64
+        from flyer_render import render_flyer_png, CANVAS_FORMATS
+        data       = request.get_json(force=True)
+        caption    = (data.get('caption') or '').strip()
+        platforms  = data.get('platforms') or []
+        template_id = data.get('template_id')
+        elements   = data.get('elements')
+        background = data.get('background', '#ffffff')
+
+        if not caption:
+            return jsonify({'error': 'Caption is required.'}), 400
+        if not platforms:
+            return jsonify({'error': 'Select at least one platform.'}), 400
+
+        # Render flyer to PNG
+        t = FlyerTemplate.query.get_or_404(template_id)
+        els = elements or t.elements or []
+        def asset_loader(asset_id):
+            try:
+                a = FlyerAsset.query.get(int(asset_id))
+                return a.data if a else None
+            except (TypeError, ValueError):
+                return None
+        png_bytes = render_flyer_png(els, fmt=t.format, bg_color=background, asset_loader=asset_loader)
+
+        results = {}
+
+        if 'linkedin' in platforms:
+            tok = SocialToken.query.filter_by(platform='linkedin').first()
+            if not tok:
+                results['linkedin'] = {'ok': False, 'error': 'LinkedIn not connected.'}
+            else:
+                try:
+                    results['linkedin'] = _post_linkedin(tok.access_token, tok.account_id, caption, png_bytes)
+                except Exception as exc:
+                    results['linkedin'] = {'ok': False, 'error': str(exc)}
+
+        if 'facebook' in platforms:
+            tok = SocialToken.query.filter_by(platform='facebook').first()
+            if not tok:
+                results['facebook'] = {'ok': False, 'error': 'Facebook not connected.'}
+            else:
+                try:
+                    results['facebook'] = _post_facebook(tok.access_token, tok.page_id, caption, png_bytes)
+                except Exception as exc:
+                    results['facebook'] = {'ok': False, 'error': str(exc)}
+
+        any_ok = any(v.get('ok') for v in results.values())
+        log_audit('social_post', 'social', None, None, {'platforms': platforms, 'results': results})
+        return jsonify({'results': results, 'ok': any_ok})
+
+    def _post_linkedin(access_token, author_id, caption, png_bytes):
+        import base64 as _b64
+        author_urn = f'urn:li:person:{author_id}'
+        # Step 1: register upload
+        reg_body = _json.dumps({
+            'registerUploadRequest': {
+                'recipes': ['urn:li:digitalmediaRecipe:feedshare-image'],
+                'owner': author_urn,
+                'serviceRelationships': [{'relationshipType': 'OWNER', 'identifier': 'urn:li:userGeneratedContent'}],
+            }
+        }).encode()
+        reg_req = _urlreq.Request(
+            'https://api.linkedin.com/v2/assets?action=registerUpload',
+            data=reg_body,
+            headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'},
+        )
+        with _urlreq.urlopen(reg_req, timeout=15) as r:
+            reg = _json.loads(r.read())
+        upload_url = reg['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl']
+        asset_urn  = reg['value']['asset']
+        # Step 2: upload image
+        up_req = _urlreq.Request(upload_url, data=png_bytes,
+                                  headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'image/png'})
+        up_req.get_method = lambda: 'PUT'
+        with _urlreq.urlopen(up_req, timeout=30):
+            pass
+        # Step 3: create post
+        post_body = _json.dumps({
+            'author': author_urn,
+            'lifecycleState': 'PUBLISHED',
+            'specificContent': {
+                'com.linkedin.ugc.ShareContent': {
+                    'shareCommentary': {'text': caption},
+                    'shareMediaCategory': 'IMAGE',
+                    'media': [{'status': 'READY', 'media': asset_urn}],
+                }
+            },
+            'visibility': {'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'},
+        }).encode()
+        post_req = _urlreq.Request(
+            'https://api.linkedin.com/v2/ugcPosts',
+            data=post_body,
+            headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json',
+                     'X-Restli-Protocol-Version': '2.0.0'},
+        )
+        with _urlreq.urlopen(post_req, timeout=15) as r:
+            result = _json.loads(r.read())
+        return {'ok': True, 'post_id': result.get('id', '')}
+
+    def _post_facebook(access_token, page_id, caption, png_bytes):
+        import io as _io
+        import email.mime.multipart as _mime_mp
+        import email.mime.base as _mime_base
+        # POST photo to /{page-id}/photos
+        boundary = _secrets.token_hex(16)
+        body  = f'--{boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n{caption}\r\n'
+        body += f'--{boundary}\r\nContent-Disposition: form-data; name="source"; filename="flyer.png"\r\nContent-Type: image/png\r\n\r\n'
+        body_bytes = body.encode() + png_bytes + f'\r\n--{boundary}--\r\n'.encode()
+        post_url = f'https://graph.facebook.com/v19.0/{page_id}/photos?access_token={access_token}'
+        fb_req = _urlreq.Request(
+            post_url, data=body_bytes,
+            headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
+        )
+        with _urlreq.urlopen(fb_req, timeout=30) as r:
+            result = _json.loads(r.read())
+        return {'ok': True, 'post_id': result.get('id', '')}
+
+    # ── Email Sequences ─────────────────────────────────────────────────── #
+
+    @app.route('/admin/sequences')
+    @login_required
+    def sequences_admin():
+        if not current_user.is_admin:
+            return redirect('/')
+        seqs = EmailSequence.query.order_by(EmailSequence.created_at.desc()).all()
+        return render_template('sequences_admin.html', sequences=seqs)
+
+    @app.route('/api/sequences', methods=['GET'])
+    @login_required
+    def list_sequences():
+        seqs = EmailSequence.query.order_by(EmailSequence.created_at.desc()).all()
+        return jsonify([s.to_dict(include_counts=True) for s in seqs])
+
+    @app.route('/api/sequences', methods=['POST'])
+    @login_required
+    def create_sequence():
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        data = request.get_json(force=True)
+        if not data.get('name') or not data.get('trigger_stage'):
+            return jsonify({'error': 'Name and trigger stage are required'}), 400
+        seq = EmailSequence(name=data['name'], trigger_stage=data['trigger_stage'])
+        db.session.add(seq)
+        db.session.commit()
+        return jsonify(seq.to_dict()), 201
+
+    @app.route('/api/sequences/<int:seq_id>', methods=['PATCH'])
+    @login_required
+    def update_sequence(seq_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        seq = EmailSequence.query.get_or_404(seq_id)
+        data = request.get_json(force=True)
+        if 'name' in data:
+            seq.name = data['name']
+        if 'trigger_stage' in data:
+            seq.trigger_stage = data['trigger_stage']
+        if 'is_active' in data:
+            seq.is_active = bool(data['is_active'])
+        db.session.commit()
+        return jsonify(seq.to_dict(include_counts=True))
+
+    @app.route('/api/sequences/<int:seq_id>', methods=['DELETE'])
+    @login_required
+    def delete_sequence(seq_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        seq = EmailSequence.query.get_or_404(seq_id)
+        db.session.delete(seq)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @app.route('/api/sequences/<int:seq_id>/steps', methods=['POST'])
+    @login_required
+    def add_sequence_step(seq_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        seq = EmailSequence.query.get_or_404(seq_id)
+        data = request.get_json(force=True)
+        step = EmailSequenceStep(
+            sequence_id=seq_id,
+            step_order=len(seq.steps),
+            day_offset=int(data.get('day_offset', 1)),
+            subject=data.get('subject', ''),
+            body=data.get('body', ''),
+        )
+        db.session.add(step)
+        db.session.commit()
+        return jsonify(step.to_dict()), 201
+
+    @app.route('/api/sequences/steps/<int:step_id>', methods=['PATCH'])
+    @login_required
+    def update_sequence_step(step_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        step = EmailSequenceStep.query.get_or_404(step_id)
+        data = request.get_json(force=True)
+        for field in ['day_offset', 'subject', 'body']:
+            if field in data:
+                setattr(step, field, data[field])
+        db.session.commit()
+        return jsonify(step.to_dict())
+
+    @app.route('/api/sequences/steps/<int:step_id>', methods=['DELETE'])
+    @login_required
+    def delete_sequence_step(step_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        step = EmailSequenceStep.query.get_or_404(step_id)
+        db.session.delete(step)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @app.route('/api/sequences/<int:seq_id>/process-now', methods=['POST'])
+    @login_required
+    def process_sequence_now(seq_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        _process_sequence_emails(app)
+        return jsonify({'ok': True})
+
+    # ── Landing Pages ───────────────────────────────────────────────────── #
+
+    @app.route('/admin/landing-pages')
+    @login_required
+    def landing_pages_admin():
+        if not current_user.is_admin:
+            return redirect('/')
+        pages = LandingPage.query.order_by(LandingPage.created_at.desc()).all()
+        return render_template('landing_pages.html', pages=pages)
+
+    @app.route('/admin/landing-pages/<int:page_id>/edit')
+    @login_required
+    def landing_page_edit(page_id):
+        if not current_user.is_admin:
+            return redirect('/')
+        page = LandingPage.query.get_or_404(page_id)
+        return render_template('landing_page_editor.html', page=page)
+
+    @app.route('/api/landing-pages', methods=['POST'])
+    @login_required
+    def create_landing_page():
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        data = request.get_json(force=True)
+        if not data.get('title'):
+            return jsonify({'error': 'Title is required'}), 400
+        import re, uuid
+        raw = data.get('slug') or re.sub(r'[^a-z0-9]+', '-', data['title'].lower()).strip('-')
+        slug = raw[:80]
+        if LandingPage.query.filter_by(slug=slug).first():
+            slug = slug[:74] + '-' + uuid.uuid4().hex[:5]
+        page = LandingPage(
+            slug=slug,
+            title=data['title'],
+            subtitle=data.get('subtitle') or None,
+            body=data.get('body') or None,
+            bg_color=data.get('bg_color', '#ffffff'),
+            text_color=data.get('text_color', '#111111'),
+            button_text=data.get('button_text', 'Get in Touch'),
+            button_color=data.get('button_color', '#AD0304'),
+            show_phone=bool(data.get('show_phone', True)),
+            show_message=bool(data.get('show_message', True)),
+            pipeline_stage=data.get('pipeline_stage') or None,
+        )
+        db.session.add(page)
+        db.session.commit()
+        return jsonify(page.to_dict()), 201
+
+    @app.route('/api/landing-pages/<int:page_id>', methods=['PATCH'])
+    @login_required
+    def update_landing_page(page_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        page = LandingPage.query.get_or_404(page_id)
+        data = request.get_json(force=True)
+        for field in ['title', 'subtitle', 'body', 'bg_color', 'text_color',
+                      'button_text', 'button_color', 'pipeline_stage']:
+            if field in data:
+                setattr(page, field, data[field] or None if field in ('subtitle', 'body', 'pipeline_stage') else data[field])
+        for field in ['show_phone', 'show_message', 'is_active']:
+            if field in data:
+                setattr(page, field, bool(data[field]))
+        db.session.commit()
+        return jsonify(page.to_dict())
+
+    @app.route('/api/landing-pages/<int:page_id>', methods=['DELETE'])
+    @login_required
+    def delete_landing_page(page_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        page = LandingPage.query.get_or_404(page_id)
+        db.session.delete(page)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @app.route('/api/landing-pages/<int:page_id>/submissions')
+    @login_required
+    def get_lp_submissions(page_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        subs = LandingPageSubmission.query.filter_by(page_id=page_id)\
+            .order_by(LandingPageSubmission.created_at.desc()).all()
+        return jsonify([s.to_dict() for s in subs])
+
+    @app.route('/p/<slug>')
+    def public_landing_page(slug):
+        page = LandingPage.query.filter_by(slug=slug, is_active=True).first_or_404()
+        return render_template('landing_page_public.html', page=page)
+
+    @app.route('/p/<slug>/submit', methods=['POST'])
+    def submit_landing_page(slug):
+        page = LandingPage.query.filter_by(slug=slug, is_active=True).first_or_404()
+        data = request.get_json(force=True)
+        if not data.get('name') or not data.get('email'):
+            return jsonify({'error': 'Name and email are required'}), 400
+
+        email = data['email'].strip().lower()
+        name  = data['name'].strip()
+        parts = name.rsplit(' ', 1)
+        first = parts[0]
+        last  = parts[1] if len(parts) > 1 else ''
+
+        # Match or create contact
+        contact = Contact.query.filter(
+            db.func.lower(Contact.email) == email
+        ).first()
+        if not contact:
+            contact = Contact(
+                first_name=first,
+                last_name=last,
+                email=email,
+                phone=(data.get('phone') or '').strip() or None,
+                pipeline_stage=page.pipeline_stage or None,
+            )
+            db.session.add(contact)
+        else:
+            if page.pipeline_stage and not contact.pipeline_stage:
+                contact.pipeline_stage = page.pipeline_stage
+
+        db.session.flush()
+
+        activity = Activity(
+            contact_id=contact.id,
+            activity_type='note',
+            notes=f'Submitted landing page "{page.title}"' +
+                  (f': {data["message"]}' if data.get('message') else ''),
+            created_by=None,
+        )
+        db.session.add(activity)
+
+        sub = LandingPageSubmission(
+            page_id=page.id,
+            name=name,
+            email=email,
+            phone=(data.get('phone') or '').strip() or None,
+            message=(data.get('message') or '').strip() or None,
+            contact_id=contact.id,
+        )
+        db.session.add(sub)
+        db.session.commit()
+        return jsonify({'ok': True}), 201
+
+    # ── Meeting Scheduler ───────────────────────────────────────────────── #
+
+    @app.route('/book')
+    def public_book():
+        return render_template('book.html')
+
+    @app.route('/admin/scheduler')
+    @login_required
+    def scheduler_admin():
+        if not current_user.is_admin:
+            return redirect('/')
+        rules = AvailabilityRule.query.order_by(AvailabilityRule.day_of_week).all()
+        return render_template('scheduler_admin.html', rules=rules)
+
+    @app.route('/api/scheduler/availability', methods=['GET'])
+    @login_required
+    def get_availability():
+        rules = AvailabilityRule.query.order_by(AvailabilityRule.day_of_week).all()
+        return jsonify([r.to_dict() for r in rules])
+
+    @app.route('/api/scheduler/availability', methods=['POST'])
+    @login_required
+    def save_availability():
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        data = request.get_json(force=True)
+        # data = list of {day_of_week, start_hour, end_hour, slot_minutes, enabled}
+        AvailabilityRule.query.delete()
+        for item in data:
+            if item.get('enabled'):
+                db.session.add(AvailabilityRule(
+                    day_of_week=int(item['day_of_week']),
+                    start_hour=int(item['start_hour']),
+                    end_hour=int(item['end_hour']),
+                    slot_minutes=int(item.get('slot_minutes', 30)),
+                ))
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @app.route('/api/scheduler/slots')
+    def get_slots():
+        from datetime import date as _date, time as _time, timedelta
+        date_str = request.args.get('date', '')
+        try:
+            req_date = _date.fromisoformat(date_str)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid date'}), 400
+
+        dow = req_date.weekday()  # 0=Mon
+        rule = AvailabilityRule.query.filter_by(day_of_week=dow).first()
+        if not rule:
+            return jsonify([])
+
+        # Existing confirmed bookings for that date
+        booked_starts = {
+            b.start_time.strftime('%H:%M')
+            for b in Booking.query.filter_by(date=req_date, status='confirmed').all()
+        }
+
+        slots = []
+        slot_delta = timedelta(minutes=rule.slot_minutes)
+        from datetime import datetime as _dt
+        current = _dt.combine(req_date, _time(rule.start_hour, 0))
+        end_dt  = _dt.combine(req_date, _time(rule.end_hour, 0))
+        while current + slot_delta <= end_dt:
+            label = current.strftime('%H:%M')
+            if label not in booked_starts:
+                slots.append(label)
+            current += slot_delta
+
+        return jsonify(slots)
+
+    @app.route('/api/scheduler/book', methods=['POST'])
+    def create_booking():
+        from datetime import date as _date, time as _time, timedelta
+        data = request.get_json(force=True)
+        required = ['date', 'start_time', 'name', 'email']
+        missing = [f for f in required if not data.get(f)]
+        if missing:
+            return jsonify({'error': f'Missing: {", ".join(missing)}'}), 400
+
+        try:
+            req_date = _date.fromisoformat(data['date'])
+        except ValueError:
+            return jsonify({'error': 'Invalid date'}), 400
+
+        dow = req_date.weekday()
+        rule = AvailabilityRule.query.filter_by(day_of_week=dow).first()
+        if not rule:
+            return jsonify({'error': 'No availability on that day'}), 409
+
+        try:
+            h, m = map(int, data['start_time'].split(':'))
+            start = _time(h, m)
+        except Exception:
+            return jsonify({'error': 'Invalid time'}), 400
+
+        from datetime import datetime as _dt
+        end_dt = (_dt.combine(req_date, start) + timedelta(minutes=rule.slot_minutes)).time()
+
+        # Check not already booked
+        conflict = Booking.query.filter_by(
+            date=req_date, start_time=start, status='confirmed'
+        ).first()
+        if conflict:
+            return jsonify({'error': 'That slot is no longer available'}), 409
+
+        booking = Booking(
+            date=req_date,
+            start_time=start,
+            end_time=end_dt,
+            name=data['name'].strip(),
+            email=data['email'].strip().lower(),
+            phone=(data.get('phone') or '').strip() or None,
+            notes=(data.get('notes') or '').strip() or None,
+        )
+        db.session.add(booking)
+        db.session.commit()
+
+        # Send confirmation email
+        try:
+            sg_key = os.environ.get('SENDGRID_API_KEY') or (
+                os.environ.get('SMTP_PASSWORD', '').startswith('SG.') and os.environ.get('SMTP_PASSWORD')
+            ) or None
+            from_email = os.environ.get('MAIL_FROM', os.environ.get('SMTP_USERNAME', ''))
+            if sg_key and from_email:
+                day_label = req_date.strftime('%A, %B %-d, %Y')
+                time_label = _dt.combine(req_date, start).strftime('%-I:%M %p')
+                html = (
+                    f'<p>Hi {booking.name},</p>'
+                    f'<p>Your meeting with JBJ Management has been confirmed for '
+                    f'<strong>{day_label} at {time_label}</strong>.</p>'
+                    f'<p>If you need to cancel or reschedule, please reply to this email.</p>'
+                    f'<p>— JBJ Management</p>'
+                )
+                import json as _json2
+                import urllib.request as _urlreq2
+                payload = {
+                    'personalizations': [{'to': [{'email': booking.email, 'name': booking.name}]}],
+                    'from': {'email': from_email},
+                    'subject': f'Meeting confirmed — {day_label} at {time_label}',
+                    'content': [{'type': 'text/html', 'value': html}],
+                }
+                req = _urlreq2.Request(
+                    'https://api.sendgrid.com/v3/mail/send',
+                    data=_json2.dumps(payload).encode(),
+                    headers={
+                        'Authorization': f'Bearer {sg_key}',
+                        'Content-Type': 'application/json',
+                    },
+                    method='POST',
+                )
+                _urlreq2.urlopen(req, timeout=10)
+        except Exception:
+            pass  # Booking is saved; email failure is non-fatal
+
+        return jsonify({'ok': True, 'booking': booking.to_dict()}), 201
+
+    @app.route('/api/scheduler/bookings')
+    @login_required
+    def list_bookings():
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        from datetime import date as _date
+        upcoming = Booking.query.filter(
+            Booking.date >= _date.today()
+        ).order_by(Booking.date, Booking.start_time).all()
+        past = Booking.query.filter(
+            Booking.date < _date.today()
+        ).order_by(Booking.date.desc(), Booking.start_time).limit(50).all()
+        return jsonify({'upcoming': [b.to_dict() for b in upcoming],
+                        'past': [b.to_dict() for b in past]})
+
+    @app.route('/api/scheduler/bookings/<int:booking_id>', methods=['PATCH'])
+    @login_required
+    def update_booking(booking_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'Admins only'}), 403
+        booking = Booking.query.get_or_404(booking_id)
+        data = request.get_json(force=True)
+        if 'status' in data:
+            booking.status = data['status']
+        db.session.commit()
+        return jsonify(booking.to_dict())
 
     return app
 

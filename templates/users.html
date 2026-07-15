@@ -36,19 +36,86 @@
     <section class="card">
       <h3>Existing users</h3>
       <table>
-        <thead><tr><th>Username</th><th>Display name</th><th>Admin</th><th>Created</th><th></th></tr></thead>
+        <thead><tr><th>Username</th><th>Display name</th><th>Admin</th><th>Can post social</th><th>Created</th><th></th></tr></thead>
         <tbody>
           {% for u in users %}
           <tr>
             <td>{{ u.username }}</td>
             <td>{{ u.display_name }}</td>
             <td>{{ 'Yes' if u.is_admin else '' }}</td>
+            <td>
+              {% if u.is_admin %}
+                <span class="muted" style="font-size:12px;">Always (admin)</span>
+              {% else %}
+                <button class="btn btn-sm toggle-social-btn"
+                        data-user-id="{{ u.id }}"
+                        data-username="{{ u.username }}"
+                        data-enabled="{{ 'true' if u.can_post_social else 'false' }}"
+                        style="{% if u.can_post_social %}background:var(--green);color:#fff;border-color:var(--green);{% endif %}">
+                  {% if u.can_post_social %}<i class="fas fa-check"></i> Allowed{% else %}<i class="fas fa-ban"></i> Blocked{% endif %}
+                </button>
+              {% endif %}
+            </td>
             <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
             <td><button class="btn reset-password-btn" data-user-id="{{ u.id }}" data-username="{{ u.username }}"><i class="fas fa-key"></i> Reset Password</button></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+    </section>
+
+    <section class="card" style="max-width:520px">
+      <h3><i class="fas fa-share-nodes"></i> Social Connections</h3>
+      <p class="muted" style="margin:0 0 16px;font-size:13px;">Connect your LinkedIn and Facebook accounts to post flyers directly from the Flyer Builder.</p>
+
+      {% set li = social.get('linkedin') %}
+      <div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid rgba(0,0,0,0.07)">
+        <i class="fab fa-linkedin" style="font-size:24px;color:#0a66c2;width:28px;text-align:center;"></i>
+        <div style="flex:1">
+          <div style="font-weight:600;">LinkedIn</div>
+          {% if li %}
+            <div class="muted" style="font-size:12px;">Connected as <strong>{{ li.account_name }}</strong></div>
+          {% elif li_configured %}
+            <div class="muted" style="font-size:12px;">Not connected</div>
+          {% else %}
+            <div class="muted" style="font-size:12px;">Set LINKEDIN_CLIENT_ID + LINKEDIN_CLIENT_SECRET in .env to enable</div>
+          {% endif %}
+        </div>
+        {% if li %}
+          <a href="/social/linkedin/disconnect" class="btn" style="color:#9b1c1c;">Disconnect</a>
+        {% elif li_configured %}
+          <a href="/social/linkedin/connect" class="btn btn-primary"><i class="fas fa-plug"></i> Connect</a>
+        {% endif %}
+      </div>
+
+      {% set fb = social.get('facebook') %}
+      <div style="display:flex;align-items:center;gap:14px;padding:12px 0">
+        <i class="fab fa-facebook" style="font-size:24px;color:#1877f2;width:28px;text-align:center;"></i>
+        <div style="flex:1">
+          <div style="font-weight:600;">Facebook</div>
+          {% if fb %}
+            <div class="muted" style="font-size:12px;">Connected as <strong>{{ fb.account_name }}</strong>{% if fb.page_name %} · Page: <strong>{{ fb.page_name }}</strong>{% endif %}</div>
+          {% elif fb_configured %}
+            <div class="muted" style="font-size:12px;">Not connected</div>
+          {% else %}
+            <div class="muted" style="font-size:12px;">Set FACEBOOK_APP_ID + FACEBOOK_APP_SECRET in .env to enable</div>
+          {% endif %}
+        </div>
+        {% if fb %}
+          <a href="/social/facebook/disconnect" class="btn" style="color:#9b1c1c;">Disconnect</a>
+        {% elif fb_configured %}
+          <a href="/social/facebook/connect" class="btn btn-primary"><i class="fas fa-plug"></i> Connect</a>
+        {% endif %}
+      </div>
+
+      {% with msgs = get_flashed_messages(with_categories=true) %}{% endwith %}
+      {% if request.args.get('social_connected') %}
+        <p style="color:green;margin-top:10px;font-size:13px;"><i class="fas fa-check-circle"></i> {{ request.args.get('social_connected')|title }} connected successfully.</p>
+      {% elif request.args.get('social_disconnected') %}
+        <p style="color:var(--muted);margin-top:10px;font-size:13px;">{{ request.args.get('social_disconnected')|title }} disconnected.</p>
+      {% elif request.args.get('social_error') %}
+        <p style="color:#9b1c1c;margin-top:10px;font-size:13px;"><i class="fas fa-exclamation-circle"></i> {{ request.args.get('social_error') }}</p>
+      {% endif %}
     </section>
   </main>
 
@@ -107,6 +174,23 @@
 
     document.getElementById('closeResetModal').addEventListener('click', () => {
       resetModal.style.display = 'none';
+    });
+
+    document.querySelectorAll('.toggle-social-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const userId = btn.dataset.userId;
+        const res = await fetch(`/api/users/${userId}/toggle-social`, { method: 'POST' });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) { alert(j.error || 'Could not update permission.'); return; }
+        const enabled = j.can_post_social;
+        btn.dataset.enabled = enabled ? 'true' : 'false';
+        btn.style.background = enabled ? 'var(--green)' : '';
+        btn.style.color = enabled ? '#fff' : '';
+        btn.style.borderColor = enabled ? 'var(--green)' : '';
+        btn.innerHTML = enabled
+          ? '<i class="fas fa-check"></i> Allowed'
+          : '<i class="fas fa-ban"></i> Blocked';
+      });
     });
 
     document.getElementById('resetPasswordConfirmBtn').addEventListener('click', async () => {

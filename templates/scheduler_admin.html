@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Meeting Scheduler — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .avail-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid rgba(0,0,0,0.06); flex-wrap:wrap; }
+    .avail-row:last-child { border-bottom:none; }
+    .avail-day-label { width:96px; font-weight:600; font-size:14px; }
+    .avail-row input[type=number] { width:60px; padding:6px 8px; border-radius:8px; border:1px solid rgba(148,153,156,0.4); font-size:14px; font-family:inherit; }
+    .avail-row select { padding:6px 8px; border-radius:8px; border:1px solid rgba(148,153,156,0.4); font-size:14px; font-family:inherit; }
+    .avail-row .avail-fields { display:flex; align-items:center; gap:8px; opacity:1; transition:opacity .15s; }
+    .avail-row .avail-fields.disabled { opacity:0.35; pointer-events:none; }
+    .booking-row { display:grid; grid-template-columns:90px 1fr 1fr 1fr 100px; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(0,0,0,0.06); font-size:14px; }
+    .booking-row:last-child { border-bottom:none; }
+    .booking-row-head { font-weight:700; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+    .status-badge { font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; }
+    .status-confirmed { background:rgba(30,123,52,0.12); color:#1E7B34; }
+    .status-cancelled { background:rgba(0,0,0,0.07); color:var(--muted); }
+    .booking-link { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:8px; border:1.5px solid rgba(148,153,156,0.3); font-size:13px; font-weight:600; text-decoration:none; color:var(--text,#111); }
+    .booking-link:hover { border-color:var(--primary,#AD0304); color:var(--primary,#AD0304); }
+    .booking-link i { color:var(--primary,#AD0304); }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/#search" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>Meeting Scheduler</h2>
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-area">
+
+    <!-- Public link -->
+    <section class="card" style="max-width:600px;">
+      <h3><i class="fas fa-link"></i> Public Booking Link</h3>
+      <p class="muted" style="margin:0 0 12px;font-size:13px;">Share this link with contacts so they can book a meeting directly.</p>
+      <a class="booking-link" id="publicBookLink" href="/book" target="_blank">
+        <i class="fas fa-calendar-plus"></i>
+        <span id="publicBookUrl"></span>
+      </a>
+      <button class="btn btn-sm" style="margin-left:10px;" onclick="navigator.clipboard.writeText(document.getElementById('publicBookUrl').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)">Copy</button>
+    </section>
+
+    <!-- Availability settings -->
+    <section class="card" style="max-width:600px;">
+      <h3><i class="fas fa-clock"></i> Availability</h3>
+      <p class="muted" style="margin:0 0 16px;font-size:13px;">Set which days and hours contacts can book meetings.</p>
+
+      <div id="availRows">
+        {% set rule_map = {} %}
+        {% for r in rules %}{% set _ = rule_map.update({r.day_of_week: r}) %}{% endfor %}
+        {% set day_names = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
+        {% for i in range(7) %}
+        {% set r = rule_map.get(i) %}
+        <div class="avail-row" data-dow="{{ i }}">
+          <label style="display:flex;align-items:center;gap:8px;width:130px;cursor:pointer;">
+            <input type="checkbox" class="avail-check" {% if r %}checked{% endif %}>
+            <span class="avail-day-label">{{ day_names[i] }}</span>
+          </label>
+          <div class="avail-fields {% if not r %}disabled{% endif %}">
+            <span style="font-size:13px;color:var(--muted);">From</span>
+            <input type="number" class="avail-start" min="0" max="23" value="{{ r.start_hour if r else 9 }}">
+            <span style="font-size:13px;color:var(--muted);">to</span>
+            <input type="number" class="avail-end" min="1" max="24" value="{{ r.end_hour if r else 17 }}">
+            <span style="font-size:13px;color:var(--muted);">Slots:</span>
+            <select class="avail-slot">
+              {% for mins in [15, 30, 45, 60] %}
+              <option value="{{ mins }}" {% if r and r.slot_minutes == mins %}selected{% elif not r and mins == 30 %}selected{% endif %}>{{ mins }} min</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div style="margin-top:16px;display:flex;align-items:center;gap:10px;">
+        <button id="saveAvailBtn" class="btn btn-primary"><i class="fas fa-check"></i> Save Availability</button>
+        <span id="saveAvailStatus" class="muted" style="font-size:13px;"></span>
+      </div>
+    </section>
+
+    <!-- Bookings list -->
+    <section class="card">
+      <h3><i class="fas fa-calendar-days"></i> Upcoming Bookings</h3>
+      <div id="upcomingList"><div class="muted" style="padding:20px 0;font-size:14px;">Loading…</div></div>
+
+      <h3 style="margin-top:28px;"><i class="fas fa-history"></i> Past Bookings</h3>
+      <div id="pastList"><div class="muted" style="padding:20px 0;font-size:14px;">Loading…</div></div>
+    </section>
+
+  </main>
+
+  <script>
+    document.getElementById('publicBookUrl').textContent = window.location.origin + '/book'
+
+    // Availability toggle
+    document.querySelectorAll('.avail-check').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const fields = cb.closest('.avail-row').querySelector('.avail-fields')
+        fields.classList.toggle('disabled', !cb.checked)
+      })
+    })
+
+    document.getElementById('saveAvailBtn').addEventListener('click', async () => {
+      const status = document.getElementById('saveAvailStatus')
+      status.textContent = 'Saving…'
+      const rows = document.querySelectorAll('#availRows .avail-row')
+      const data = Array.from(rows).map(row => ({
+        day_of_week: parseInt(row.dataset.dow),
+        enabled: row.querySelector('.avail-check').checked,
+        start_hour: parseInt(row.querySelector('.avail-start').value),
+        end_hour: parseInt(row.querySelector('.avail-end').value),
+        slot_minutes: parseInt(row.querySelector('.avail-slot').value),
+      }))
+      const res = await fetch('/api/scheduler/availability', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(data),
+      })
+      status.textContent = res.ok ? 'Saved!' : 'Error saving.'
+      setTimeout(() => status.textContent = '', 2000)
+    })
+
+    function fmtTime(t) {
+      const [h,m] = t.split(':').map(Number)
+      const ampm = h >= 12 ? 'PM' : 'AM'
+      return `${h%12||12}:${String(m).padStart(2,'0')} ${ampm}`
+    }
+    function fmtDate(iso) {
+      return new Date(iso + 'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})
+    }
+
+    function bookingRowHtml(b) {
+      const statusCls = b.status === 'confirmed' ? 'status-confirmed' : 'status-cancelled'
+      const cancelBtn = b.status === 'confirmed'
+        ? `<button class="btn btn-sm cancel-btn" data-id="${b.id}" style="color:#9b1c1c;">Cancel</button>`
+        : ''
+      return `<div class="booking-row" data-id="${b.id}">
+        <div>${fmtDate(b.date)}</div>
+        <div>${fmtTime(b.start_time)} – ${fmtTime(b.end_time)}</div>
+        <div><strong>${b.name}</strong><br><span class="muted" style="font-size:12px;">${b.email}</span>${b.phone ? `<br><span class="muted" style="font-size:12px;">${b.phone}</span>` : ''}</div>
+        <div class="muted" style="font-size:13px;">${b.notes || ''}</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span class="status-badge ${statusCls}">${b.status}</span>
+          ${cancelBtn}
+        </div>
+      </div>`
+    }
+
+    async function loadBookings() {
+      const res = await fetch('/api/scheduler/bookings')
+      const data = await res.json()
+      const head = `<div class="booking-row booking-row-head"><div>Date</div><div>Time</div><div>Name / Email</div><div>Notes</div><div>Status</div></div>`
+
+      const upEl = document.getElementById('upcomingList')
+      const paEl = document.getElementById('pastList')
+
+      upEl.innerHTML = data.upcoming.length
+        ? head + data.upcoming.map(bookingRowHtml).join('')
+        : '<div class="muted" style="padding:20px 0;font-size:14px;">No upcoming bookings.</div>'
+
+      paEl.innerHTML = data.past.length
+        ? head + data.past.map(bookingRowHtml).join('')
+        : '<div class="muted" style="padding:20px 0;font-size:14px;">No past bookings.</div>'
+
+      document.querySelectorAll('.cancel-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if(!confirm('Cancel this booking?')) return
+          btn.disabled = true
+          const res = await fetch(`/api/scheduler/bookings/${btn.dataset.id}`, {
+            method: 'PATCH',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({status:'cancelled'}),
+          })
+          if(res.ok) loadBookings()
+          else btn.disabled = false
+        })
+      })
+    }
+
+    loadBookings()
+  </script>
+</body>
+</html>

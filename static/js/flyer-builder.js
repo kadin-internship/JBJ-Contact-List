@@ -527,6 +527,80 @@ function setupVisibilityToggle() {
   })
 }
 
+function setupShareSocialModal() {
+  const modal = el('fbShareSocialModal')
+  const shareBtn = el('fbShareSocialBtn')
+  if (!modal || !shareBtn) return
+
+  shareBtn.addEventListener('click', async () => {
+    el('fbShareStatus').textContent = ''
+    el('fbSharePostBtn').disabled = false
+    modal.style.display = ''
+    // Check which platforms are connected
+    try {
+      const res = await fetch('/api/social/status')
+      const status = await res.json()
+      const liCheck = el('fbShareLinkedIn')
+      const fbCheck = el('fbShareFacebook')
+      const liLabel = el('fbShareLinkedInLabel')
+      const fbLabel = el('fbShareFacebookLabel')
+
+      if (status.linkedin && status.linkedin.connected) {
+        liCheck.disabled = false
+        liCheck.checked  = true
+        el('fbShareLinkedInStatus').textContent = `@${status.linkedin.account_name || 'connected'}`
+        liLabel.title = ''
+      }
+      if (status.facebook && status.facebook.connected) {
+        fbCheck.disabled = false
+        fbCheck.checked  = true
+        const pageName = status.facebook.page_name || status.facebook.account_name || 'connected'
+        el('fbShareFacebookStatus').textContent = pageName
+        fbLabel.title = ''
+      }
+    } catch { /* leave as-is */ }
+  })
+
+  el('fbCloseShareSocialModal').addEventListener('click', () => { modal.style.display = 'none' })
+  modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none' })
+
+  el('fbSharePostBtn').addEventListener('click', async () => {
+    const caption   = (el('fbShareCaption').value || '').trim()
+    const platforms = []
+    if (el('fbShareLinkedIn').checked)  platforms.push('linkedin')
+    if (el('fbShareFacebook').checked) platforms.push('facebook')
+
+    if (!caption)    { el('fbShareStatus').textContent = 'Add a caption first.'; return }
+    if (!platforms.length) { el('fbShareStatus').textContent = 'Select at least one platform.'; return }
+
+    el('fbSharePostBtn').disabled = true
+    el('fbShareStatus').textContent = 'Rendering and posting…'
+
+    try {
+      const res = await fetch('/api/social/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_id: window.FLYER_TEMPLATE_ID,
+          elements: state.elements,
+          background: state.background,
+          caption,
+          platforms,
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok) { el('fbShareStatus').textContent = j.error || 'Post failed.'; return }
+
+      const msgs = Object.entries(j.results).map(([platform, result]) =>
+        result.ok ? `✓ ${platform}` : `✗ ${platform}: ${result.error}`
+      ).join('  |  ')
+      el('fbShareStatus').textContent = msgs
+      if (j.ok) setTimeout(() => { modal.style.display = 'none' }, 2000)
+    } catch { el('fbShareStatus').textContent = 'Could not reach the server.' }
+    finally { el('fbSharePostBtn').disabled = false }
+  })
+}
+
 function init() {
   applyCanvasSize()
   renderCanvas()
@@ -537,6 +611,7 @@ function init() {
   setupCanvasSizeMenu()
   setupRenderModal()
   setupSendModal()
+  setupShareSocialModal()
   setupVisibilityToggle()
   el('fbSaveBtn').addEventListener('click', saveTemplate)
   el('fbNameInput').addEventListener('input', markDirty)

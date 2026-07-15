@@ -28,6 +28,9 @@
         </button>
         <button id="fbSaveBtn" class="btn"><i class="fas fa-check"></i> Save</button>
         <button id="fbSendBtn" class="btn"><i class="fas fa-paper-plane"></i> Send to Contacts</button>
+        {% if current_user.is_admin or current_user.can_post_social %}
+        <button id="fbShareSocialBtn" class="btn"><i class="fas fa-share-nodes"></i> Post to Social</button>
+        {% endif %}
         <button id="fbRenderBtn" class="btn btn-primary"><i class="fas fa-download"></i> Export PNG</button>
       </div>
     </div>
@@ -196,6 +199,38 @@
     </div>
   </div>
 
+  <!-- Post to Social modal -->
+  <div id="fbShareSocialModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" style="max-width:480px;">
+      <button id="fbCloseShareSocialModal" class="close">×</button>
+      <h3><i class="fas fa-share-nodes"></i> Post to Social</h3>
+      <p class="muted" style="margin:0 0 14px;font-size:13px;">Your flyer will be rendered and posted as an image.</p>
+
+      <label style="font-weight:600;display:block;margin-bottom:6px;">Platforms</label>
+      <div class="social-platform-row">
+        <label id="fbShareLinkedInLabel" class="social-platform-toggle" title="Connect LinkedIn in Admin → Social to enable">
+          <input type="checkbox" id="fbShareLinkedIn" disabled>
+          <i class="fab fa-linkedin"></i> LinkedIn
+          <span id="fbShareLinkedInStatus" class="social-status">Not connected</span>
+        </label>
+        <label id="fbShareFacebookLabel" class="social-platform-toggle" title="Connect Facebook in Admin → Social to enable">
+          <input type="checkbox" id="fbShareFacebook" disabled>
+          <i class="fab fa-facebook"></i> Facebook
+          <span id="fbShareFacebookStatus" class="social-status">Not connected</span>
+        </label>
+      </div>
+
+      <label for="fbShareCaption" style="font-weight:600;display:block;margin:14px 0 6px;">Caption</label>
+      <textarea id="fbShareCaption" rows="4" placeholder="Write a caption for your post…" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+
+      <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
+        <button id="fbSharePostBtn" class="btn btn-primary"><i class="fas fa-share-nodes"></i> Post</button>
+        <span id="fbShareStatus" class="muted" style="font-size:13px;"></span>
+      </div>
+      <p class="muted" style="margin-top:14px;font-size:12px;">No platforms connected? Go to <a href="/admin/users">Admin → Social Connections</a> to link your accounts.</p>
+    </div>
+  </div>
+
   <!-- File input at body level so programmatic .click() is never blocked
        by a parent overflow or scroll container -->
   <input type="file" id="fbImageUpload" accept="image/*" style="display:none;">
@@ -203,6 +238,7 @@
   <script>
     window.FLYER_TEMPLATE_ID = {{ template.id }}
     window.FLYER_TEMPLATE = {{ template.to_dict()|tojson }}
+    window.CAN_POST_SOCIAL = {{ (current_user.is_admin or current_user.can_post_social)|tojson }}
   </script>
   <script src="/static/js/flyer-builder.js"></script>
 </body>

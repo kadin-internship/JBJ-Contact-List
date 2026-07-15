@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Campaign History — JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="/#search" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h2>Campaign History</h2>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:32px;">
+    <p class="muted" style="margin-bottom:20px;font-size:13px;">
+      Opens and clicks are tracked via SendGrid webhooks.
+      Configure the webhook URL in SendGrid → Settings → Mail Settings → Event Webhook:
+      <code style="background:#f4f4f4;padding:2px 6px;border-radius:4px;">{{ request.host_url }}webhooks/sendgrid</code>
+    </p>
+
+    <div id="sendsTable">
+      <div class="muted" style="padding:40px;text-align:center;">Loading…</div>
+    </div>
+    <div id="sendsPagination" style="display:flex;gap:8px;margin-top:16px;align-items:center;"></div>
+  </main>
+
+  <script>
+  let currentPage = 1
+
+  function pct(n, total){ return total ? Math.round(n / total * 100) : 0 }
+
+  function renderBar(value, max, color){
+    const w = max ? Math.round(value / max * 100) : 0
+    return `<div style="display:flex;align-items:center;gap:8px;">
+      <div style="flex:1;height:6px;background:#eee;border-radius:4px;overflow:hidden;">
+        <div style="width:${w}%;height:100%;background:${color};border-radius:4px;"></div>
+      </div>
+      <span style="font-size:12px;color:var(--muted);min-width:32px;text-align:right;">${value}</span>
+    </div>`
+  }
+
+  async function loadSends(page){
+    const table = document.getElementById('sendsTable')
+    table.innerHTML = '<div class="muted" style="padding:40px;text-align:center;">Loading…</div>'
+    const res  = await fetch(`/api/email-sends?page=${page}`)
+    const data = await res.json()
+    const sends = data.sends || []
+
+    if(!sends.length){
+      table.innerHTML = '<div class="muted" style="padding:40px;text-align:center;">No campaigns sent yet.</div>'
+      return
+    }
+
+    table.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+          <tr style="text-align:left;border-bottom:2px solid rgba(0,0,0,0.1);">
+            <th style="padding:10px 12px;">Subject</th>
+            <th style="padding:10px 12px;">Sent by</th>
+            <th style="padding:10px 12px;">Date</th>
+            <th style="padding:10px 12px;">Recipients</th>
+            <th style="padding:10px 12px;">Opens</th>
+            <th style="padding:10px 12px;">Clicks</th>
+            <th style="padding:10px 12px;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sends.map(s => {
+            const opens  = (s.events.open  || {}).unique || 0
+            const clicks = (s.events.click || {}).unique || 0
+            const recipients = s.recipient_count || 0
+            const date = s.started_at ? new Date(s.started_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'
+            const statusColor = s.status === 'completed' ? 'var(--green)' : s.status === 'failed' ? '#c0392b' : 'var(--amber)'
+            return `<tr style="border-bottom:1px solid rgba(0,0,0,0.06);">
+              <td style="padding:12px;">${s.subject || '(no subject)'}</td>
+              <td style="padding:12px;color:var(--muted);">${s.sent_by_name || ''}</td>
+              <td style="padding:12px;color:var(--muted);white-space:nowrap;">${date}</td>
+              <td style="padding:12px;">${recipients.toLocaleString()}</td>
+              <td style="padding:12px;min-width:120px;">
+                ${renderBar(opens, recipients, 'var(--blue)')}
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;">${pct(opens,recipients)}% unique open rate</div>
+              </td>
+              <td style="padding:12px;min-width:120px;">
+                ${renderBar(clicks, recipients, 'var(--green)')}
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;">${pct(clicks,recipients)}% click rate</div>
+              </td>
+              <td style="padding:12px;"><span style="color:${statusColor};font-weight:600;font-size:12px;">${s.status||''}</span></td>
+            </tr>`
+          }).join('')}
+        </tbody>
+      </table>
+    `
+
+    // Pagination
+    const pages = Math.ceil(data.total / data.per_page)
+    const pag = document.getElementById('sendsPagination')
+    pag.innerHTML = ''
+    if(pages > 1){
+      for(let i = 1; i <= pages; i++){
+        const btn = document.createElement('button')
+        btn.className = 'btn btn-sm'
+        btn.textContent = i
+        if(i === page) btn.style.background = 'var(--primary)'; btn.style.color = '#fff'
+        btn.addEventListener('click', () => { currentPage = i; loadSends(i) })
+        pag.appendChild(btn)
+      }
+    }
+  }
+
+  loadSends(1)
+  </script>
+</body>
+</html>

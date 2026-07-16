@@ -10,7 +10,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from config import Config
 from db import db
-from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy, EmailTemplate, FlyerTemplate, FlyerAsset, Task, SocialToken, EmailEvent, AvailabilityRule, Booking, LandingPage, LandingPageSubmission, EmailSequence, EmailSequenceStep, EmailSequenceEnrollment
+from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy, EmailTemplate, FlyerTemplate, FlyerAsset, Task, SocialToken, EmailEvent, AvailabilityRule, Booking, LandingPage, LandingPageSubmission, EmailSequence, EmailSequenceStep, EmailSequenceEnrollment, Proposal
 from schemas import ContactSchema
 from utils import (
     read_uploaded_file, clean_dataframe, clean_outreach_orgs,
@@ -798,6 +798,186 @@ def create_app(config_class=Config):
     def profile(contact_id):
         return render_template('profile.html', contact_id=contact_id)
 
+    # ── Proposal Manager ──────────────────────────────────────────────── #
+
+    @app.route('/proposals')
+    @login_required
+    def proposals_hub():
+        proposals = Proposal.query.order_by(Proposal.updated_at.desc()).all()
+        cs_count = CaseStudy.query.count()
+        contact_count = Contact.query.count()
+        return render_template('proposals_hub.html',
+                               proposals=proposals,
+                               cs_count=cs_count,
+                               contact_count=contact_count)
+
+    @app.route('/proposals/new')
+    @login_required
+    def proposal_new():
+        case_studies = CaseStudy.query.order_by(CaseStudy.created_at.desc()).all()
+        return render_template('proposal_builder.html',
+                               proposal=None,
+                               case_studies=case_studies)
+
+    @app.route('/proposals/<int:proposal_id>')
+    @login_required
+    def proposal_detail(proposal_id):
+        proposal = Proposal.query.get_or_404(proposal_id)
+        case_studies = CaseStudy.query.order_by(CaseStudy.created_at.desc()).all()
+        # Hydrate linked contacts
+        contact_ids = proposal.contact_ids or []
+        contacts = Contact.query.filter(Contact.id.in_(contact_ids)).all() if contact_ids else []
+        # Hydrate linked case studies
+        cs_ids = proposal.case_study_ids or []
+        linked_cs = CaseStudy.query.filter(CaseStudy.id.in_(cs_ids)).all() if cs_ids else []
+        return render_template('proposal_builder.html',
+                               proposal=proposal,
+                               case_studies=case_studies,
+                               linked_contacts=contacts,
+                               linked_cs=linked_cs)
+
+    @app.route('/proposals/list')
+    @login_required
+    def proposals_list():
+        status_filter = request.args.get('status', '')
+        q = Proposal.query.order_by(Proposal.updated_at.desc())
+        if status_filter:
+            q = q.filter(Proposal.status == status_filter)
+        proposals = q.all()
+        return render_template('proposals_list.html',
+                               proposals=proposals,
+                               status_filter=status_filter)
+
+    @app.route('/api/proposals', methods=['GET'])
+    @login_required
+    def list_proposals():
+        per_page = request.args.get('per_page', 50, type=int)
+        page = request.args.get('page', 1, type=int)
+        q = Proposal.query.order_by(Proposal.updated_at.desc())
+        total = q.count()
+        items = q.offset((page - 1) * per_page).limit(per_page).all()
+        return jsonify({'proposals': [p.to_dict() for p in items], 'total': total, 'per_page': per_page})
+
+    @app.route('/api/case-studies-count')
+    @login_required
+    def case_studies_count():
+        return jsonify({'count': CaseStudy.query.count()})
+
+    @app.route('/api/proposals', methods=['POST'])
+    @login_required
+    def create_proposal():
+        data = request.get_json(force=True)
+        p = Proposal(
+            title=data.get('title', 'Untitled Proposal'),
+            client_name=data.get('client_name'),
+            client_org=data.get('client_org'),
+            contact_ids=data.get('contact_ids', []),
+            case_study_ids=data.get('case_study_ids', []),
+            overview=data.get('overview'),
+            scope=data.get('scope'),
+            timeline=data.get('timeline'),
+            budget=data.get('budget'),
+            notes=data.get('notes'),
+            status=data.get('status', 'draft'),
+            created_by_id=current_user.id,
+        )
+        db.session.add(p)
+        db.session.commit()
+        return jsonify(p.to_dict()), 201
+
+    @app.route('/api/proposals/<int:proposal_id>', methods=['PUT'])
+    @login_required
+    def update_proposal(proposal_id):
+        p = Proposal.query.get_or_404(proposal_id)
+        data = request.get_json(force=True)
+        for field in ('title', 'client_name', 'client_org', 'contact_ids',
+                      'case_study_ids', 'overview', 'scope', 'timeline',
+                      'budget', 'notes', 'status'):
+            if field in data:
+                setattr(p, field, data[field])
+        db.session.commit()
+        return jsonify(p.to_dict())
+
+    @app.route('/api/proposals/<int:proposal_id>', methods=['DELETE'])
+    @login_required
+    def delete_proposal(proposal_id):
+        p = Proposal.query.get_or_404(proposal_id)
+        db.session.delete(p)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @app.route('/api/proposals/generate', methods=['POST'])
+    @login_required
+    def generate_proposal():
+        import anthropic
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        if not api_key:
+            return jsonify({'error': 'ANTHROPIC_API_KEY is not configured on the server.'}), 500
+
+        data = request.get_json(force=True)
+        title       = (data.get('title') or '').strip()
+        client_name = (data.get('client_name') or '').strip()
+        client_org  = (data.get('client_org') or '').strip()
+        timeline    = (data.get('timeline') or '').strip()
+        budget      = (data.get('budget') or '').strip()
+        user_prompt = (data.get('prompt') or '').strip()
+        cs_ids      = data.get('case_study_ids') or []
+
+        # Build context block
+        lines = ['You are drafting a project proposal for JBJ Management.']
+        if title:        lines.append(f'Proposal title: {title}')
+        if client_name:  lines.append(f'Client: {client_name}')
+        if client_org:   lines.append(f'Organization: {client_org}')
+        if timeline:     lines.append(f'Timeline: {timeline}')
+        if budget:       lines.append(f'Budget: {budget}')
+
+        # Pull case study details
+        if cs_ids:
+            case_studies = CaseStudy.query.filter(CaseStudy.id.in_(cs_ids)).all()
+            for cs in case_studies:
+                block = [f'\nRelevant past work — "{cs.title}"']
+                if cs.client:  block.append(f'Client: {cs.client}')
+                if cs.sector:  block.append(f'Sector: {cs.sector}')
+                text = '\n'.join(filter(None, [cs.challenges, cs.solution, cs.results])) or cs.extracted_text or ''
+                if text: block.append(text[:1500])
+                lines.extend(block)
+
+        context = '\n'.join(lines)
+        user_content = context
+        if user_prompt:
+            user_content += f'\n\nAdditional context from the user: {user_prompt}'
+
+        system = (
+            'You write professional project proposals for JBJ Management, a talent and project management company. '
+            'Given the context below, write two sections:\n'
+            '1. A concise "Overview" paragraph (3–5 sentences) that summarizes the project and its value to the client.\n'
+            '2. A "Scope of Work" section (4–8 bullet points) that details deliverables, services, and milestones.\n'
+            'Be specific and professional. Do not invent facts not provided — use [PLACEHOLDER] for missing specifics. '
+            'Respond ONLY with a JSON object: {"overview": "...", "scope": "..."}'
+        )
+
+        try:
+            client = anthropic.Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model='claude-sonnet-4-6',
+                max_tokens=1200,
+                system=system,
+                messages=[{'role': 'user', 'content': user_content}],
+            )
+            text = next((b.text for b in response.content if b.type == 'text'), '{}')
+            import json as _json
+            # Strip markdown fences if present
+            text = text.strip()
+            if text.startswith('```'):
+                text = text.split('```')[1]
+                if text.startswith('json'): text = text[4:]
+            result = _json.loads(text.strip())
+            return jsonify({'overview': result.get('overview', ''), 'scope': result.get('scope', '')})
+        except anthropic.APIStatusError as e:
+            return jsonify({'error': f'Claude API error: {e.message}'}), 502
+        except Exception as e:
+            return jsonify({'error': str(e)}), 502
+
     @app.route('/case-studies')
     def case_studies_list():
         q = request.args.get('q', type=str)
@@ -874,6 +1054,12 @@ def create_app(config_class=Config):
         if not current_user.is_admin:
             return redirect(url_for('index'))
         return render_template('admin.html')
+
+    @app.route('/admin/sync')
+    def admin_sync():
+        if not current_user.is_admin:
+            return redirect(url_for('index'))
+        return render_template('admin_sync.html')
 
     @app.route('/admin/users')
     def manage_users():
@@ -1232,6 +1418,11 @@ def create_app(config_class=Config):
             log_audit('case_study_uploaded', 'case_study', None, None, {'count': len(created_titles), 'titles': created_titles})
 
         return jsonify({'results': results})
+
+    @app.route('/email-events')
+    @login_required
+    def email_events_hub():
+        return render_template('email_events_hub.html')
 
     @app.route('/email-builder')
     def email_builder_list():

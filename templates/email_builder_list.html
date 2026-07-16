@@ -23,57 +23,206 @@
     .eb-tpl-footer{padding:12px 14px;}
     .eb-tpl-name{font-weight:600;font-size:14px;margin:0 0 2px;}
     .eb-tpl-desc{font-size:12px;color:#888;margin:0;}
+
+    /* Page header strip */
+    .ee-page-header {
+      background: linear-gradient(165deg, var(--maroon) 0%, var(--maroon-dark) 100%);
+      color: #fff;
+      padding: 20px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+    }
+    .ee-page-header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .ee-page-header h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 400;
+      color: #fff;
+    }
+    .ee-page-header .btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+    }
+    .ee-page-header .btn:hover { background: rgba(255,255,255,0.2); }
+    .ee-page-header .btn-primary {
+      background: #fff;
+      color: var(--maroon);
+      border-color: #fff;
+    }
+    .ee-page-header .btn-primary:hover { background: var(--rose); color: #fff; }
   </style>
 </head>
 <body>
-  <header class="site-header">
-    <div class="container header-inner">
-      <div class="brand">
-        <a href="/#search" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
-        <h2>Email Builder</h2>
+
+  <!-- ── Email & Events side toolbar ────────────────────────── -->
+  <nav class="side-toolbar" id="sideToolbar">
+    <div class="toolbar-logo-wrap">
+      <img class="toolbar-logo-img" src="/static/img/logo.png" alt="JBJ Management">
+      <span class="toolbar-brand-text">Email &amp; Events</span>
+    </div>
+
+    <ul class="toolbar-nav-list">
+      <li>
+        <a href="/email-events" class="toolbar-nav-link" title="Hub">
+          <i class="fas fa-table-cells-large"></i>
+          <span class="toolbar-label">Hub</span>
+        </a>
+      </li>
+      <li class="toolbar-divider" aria-hidden="true"></li>
+      <li class="toolbar-nav-active">
+        <a href="/email-builder" class="toolbar-nav-link" title="Email Builder">
+          <i class="fas fa-envelope-open-text"></i>
+          <span class="toolbar-label">Email Builder</span>
+        </a>
+      </li>
+      <li>
+        <a href="/flyer-builder" class="toolbar-nav-link" title="Flyer &amp; Social">
+          <i class="fas fa-image"></i>
+          <span class="toolbar-label">Flyer &amp; Social</span>
+        </a>
+      </li>
+      <li>
+        <a href="/campaign-history" class="toolbar-nav-link" title="Campaign History">
+          <i class="fas fa-paper-plane"></i>
+          <span class="toolbar-label">Campaign History</span>
+        </a>
+      </li>
+      {% if current_user.is_admin %}
+      <li class="toolbar-divider" aria-hidden="true"></li>
+      <li>
+        <a href="/admin/landing-pages" class="toolbar-nav-link" title="Landing Pages">
+          <i class="fas fa-file-circle-plus"></i>
+          <span class="toolbar-label">Landing Pages</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/sequences" class="toolbar-nav-link" title="Email Sequences">
+          <i class="fas fa-envelope-circle-check"></i>
+          <span class="toolbar-label">Email Sequences</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/scheduler" class="toolbar-nav-link" title="Meeting Scheduler">
+          <i class="fas fa-calendar-check"></i>
+          <span class="toolbar-label">Meeting Scheduler</span>
+        </a>
+      </li>
+      {% endif %}
+    </ul>
+
+    <div class="toolbar-footer">
+      <div class="toolbar-user">
+        <i class="fas fa-user-circle"></i>
+        <span class="toolbar-label">{{ current_user.display_name }}</span>
+      </div>
+      <div>
+        <a href="/" class="toolbar-nav-link" title="Main Hub">
+          <i class="fas fa-house"></i>
+          <span class="toolbar-label">Main Hub</span>
+        </a>
+      </div>
+      <div>
+        <a href="/logout" class="toolbar-nav-link" title="Logout">
+          <i class="fas fa-arrow-right-from-bracket"></i>
+          <span class="toolbar-label">Logout</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="app-main has-toolbar" id="appMain">
+
+    <!-- Top tab bar -->
+    <nav class="top-tab-bar">
+      <div class="top-tab-bar-inner">
+        <div class="tab-bar-tabs">
+          <a href="/#search" class="top-tab">
+            <i class="fas fa-address-book"></i>
+            <span>Contact Management</span>
+          </a>
+          <a href="/email-events" class="top-tab top-tab-active">
+            <i class="fas fa-envelope-open-text"></i>
+            <span>Email &amp; Events</span>
+          </a>
+          <a href="/proposals" class="top-tab">
+            <i class="fas fa-file-contract"></i>
+            <span>Proposal Manager</span>
+          </a>
+          {% if current_user.is_admin %}
+          <a href="/admin" class="top-tab">
+            <i class="fas fa-gear"></i>
+            <span>Admin</span>
+          </a>
+          {% endif %}
+        </div>
+        <div class="tab-bar-actions">
+          <span class="tab-bar-user">{{ current_user.display_name }}</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Page header -->
+    <div class="ee-page-header">
+      <div class="ee-page-header-left">
+        <a href="/email-events" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h1><i class="fas fa-envelope-open-text" style="font-size:18px;margin-right:4px;opacity:0.8;"></i> Email Builder</h1>
       </div>
       <button id="ebNewBtn" class="btn btn-primary"><i class="fas fa-plus"></i> New Email</button>
     </div>
-  </header>
 
-  <main class="container admin-area">
-    {% if templates %}
-    <div class="results-grid" style="margin-top:16px;">
-      {% for t in templates %}
-      <a class="card" href="/email-builder/{{ t.id }}" style="text-decoration:none;color:inherit;">
-        {% set richtext = namespace(html='') %}
-        {% for b in t.blocks %}{% if b.type == 'richtext' and not richtext.html %}{% set richtext.html = b.html %}{% endif %}{% endfor %}
-        {% if t.subject or richtext.html %}
-        <div class="tpl-email-preview">
-          {% if t.subject %}<p class="tpl-email-subject">{{ t.subject }}</p>{% endif %}
-          {% if richtext.html %}<div class="tpl-email-body">{{ richtext.html|striptags }}</div>{% endif %}
-        </div>
-        {% else %}
-        <div class="tpl-no-preview"><i class="fas fa-envelope-open-text"></i> No preview yet</div>
-        {% endif %}
-        <div style="display:flex;align-items:center;gap:8px;">
-          <strong style="font-size:14px;">{{ t.name }}</strong>
-          {% if t.is_public %}
-          <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#e6f4ea;color:#1e7b34;border:1px solid #b7dfc0;"><i class="fas fa-globe" style="font-size:10px;"></i> Public</span>
+    <main class="container admin-area" style="padding-top:24px;">
+      {% if templates %}
+      <div class="results-grid">
+        {% for t in templates %}
+        <a class="card" href="/email-builder/{{ t.id }}" style="text-decoration:none;color:inherit;">
+          {% set richtext = namespace(html='') %}
+          {% for b in t.blocks %}{% if b.type == 'richtext' and not richtext.html %}{% set richtext.html = b.html %}{% endif %}{% endfor %}
+          {% if t.subject or richtext.html %}
+          <div class="tpl-email-preview">
+            {% if t.subject %}<p class="tpl-email-subject">{{ t.subject }}</p>{% endif %}
+            {% if richtext.html %}<div class="tpl-email-body">{{ richtext.html|striptags }}</div>{% endif %}
+          </div>
           {% else %}
-          <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#f4f4f4;color:#888;border:1px solid #ddd;"><i class="fas fa-lock" style="font-size:10px;"></i> Private</span>
+          <div class="tpl-no-preview"><i class="fas fa-envelope-open-text"></i> No preview yet</div>
           {% endif %}
-        </div>
-        <p class="muted" style="margin:0;">
-          {{ t.blocks|length }} block{{ '' if t.blocks|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}
-          {% if t.created_by_id != current_user_id %} · by {{ t.created_by.display_name if t.created_by else 'Unknown' }}{% endif %}
-        </p>
-        <div style="display:flex;gap:6px;">
-          <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); duplicateEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-copy"></i> Duplicate</button>
-          <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
-        </div>
-      </a>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="muted" style="margin-top:16px">No email templates yet. <a href="#" id="ebNewBtnInline">Create the first one</a>.</p>
-    {% endif %}
-  </main>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <strong style="font-size:14px;">{{ t.name }}</strong>
+            {% if t.is_public %}
+            <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#e6f4ea;color:#1e7b34;border:1px solid #b7dfc0;"><i class="fas fa-globe" style="font-size:10px;"></i> Public</span>
+            {% else %}
+            <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:#f4f4f4;color:#888;border:1px solid #ddd;"><i class="fas fa-lock" style="font-size:10px;"></i> Private</span>
+            {% endif %}
+          </div>
+          <p class="muted" style="margin:0;">
+            {{ t.blocks|length }} block{{ '' if t.blocks|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}
+            {% if t.created_by_id != current_user_id %} · by {{ t.created_by.display_name if t.created_by else 'Unknown' }}{% endif %}
+          </p>
+          <div style="display:flex;gap:6px;">
+            <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); duplicateEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-copy"></i> Duplicate</button>
+            <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:64px 20px;display:flex;flex-direction:column;align-items:center;gap:16px;">
+        <div style="width:72px;height:72px;border-radius:18px;background:rgba(173,3,4,0.08);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--maroon);"><i class="fas fa-envelope-open-text"></i></div>
+        <p class="muted" style="margin:0;font-size:16px;">No email templates yet.</p>
+        <button id="ebNewBtnInline" class="btn btn-primary"><i class="fas fa-plus"></i> Create your first email</button>
+      </div>
+      {% endif %}
+    </main>
+
+  </div><!-- /#appMain -->
 
   <!-- Starter Templates Modal -->
   <div id="ebStarterModal" class="modal" style="display:none;">
@@ -264,7 +413,6 @@
       if (res.ok) window.location.reload()
     }
 
-    // Starter modal
     const modal = document.getElementById('ebStarterModal')
     document.getElementById('ebStarterClose').addEventListener('click', () => { modal.style.display = 'none' })
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none' })

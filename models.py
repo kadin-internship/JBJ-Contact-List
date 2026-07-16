@@ -576,6 +576,49 @@ class Booking(db.Model):
         }
 
 
+class Proposal(db.Model):
+    """A client proposal assembled from case studies, contacts, and custom
+    sections. Built entirely inside the app — no external editor needed."""
+    __tablename__ = 'proposals'
+
+    id              = db.Column(db.Integer, primary_key=True)
+    title           = db.Column(db.String(256), nullable=False)
+    client_name     = db.Column(db.String(256), nullable=True)
+    client_org      = db.Column(db.String(256), nullable=True)
+    contact_ids     = db.Column(db.JSON, nullable=True, default=list)
+    case_study_ids  = db.Column(db.JSON, nullable=True, default=list)
+    overview        = db.Column(db.Text, nullable=True)
+    scope           = db.Column(db.Text, nullable=True)
+    timeline        = db.Column(db.String(256), nullable=True)
+    budget          = db.Column(db.String(256), nullable=True)
+    notes           = db.Column(db.Text, nullable=True)
+    status          = db.Column(db.String(32), nullable=False, default='draft')  # draft|sent|accepted|declined
+    created_by_id   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_by      = db.relationship('User', foreign_keys=[created_by_id], lazy='joined')
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at      = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'client_name': self.client_name,
+            'client_org': self.client_org,
+            'contact_ids': self.contact_ids or [],
+            'case_study_ids': self.case_study_ids or [],
+            'overview': self.overview,
+            'scope': self.scope,
+            'timeline': self.timeline,
+            'budget': self.budget,
+            'notes': self.notes,
+            'status': self.status,
+            'created_by_id': self.created_by_id,
+            'created_by_name': self.created_by.display_name if self.created_by else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class EmailSend(db.Model):
     """The operational record of one real send -- recipient/sent/failed
     counts and status, so a stuck or partial send (e.g. the Render dyno

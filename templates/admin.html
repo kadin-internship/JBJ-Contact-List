@@ -3,45 +3,283 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Sync Spreadsheet — JBJ Management</title>
+  <title>Admin — JBJ Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    body { overflow: auto; }
+    .admin-hub-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 22px;
+      width: 100%;
+      max-width: 1020px;
+    }
+    .admin-hub-card {
+      position: relative;
+      background: rgba(255,255,255,0.09);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 22px;
+      padding: 34px 26px 28px;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+      text-decoration: none;
+      overflow: hidden;
+      transition: transform 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
+    }
+    .admin-hub-card:hover {
+      transform: translateY(-8px);
+      background: rgba(255,255,255,0.15);
+      box-shadow: 0 24px 56px rgba(0,0,0,0.35);
+    }
+    .admin-hub-card::before {
+      content: '';
+      position: absolute;
+      top: -24px; right: -24px;
+      width: 110px; height: 110px;
+      border-radius: 50%;
+      opacity: 0.15;
+      pointer-events: none;
+      transition: opacity 0.22s;
+    }
+    .admin-hub-card:hover::before { opacity: 0.28; }
+    .card-sync::before       { background: #F6C944; }
+    .card-users::before      { background: #63b3ed; }
+    .card-audit::before      { background: #68d391; }
+    .card-analytics::before  { background: #b794f4; }
+    .card-sequences::before  { background: #fc8181; }
+    .card-landing::before    { background: #4fd1c5; }
+    .card-scheduler::before  { background: #f6ad55; }
+
+    .admin-card-icon {
+      width: 60px; height: 60px;
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; flex-shrink: 0; color: #fff;
+    }
+    .card-sync      .admin-card-icon { background: rgba(246,201,68,0.35); }
+    .card-users     .admin-card-icon { background: rgba(99,179,237,0.3); }
+    .card-audit     .admin-card-icon { background: rgba(104,211,145,0.3); }
+    .card-analytics .admin-card-icon { background: rgba(183,148,244,0.3); }
+    .card-sequences .admin-card-icon { background: rgba(252,129,129,0.3); }
+    .card-landing   .admin-card-icon { background: rgba(79,209,197,0.3); }
+    .card-scheduler .admin-card-icon { background: rgba(246,173,85,0.3); }
+
+    .admin-card-label { font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; opacity: 0.5; }
+    .admin-card-title { margin: 0; font-size: 20px; font-weight: 700; font-family: var(--font-display); color: #fff; line-height: 1.2; }
+    .admin-card-desc { margin: 0; font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.6; flex: 1; }
+    .admin-card-cta {
+      display: inline-flex; align-items: center; gap: 8px; margin-top: 4px;
+      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.28);
+      color: #fff; font-size: 13px; font-weight: 700; padding: 9px 18px;
+      border-radius: 999px; transition: background 0.15s; text-decoration: none;
+    }
+    .admin-hub-card:hover .admin-card-cta { background: rgba(255,255,255,0.25); }
+
+    .admin-hub-heading { font-family: var(--font-display); font-size: 34px; font-weight: 400; color: #fff; margin: 0 0 4px; }
+    .admin-hub-subtitle { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.48); margin-bottom: 4px; }
+    .admin-hub-divider { width: 44px; height: 3px; background: linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.1)); border-radius: 2px; margin: 0 0 34px; }
+
+    @media (max-width: 860px) {
+      .admin-hub-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .admin-hub-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
-  <header class="site-header">
-    <div class="container header-inner">
-      <div class="brand">
-        <a href="/#search" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
-        <h2>Sync Spreadsheet</h2>
+
+  <!-- ── Admin side toolbar ───────────────────────────────────── -->
+  <nav class="side-toolbar" id="sideToolbar">
+    <div class="toolbar-logo-wrap">
+      <img class="toolbar-logo-img" src="/static/img/logo.png" alt="JBJ Management">
+      <span class="toolbar-brand-text">Admin</span>
+    </div>
+
+    <ul class="toolbar-nav-list">
+      <li class="toolbar-nav-active">
+        <a href="/admin" class="toolbar-nav-link" title="Admin Hub">
+          <i class="fas fa-gauge-high"></i>
+          <span class="toolbar-label">Admin Hub</span>
+        </a>
+      </li>
+      <li class="toolbar-divider" aria-hidden="true"></li>
+      <li>
+        <a href="/admin/sync" class="toolbar-nav-link" title="Sync Spreadsheet">
+          <i class="fas fa-file-arrow-up"></i>
+          <span class="toolbar-label">Sync Spreadsheet</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/users" class="toolbar-nav-link" title="Manage Users">
+          <i class="fas fa-users-gear"></i>
+          <span class="toolbar-label">Manage Users</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/audit" class="toolbar-nav-link" title="Audit Log">
+          <i class="fas fa-clipboard-list"></i>
+          <span class="toolbar-label">Audit Log</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/analytics" class="toolbar-nav-link" title="Analytics">
+          <i class="fas fa-chart-bar"></i>
+          <span class="toolbar-label">Analytics</span>
+        </a>
+      </li>
+      <li class="toolbar-divider" aria-hidden="true"></li>
+      <li>
+        <a href="/admin/sequences" class="toolbar-nav-link" title="Email Sequences">
+          <i class="fas fa-envelope-circle-check"></i>
+          <span class="toolbar-label">Email Sequences</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/landing-pages" class="toolbar-nav-link" title="Landing Pages">
+          <i class="fas fa-file-circle-plus"></i>
+          <span class="toolbar-label">Landing Pages</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/scheduler" class="toolbar-nav-link" title="Meeting Scheduler">
+          <i class="fas fa-calendar-check"></i>
+          <span class="toolbar-label">Meeting Scheduler</span>
+        </a>
+      </li>
+    </ul>
+
+    <div class="toolbar-footer">
+      <div class="toolbar-user">
+        <i class="fas fa-user-circle"></i>
+        <span class="toolbar-label">{{ current_user.display_name }}</span>
       </div>
       <div>
-        <button id="exportBtn" class="btn"><i class="fas fa-download"></i> Export CSV</button>
+        <a href="/" class="toolbar-nav-link" title="Main Hub">
+          <i class="fas fa-house"></i>
+          <span class="toolbar-label">Main Hub</span>
+        </a>
+      </div>
+      <div>
+        <a href="/logout" class="toolbar-nav-link" title="Logout">
+          <i class="fas fa-arrow-right-from-bracket"></i>
+          <span class="toolbar-label">Logout</span>
+        </a>
       </div>
     </div>
-  </header>
+  </nav>
 
-  <main class="container admin-area">
-    <section class="card admin-upload">
-      <p class="muted" style="margin:0 0 12px;">
-        Upload your spreadsheet whenever you've made changes to it. New
-        people/organizations are added and existing ones are updated to
-        match — nothing is deleted. Works with a plain CSV (People only)
-        or an Excel workbook with a People tab and a separate
-        Organizations tab.
-      </p>
-      <div id="dropZone" class="dropzone"><i class="fas fa-file-arrow-up"></i> Drop CSV/Excel here or <button id="pickFile" class="btn">Choose file</button></div>
-      <input id="adminFile" type="file" accept=".csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;" />
-      <div class="progress-wrap" style="display:none;">
-        <label>Import progress</label>
-        <div class="progress"><div id="progressBar" class="progress-bar" style="width:0%"></div></div>
+  <div class="app-main has-toolbar" id="appMain">
+
+    <!-- Top tab bar -->
+    <nav class="top-tab-bar">
+      <div class="top-tab-bar-inner">
+        <div class="tab-bar-tabs">
+          <a href="/#search" class="top-tab">
+            <i class="fas fa-address-book"></i>
+            <span>Contact Management</span>
+          </a>
+          <a href="/email-events" class="top-tab">
+            <i class="fas fa-envelope-open-text"></i>
+            <span>Email &amp; Events</span>
+          </a>
+          <a href="/proposals" class="top-tab">
+            <i class="fas fa-file-contract"></i>
+            <span>Proposal Manager</span>
+          </a>
+          <a href="/admin" class="top-tab top-tab-active">
+            <i class="fas fa-gear"></i>
+            <span>Admin</span>
+          </a>
+        </div>
+        <div class="tab-bar-actions">
+          <span class="tab-bar-user">{{ current_user.display_name }}</span>
+        </div>
       </div>
-      <div id="importSummary" class="import-summary" style="display:none;"></div>
-    </section>
-  </main>
+    </nav>
 
-  <script src="/static/js/admin.js"></script>
+    <!-- Full-screen hero -->
+    <div class="hero" style="min-height:calc(100vh - 48px);height:auto;">
+      <div class="hero-overlay"></div>
+      <div class="hero-pattern" aria-hidden="true"></div>
+
+      <div class="hero-center" style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:40px 20px 60px;width:100%;">
+        <p class="admin-hub-subtitle">Admin Controls</p>
+        <h1 class="admin-hub-heading">Admin Dashboard</h1>
+        <div class="admin-hub-divider"></div>
+
+        <div class="admin-hub-grid">
+
+          <a href="/admin/sync" class="admin-hub-card card-sync">
+            <div class="admin-card-icon"><i class="fas fa-file-arrow-up"></i></div>
+            <span class="admin-card-label">Data</span>
+            <h2 class="admin-card-title">Sync Spreadsheet</h2>
+            <p class="admin-card-desc">Upload a CSV or Excel file to add and update contacts and organizations from your master spreadsheet.</p>
+            <span class="admin-card-cta">Open Sync <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+          </a>
+
+          <a href="/admin/users" class="admin-hub-card card-users">
+            <div class="admin-card-icon"><i class="fas fa-users-gear"></i></div>
+            <span class="admin-card-label">Access</span>
+            <h2 class="admin-card-title">Manage Users</h2>
+            <p class="admin-card-desc">Create employee logins, reset passwords, and control who has admin access to the platform.</p>
+            <span class="admin-card-cta">Manage Users <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+          </a>
+
+          <a href="/admin/audit" class="admin-hub-card card-audit">
+            <div class="admin-card-icon"><i class="fas fa-clipboard-list"></i></div>
+            <span class="admin-card-label">History</span>
+            <h2 class="admin-card-title">Audit Log</h2>
+            <p class="admin-card-desc">View a complete history of every change made in the system — who did what and when.</p>
+            <span class="admin-card-cta">View Log <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+          </a>
+
+          <a href="/admin/analytics" class="admin-hub-card card-analytics">
+            <div class="admin-card-icon"><i class="fas fa-chart-bar"></i></div>
+            <span class="admin-card-label">Insights</span>
+            <h2 class="admin-card-title">Analytics</h2>
+            <p class="admin-card-desc">Contact database stats, outreach breakdowns by category, county, and organization across all activity.</p>
+            <span class="admin-card-cta">View Analytics <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+          </a>
+
+          <a href="/admin/sequences" class="admin-hub-card card-sequences">
+            <div class="admin-card-icon"><i class="fas fa-envelope-circle-check"></i></div>
+            <span class="admin-card-label">Automation</span>
+            <h2 class="admin-card-title">Email Sequences</h2>
+            <p class="admin-card-desc">Build automated email drip sequences — define steps, delays, and triggers to follow up with contacts automatically.</p>
+            <span class="admin-card-cta">Manage Sequences <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+          </a>
+
+          <a href="/admin/landing-pages" class="admin-hub-card card-landing">
+            <div class="admin-card-icon"><i class="fas fa-file-circle-plus"></i></div>
+            <span class="admin-card-label">Web</span>
+            <h2 class="admin-card-title">Landing Pages</h2>
+            <p class="admin-card-desc">Create and publish public-facing landing pages with custom forms to capture leads, RSVPs, and contact submissions.</p>
+            <span class="admin-card-cta">Manage Pages <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+          </a>
+
+          <a href="/admin/scheduler" class="admin-hub-card card-scheduler">
+            <div class="admin-card-icon"><i class="fas fa-calendar-check"></i></div>
+            <span class="admin-card-label">Bookings</span>
+            <h2 class="admin-card-title">Meeting Scheduler</h2>
+            <p class="admin-card-desc">Set your availability, share a booking link, and let contacts schedule meetings directly on your calendar.</p>
+            <span class="admin-card-cta">Manage Schedule <i class="fas fa-arrow-right" style="font-size:11px;"></i></span>
+          </a>
+
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#appMain -->
+
 </body>
 </html>

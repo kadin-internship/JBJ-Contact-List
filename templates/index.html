@@ -11,312 +11,501 @@
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-  <header class="site-header">
-    <!-- Full-screen hero shown on homepage -->
-    <div id="hero" class="hero">
-      <div class="hero-overlay"></div>
-      <div class="hero-pattern" aria-hidden="true"></div>
-      <div class="hero-center">
-        <div class="hero-card">
-          <img class="hero-logo" src="/static/img/logo.png" alt="JBJ Management">
-          <div class="hero-divider" aria-hidden="true"></div>
-          <p class="hero-subtitle">Contact Hub</p>
-          <div class="hero-buttons">
-            <a id="homeEnter" class="btn btn-hero" href="#search">Enter <span aria-hidden="true">→</span></a>
-          </div>
-        </div>
-      </div>
+
+  <!-- ═══════════════════════════════════════════════
+       SIDE TOOLBAR — fixed left rail, icons only;
+       hover expands to 220 px and reveals labels.
+       Gets class "header-hidden" so showHome() /
+       showSearch() in app.js automatically toggle it.
+  ═══════════════════════════════════════════════ -->
+  <nav class="side-toolbar header-hidden" id="sideToolbar">
+    <div class="toolbar-logo-wrap">
+      <img class="toolbar-logo-img" src="/static/img/logo.png" alt="JBJ Management">
+      <span class="toolbar-brand-text">Contact Hub</span>
     </div>
 
-    <!-- Hidden search / header area — shown after navigating from hero -->
-    <div class="container header-inner header-hidden" style="display:none;">
-      <div class="brand">
-        <img class="logo" src="/static/img/logo.png" alt="JBJ Management">
-        <div class="brand-text">
-          <p class="sub">Contact Hub</p>
-        </div>
+    <ul class="toolbar-nav-list">
+      <li>
+        <button class="toolbar-nav-link" id="backHomeBtn" title="Home">
+          <i class="fas fa-house"></i>
+          <span class="toolbar-label">Home</span>
+        </button>
+      </li>
+      <li class="toolbar-nav-active">
+        <a href="#search" class="toolbar-nav-link" title="Contacts">
+          <i class="fas fa-address-book"></i>
+          <span class="toolbar-label">Contacts</span>
+        </a>
+      </li>
+      <li>
+        <button class="toolbar-nav-link" id="addContactBtn" title="Add Contact">
+          <i class="fas fa-user-plus"></i>
+          <span class="toolbar-label">Add Contact</span>
+        </button>
+      </li>
+      <li>
+        <button class="toolbar-nav-link" id="tasksBtn" title="Tasks">
+          <i class="fas fa-list-check"></i>
+          <span class="toolbar-label">Tasks</span>
+          <span id="taskBadge" class="toolbar-badge" style="display:none;"></span>
+        </button>
+      </li>
+      <li>
+        <button class="toolbar-nav-link" id="pipelineBtn" title="Pipeline">
+          <i class="fas fa-diagram-project"></i>
+          <span class="toolbar-label">Pipeline</span>
+        </button>
+      </li>
+
+      <li class="toolbar-divider" aria-hidden="true"></li>
+
+      <li>
+        <a href="/email-events" class="toolbar-nav-link" title="Email &amp; Events">
+          <i class="fas fa-envelope-open-text"></i>
+          <span class="toolbar-label">Email &amp; Events</span>
+        </a>
+      </li>
+      <li>
+        <a href="/flyer-builder" class="toolbar-nav-link" title="Flyer Builder">
+          <i class="fas fa-image"></i>
+          <span class="toolbar-label">Flyer Builder</span>
+        </a>
+      </li>
+      <li>
+        <a href="/proposals" class="toolbar-nav-link" title="Proposal Manager">
+          <i class="fas fa-file-contract"></i>
+          <span class="toolbar-label">Proposals</span>
+        </a>
+      </li>
+      <li>
+        <a href="/case-studies" class="toolbar-nav-link" title="Case Studies">
+          <i class="fas fa-book-open"></i>
+          <span class="toolbar-label">Case Studies</span>
+        </a>
+      </li>
+
+      {% if current_user.is_admin %}
+      <li class="toolbar-divider" aria-hidden="true"></li>
+      <li>
+        <a href="/admin" class="toolbar-nav-link" title="Sync Spreadsheet">
+          <i class="fas fa-file-arrow-up"></i>
+          <span class="toolbar-label">Sync Spreadsheet</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/users" class="toolbar-nav-link" title="Manage Users">
+          <i class="fas fa-users-gear"></i>
+          <span class="toolbar-label">Manage Users</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/audit" class="toolbar-nav-link" title="Audit Log">
+          <i class="fas fa-clipboard-list"></i>
+          <span class="toolbar-label">Audit Log</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/analytics" class="toolbar-nav-link" title="Analytics">
+          <i class="fas fa-chart-column"></i>
+          <span class="toolbar-label">Analytics</span>
+        </a>
+      </li>
+      <li>
+        <a href="/campaign-history" class="toolbar-nav-link" title="Campaign History">
+          <i class="fas fa-envelope-open-text"></i>
+          <span class="toolbar-label">Campaign History</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/scheduler" class="toolbar-nav-link" title="Meeting Scheduler">
+          <i class="fas fa-calendar-check"></i>
+          <span class="toolbar-label">Meeting Scheduler</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/landing-pages" class="toolbar-nav-link" title="Landing Pages">
+          <i class="fas fa-file-circle-plus"></i>
+          <span class="toolbar-label">Landing Pages</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/sequences" class="toolbar-nav-link" title="Email Sequences">
+          <i class="fas fa-envelope-circle-check"></i>
+          <span class="toolbar-label">Email Sequences</span>
+        </a>
+      </li>
+      {% endif %}
+    </ul>
+
+    <div class="toolbar-footer">
+      <div class="toolbar-user">
+        <i class="fas fa-user-circle"></i>
+        <span class="toolbar-label">{{ current_user.display_name }}</span>
       </div>
-      <div class="header-actions">
-        <div class="header-actions-row">
-          <span class="current-user">{{ current_user.display_name }}</span>
-          <button id="a11yToggle" class="a11y-btn" title="Toggle large text mode"><i class="fas fa-text-height"></i> Large Text</button>
-          <a id="backHomeBtn" class="btn" href="/"><i class="fas fa-house"></i> Back to Home</a>
-          <button id="addContactBtn" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add Contact</button>
-          <button id="tasksBtn" class="btn task-nav-btn"><i class="fas fa-list-check"></i> Tasks <span id="taskBadge" class="task-badge" style="display:none;"></span></button>
-          <button id="pipelineBtn" class="btn"><i class="fas fa-diagram-project"></i> Pipeline</button>
-          <a class="btn" href="/case-studies"><i class="fas fa-book-open"></i> Case Studies</a>
-          <a class="btn" href="/email-builder"><i class="fas fa-envelope-open-text"></i> Email Builder</a>
-          <a class="btn" href="/flyer-builder"><i class="fas fa-image"></i> Flyer Builder</a>
+      <div>
+        <button id="a11yToggle" class="toolbar-nav-link a11y-toolbar-btn" title="Toggle large text mode">
+          <i class="fas fa-text-height"></i>
+          <span class="toolbar-label">Large Text</span>
+        </button>
+      </div>
+      <div>
+        <a href="/logout" class="toolbar-nav-link" title="Logout">
+          <i class="fas fa-arrow-right-from-bracket"></i>
+          <span class="toolbar-label">Logout</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       APP WRAPPER — shifts right when toolbar opens
+  ═══════════════════════════════════════════════ -->
+  <div class="app-main" id="appMain">
+
+    <!-- ─── TOP TAB BAR ──────────────────────────────
+         Browser-style tab strip for the three main
+         sections. Hidden on homepage, shown in app
+         mode. Also gets "header-hidden" so the same
+         show/hide logic applies automatically.
+    ────────────────────────────────────────────── -->
+    <nav class="top-tab-bar header-hidden" id="topTabBar">
+      <div class="top-tab-bar-inner">
+        <div class="tab-bar-tabs">
+          <button class="top-tab top-tab-active" id="tabContacts">
+            <i class="fas fa-address-book"></i>
+            <span>Contact Management</span>
+          </button>
+          <a href="/email-events" class="top-tab">
+            <i class="fas fa-envelope-open-text"></i>
+            <span>Email &amp; Events</span>
+          </a>
+          <a href="/proposals" class="top-tab">
+            <i class="fas fa-file-contract"></i>
+            <span>Proposal Manager</span>
+          </a>
           {% if current_user.is_admin %}
-          <details class="admin-menu">
-            <summary class="btn"><i class="fas fa-screwdriver-wrench"></i> Admin <i class="fas fa-chevron-down" style="font-size:11px;"></i></summary>
-            <div class="admin-menu-panel">
-              <a class="export-menu-item" href="/admin"><i class="fas fa-file-arrow-up"></i> Sync Spreadsheet</a>
-              <a class="export-menu-item" href="/admin/users"><i class="fas fa-users-gear"></i> Manage Users</a>
-              <a class="export-menu-item" href="/admin/audit"><i class="fas fa-clipboard-list"></i> Audit Log</a>
-              <a class="export-menu-item" href="/admin/analytics"><i class="fas fa-chart-column"></i> Analytics</a>
-              <a class="export-menu-item" href="/campaign-history"><i class="fas fa-envelope-open-text"></i> Campaign History</a>
-              <a class="export-menu-item" href="/admin/scheduler"><i class="fas fa-calendar-check"></i> Meeting Scheduler</a>
-              <a class="export-menu-item" href="/admin/landing-pages"><i class="fas fa-file-circle-plus"></i> Landing Pages</a>
-              <a class="export-menu-item" href="/admin/sequences"><i class="fas fa-envelope-circle-check"></i> Email Sequences</a>
-            </div>
-          </details>
+          <a href="/admin" class="top-tab">
+            <i class="fas fa-gear"></i>
+            <span>Admin</span>
+          </a>
           {% endif %}
-          <a class="btn" href="/logout"><i class="fas fa-arrow-right-from-bracket"></i> Logout</a>
+        </div>
+        <div class="tab-bar-actions">
+          <span class="current-user tab-bar-user">{{ current_user.display_name }}</span>
         </div>
       </div>
-    </div>
-
-    <div class="container header-hidden" style="display:none;">
-      <div class="search-large">
-        <div class="search-left">
-          <label for="searchInput" class="sr-only">Search</label>
-          <input id="searchInput" aria-label="Search" placeholder="Search by Name, Organization, Title, or Email..." />
-          <div class="view-toggle" role="group" aria-label="View">
-            <button id="viewPeopleBtn" class="view-toggle-btn active" type="button"><i class="fas fa-address-book"></i> People</button>
-            <button id="viewOrgBtn" class="view-toggle-btn" type="button"><i class="fas fa-building"></i> Organizations</button>
-          </div>
-          <div class="view-toggle" role="group" aria-label="Layout" style="margin-left:4px;">
-            <button id="layoutGridBtn" class="view-toggle-btn active" type="button" title="Grid view"><i class="fas fa-grip"></i></button>
-            <button id="layoutListBtn" class="view-toggle-btn" type="button" title="List view"><i class="fas fa-list"></i></button>
-          </div>
-          <div class="search-controls">
-            <div class="control-group" role="group" aria-label="Actions">
-              <button id="searchBtn" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
-              <div class="export-wrap">
-                <button id="exportMenuBtn" class="btn"><i class="fas fa-download"></i> Export <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
-                <div id="exportMenu" class="export-menu" style="display:none;">
-                  <button id="exportCopyEmails" class="export-menu-item"><i class="fas fa-envelope"></i> Copy Emails (for mass email)</button>
-                  <button id="exportCsvBtn" class="export-menu-item"><i class="fas fa-file-csv"></i> Download CSV</button>
-                  <button id="exportDocxBtn" class="export-menu-item"><i class="fas fa-file-word"></i> Download Word Doc</button>
-                </div>
-              </div>
-              <div class="export-wrap">
-                <button id="toolsMenuBtn" class="btn"><i class="fas fa-wand-magic-sparkles"></i> AI Tools <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
-                <div id="toolsMenu" class="export-menu" style="display:none;">
-                  <button id="draftEmailBtn" class="export-menu-item"><i class="fas fa-wand-magic-sparkles"></i> Draft Email</button>
-                  <button id="sendCampaignBtn" class="export-menu-item"><i class="fas fa-paper-plane"></i> Send Campaign</button>
-                  <button id="createFlyerBtn" class="export-menu-item"><i class="fas fa-image"></i> Create Flyer/Post</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="search-right">
-          <div class="quick-stats" id="quickStats">
-            <div class="stat-card stat-neutral">
-              <div class="stat-icon"><i class="fas fa-users"></i></div>
-              <div class="stat-body"><span class="num" id="statTotal">—</span><span class="label" id="statTotalLabel">Total Contacts</span></div>
-            </div>
-            <div class="stat-card stat-amber">
-              <div class="stat-icon"><i class="fas fa-circle-exclamation"></i></div>
-              <div class="stat-body"><span class="num" id="statIncomplete">—</span><span class="label" id="statIncompleteLabel">Need Review</span></div>
-            </div>
-            <div class="stat-card stat-blue" id="statOrgsCard">
-              <div class="stat-icon"><i class="fas fa-building"></i></div>
-              <div class="stat-body"><span class="num" id="statOrgs">—</span><span class="label">Organizations</span></div>
-            </div>
-            <div class="stat-card stat-green" id="statCompleteCard">
-              <div class="stat-icon"><i class="fas fa-circle-check"></i></div>
-              <div class="stat-body"><span class="num" id="statComplete">—</span><span class="label">% Complete</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <main class="container">
-    <div class="app-layout">
-      <aside class="filters-sidebar">
-        <div class="filters-scroll">
-          <h3 class="filters-title">Filter By</h3>
-
-          <div class="filter-section">
-            <h4>Tags <span id="tagFilterLabel" class="muted"></span></h4>
-            <div id="tagFilterMenu" class="filter-option-list"></div>
-          </div>
-
-          <div class="filter-section">
-            <h4>Counties <span id="countyFilterLabel" class="muted"></span></h4>
-            <div id="countyFilterMenu" class="filter-option-list"></div>
-          </div>
-
-          <div class="filter-section">
-            <h4>Follow-up</h4>
-            <div class="filter-option-list">
-              <label class="filter-option"><input type="radio" name="followupRadio" value="" checked><span>All Contacts</span></label>
-              <label class="filter-option"><input type="radio" name="followupRadio" value="never"><span>Never Contacted</span></label>
-              <label class="filter-option"><input type="radio" name="followupRadio" value="30"><span>No Contact in 30+ Days</span></label>
-              <label class="filter-option"><input type="radio" name="followupRadio" value="60"><span>No Contact in 60+ Days</span></label>
-              <label class="filter-option"><input type="radio" name="followupRadio" value="90"><span>No Contact in 90+ Days</span></label>
-            </div>
-          </div>
-
-          <div class="filter-section">
-            <label class="filter-option"><input type="checkbox" id="favoritesOnlyCheckbox"><span>Favorites Only</span></label>
-          </div>
-        </div>
-
-        <button id="applyFiltersBtn" class="btn btn-primary filters-apply-btn"><i class="fas fa-magnifying-glass"></i> Apply Filters</button>
-      </aside>
-
-      <div class="results-and-detail">
-        <section id="results" class="results-grid" aria-live="polite"></section>
-
-        <aside id="contactDetail" class="contact-detail" style="display:none;" aria-live="polite">
-          <div class="detail-empty">
-            <div class="photo-placeholder">No contact selected</div>
-            <div style="padding:12px;text-align:center;color:var(--muted)">Select a contact to view a quick profile here — click <strong>Edit</strong> to open the full editor.</div>
-          </div>
-        </aside>
-      </div>
-    </div>
-
-    <nav class="pagination" aria-label="Pagination">
-      <button id="prevPage" class="page-btn"><i class="fas fa-chevron-left"></i> Previous</button>
-      <div id="pages" class="pages"></div>
-      <button id="nextPage" class="page-btn">Next <i class="fas fa-chevron-right"></i></button>
     </nav>
-  </main>
 
-  <div id="profileModal" class="modal" style="display:none;">
-    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <button id="closeModal" class="close">×</button>
-      <div id="modalBody"></div>
-    </div>
-  </div>
+    <header class="site-header">
 
-  <div id="tasksPanelModal" class="modal" style="display:none;">
-    <div class="modal-content tasks-modal-content" role="dialog" aria-modal="true" aria-label="My Tasks">
-      <button id="closeTasksPanel" class="close">×</button>
-      <h3 style="margin:0 0 14px;"><i class="fas fa-list-check"></i> My Tasks</h3>
-      <div class="task-tab-row">
-        <button id="taskViewPending" class="task-tab active" type="button">Pending</button>
-        <button id="taskViewCompleted" class="task-tab" type="button">Completed</button>
-        <button id="showAddGlobalTaskBtn" class="btn btn-primary btn-sm" style="margin-left:auto;"><i class="fas fa-plus"></i> New Task</button>
-      </div>
-      <div id="addGlobalTaskForm" class="task-add-form" style="display:none;">
-        <input id="newTaskTitle" class="task-input" placeholder="What needs to be done?" />
-        <textarea id="newTaskNotes" class="task-input task-notes-input" rows="3" placeholder="Notes (optional)"></textarea>
-        <div class="task-add-row">
-          <input type="date" id="newTaskDue" class="task-input task-input-date" />
-          <button id="saveGlobalTaskBtn" class="btn btn-primary btn-sm"><i class="fas fa-check"></i> Add</button>
-          <button id="cancelGlobalTaskBtn" class="btn btn-sm">Cancel</button>
+      <!-- ─── HOMEPAGE HERO ───────────────────────────
+           Full-screen landing with three section cards.
+           JS hides this when the user enters any section.
+      ────────────────────────────────────────────── -->
+      <div id="hero" class="hero">
+        <div class="hero-overlay"></div>
+        <div class="hero-pattern" aria-hidden="true"></div>
+
+        <div class="hero-center hero-sections-center">
+          <!-- Brand lockup above the cards -->
+          <div class="hero-brand-block">
+            <img class="hero-logo" src="/static/img/logo.png" alt="JBJ Management">
+            <div class="hero-divider" aria-hidden="true"></div>
+            <p class="hero-subtitle">Contact Hub</p>
+          </div>
+
+          <!-- Three section entry cards -->
+          <div class="hero-section-grid">
+            <div class="section-hero-card">
+              <div class="section-card-icon-wrap">
+                <i class="fas fa-address-book"></i>
+              </div>
+              <h3 class="section-card-title">Contact Management</h3>
+              <p class="section-card-desc">Search and manage your contact database, log outreach, and track relationships.</p>
+              <button class="btn btn-hero section-card-btn" id="homeEnter">
+                Enter <span aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <div class="section-hero-card">
+              <div class="section-card-icon-wrap">
+                <i class="fas fa-envelope-open-text"></i>
+              </div>
+              <h3 class="section-card-title">Email &amp; Event Management</h3>
+              <p class="section-card-desc">Build emails, send campaigns, design flyers, and manage event outreach.</p>
+              <a href="/email-events" class="btn btn-hero section-card-btn">
+                Enter <span aria-hidden="true">→</span>
+              </a>
+            </div>
+
+            <div class="section-hero-card">
+              <div class="section-card-icon-wrap">
+                <i class="fas fa-file-contract"></i>
+              </div>
+              <h3 class="section-card-title">Proposal Manager</h3>
+              <p class="section-card-desc">Create, manage, and share case studies and proposals with clients.</p>
+              <a href="/proposals" class="btn btn-hero section-card-btn">
+                Enter <span aria-hidden="true">→</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div><!-- /#hero -->
+
+      <!-- ─── SEARCH / STATS BAR ──────────────────────
+           Shown after the user enters Contact Management.
+           Same content as before — just moved into its
+           own div so showSearch() reveals it cleanly.
+      ────────────────────────────────────────────── -->
+      <div class="container header-hidden" id="searchHeader" style="display:none;">
+        <div class="search-large">
+          <div class="search-left">
+            <label for="searchInput" class="sr-only">Search</label>
+            <input id="searchInput" aria-label="Search" placeholder="Search by Name, Organization, Title, or Email..." />
+            <div class="view-toggle" role="group" aria-label="View">
+              <button id="viewPeopleBtn" class="view-toggle-btn active" type="button"><i class="fas fa-address-book"></i> People</button>
+              <button id="viewOrgBtn" class="view-toggle-btn" type="button"><i class="fas fa-building"></i> Organizations</button>
+            </div>
+            <div class="view-toggle" role="group" aria-label="Layout" style="margin-left:4px;">
+              <button id="layoutGridBtn" class="view-toggle-btn active" type="button" title="Grid view"><i class="fas fa-grip"></i></button>
+              <button id="layoutListBtn" class="view-toggle-btn" type="button" title="List view"><i class="fas fa-list"></i></button>
+            </div>
+            <div class="search-controls">
+              <div class="control-group" role="group" aria-label="Actions">
+                <button id="searchBtn" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i> Search</button>
+                <div class="export-wrap">
+                  <button id="exportMenuBtn" class="btn"><i class="fas fa-download"></i> Export <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
+                  <div id="exportMenu" class="export-menu" style="display:none;">
+                    <button id="exportCopyEmails" class="export-menu-item"><i class="fas fa-envelope"></i> Copy Emails (for mass email)</button>
+                    <button id="exportCsvBtn" class="export-menu-item"><i class="fas fa-file-csv"></i> Download CSV</button>
+                    <button id="exportDocxBtn" class="export-menu-item"><i class="fas fa-file-word"></i> Download Word Doc</button>
+                  </div>
+                </div>
+                <div class="export-wrap">
+                  <button id="toolsMenuBtn" class="btn"><i class="fas fa-wand-magic-sparkles"></i> AI Tools <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
+                  <div id="toolsMenu" class="export-menu" style="display:none;">
+                    <button id="draftEmailBtn" class="export-menu-item"><i class="fas fa-wand-magic-sparkles"></i> Draft Email</button>
+                    <button id="sendCampaignBtn" class="export-menu-item"><i class="fas fa-paper-plane"></i> Send Campaign</button>
+                    <button id="createFlyerBtn" class="export-menu-item"><i class="fas fa-image"></i> Create Flyer/Post</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="search-right">
+            <div class="quick-stats" id="quickStats">
+              <div class="stat-card stat-neutral">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-body"><span class="num" id="statTotal">—</span><span class="label" id="statTotalLabel">Total Contacts</span></div>
+              </div>
+              <div class="stat-card stat-amber">
+                <div class="stat-icon"><i class="fas fa-circle-exclamation"></i></div>
+                <div class="stat-body"><span class="num" id="statIncomplete">—</span><span class="label" id="statIncompleteLabel">Need Review</span></div>
+              </div>
+              <div class="stat-card stat-blue" id="statOrgsCard">
+                <div class="stat-icon"><i class="fas fa-building"></i></div>
+                <div class="stat-body"><span class="num" id="statOrgs">—</span><span class="label">Organizations</span></div>
+              </div>
+              <div class="stat-card stat-green" id="statCompleteCard">
+                <div class="stat-icon"><i class="fas fa-circle-check"></i></div>
+                <div class="stat-body"><span class="num" id="statComplete">—</span><span class="label">% Complete</span></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <div id="tasksPanelContent" class="tasks-panel-content">Loading…</div>
-    </div>
-  </div>
 
-  <div id="campaignModal" class="modal" style="display:none;">
-    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="campaignTitle">
-      <button id="closeCampaignModal" class="close">×</button>
-      <h3 id="campaignTitle"><i class="fas fa-paper-plane"></i> Send Campaign</h3>
-      <p id="campaignAudience" class="muted" style="margin-bottom:12px;"></p>
+    </header><!-- /.site-header -->
 
-      <div id="campaignStep1">
-        <label for="campaignPrompt">What's this email about?</label>
-        <textarea id="campaignPrompt" rows="3" placeholder="e.g. Invite this group to a community forum next month"></textarea>
-        <label for="campaignCaseStudy" style="margin-top:10px;display:block;">Reference a case study (optional)</label>
-        <select id="campaignCaseStudy"><option value="">None</option></select>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <button id="campaignGenerateBtn" class="btn btn-primary"><i class="fas fa-wand-magic-sparkles"></i> Generate Draft</button>
+    <main class="container" id="mainContent" style="display:none;">
+      <div class="app-layout">
+        <aside class="filters-sidebar">
+          <div class="filters-scroll">
+            <h3 class="filters-title">Filter By</h3>
+
+            <div class="filter-section">
+              <h4>Tags <span id="tagFilterLabel" class="muted"></span></h4>
+              <div id="tagFilterMenu" class="filter-option-list"></div>
+            </div>
+
+            <div class="filter-section">
+              <h4>Counties <span id="countyFilterLabel" class="muted"></span></h4>
+              <div id="countyFilterMenu" class="filter-option-list"></div>
+            </div>
+
+            <div class="filter-section">
+              <h4>Follow-up</h4>
+              <div class="filter-option-list">
+                <label class="filter-option"><input type="radio" name="followupRadio" value="" checked><span>All Contacts</span></label>
+                <label class="filter-option"><input type="radio" name="followupRadio" value="never"><span>Never Contacted</span></label>
+                <label class="filter-option"><input type="radio" name="followupRadio" value="30"><span>No Contact in 30+ Days</span></label>
+                <label class="filter-option"><input type="radio" name="followupRadio" value="60"><span>No Contact in 60+ Days</span></label>
+                <label class="filter-option"><input type="radio" name="followupRadio" value="90"><span>No Contact in 90+ Days</span></label>
+              </div>
+            </div>
+
+            <div class="filter-section">
+              <label class="filter-option"><input type="checkbox" id="favoritesOnlyCheckbox"><span>Favorites Only</span></label>
+            </div>
+          </div>
+
+          <button id="applyFiltersBtn" class="btn btn-primary filters-apply-btn"><i class="fas fa-magnifying-glass"></i> Apply Filters</button>
+        </aside>
+
+        <div class="results-and-detail">
+          <section id="results" class="results-grid" aria-live="polite"></section>
+
+          <aside id="contactDetail" class="contact-detail" style="display:none;" aria-live="polite">
+            <div class="detail-empty">
+              <div class="photo-placeholder">No contact selected</div>
+              <div style="padding:12px;text-align:center;color:var(--muted)">Select a contact to view a quick profile here — click <strong>Edit</strong> to open the full editor.</div>
+            </div>
+          </aside>
         </div>
-        <div id="campaignGenStatus" class="muted" style="margin-top:8px;"></div>
       </div>
 
-      <div id="campaignStep2" style="display:none;margin-top:4px;">
-        <label for="campaignSubject">Subject</label>
-        <input id="campaignSubject" type="text" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);font-size:14px;font-family:inherit;margin-bottom:8px;" placeholder="Email subject" />
-        <label for="campaignBody">Body</label>
-        <textarea id="campaignBody" rows="12" placeholder="Email body…"></textarea>
-        <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
-          <button id="campaignSendBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
-          <button id="campaignBackBtn" class="btn"><i class="fas fa-arrow-left"></i> Edit prompt</button>
-          <span id="campaignSendStatus" class="muted"></span>
+      <nav class="pagination" aria-label="Pagination">
+        <button id="prevPage" class="page-btn"><i class="fas fa-chevron-left"></i> Previous</button>
+        <div id="pages" class="pages"></div>
+        <button id="nextPage" class="page-btn">Next <i class="fas fa-chevron-right"></i></button>
+      </nav>
+    </main>
+
+    <!-- ═══════════════════════ MODALS ═══════════════════════ -->
+
+    <div id="profileModal" class="modal" style="display:none;">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <button id="closeModal" class="close">×</button>
+        <div id="modalBody"></div>
+      </div>
+    </div>
+
+    <div id="tasksPanelModal" class="modal" style="display:none;">
+      <div class="modal-content tasks-modal-content" role="dialog" aria-modal="true" aria-label="My Tasks">
+        <button id="closeTasksPanel" class="close">×</button>
+        <h3 style="margin:0 0 14px;"><i class="fas fa-list-check"></i> My Tasks</h3>
+        <div class="task-tab-row">
+          <button id="taskViewPending" class="task-tab active" type="button">Pending</button>
+          <button id="taskViewCompleted" class="task-tab" type="button">Completed</button>
+          <button id="showAddGlobalTaskBtn" class="btn btn-primary btn-sm" style="margin-left:auto;"><i class="fas fa-plus"></i> New Task</button>
+        </div>
+        <div id="addGlobalTaskForm" class="task-add-form" style="display:none;">
+          <input id="newTaskTitle" class="task-input" placeholder="What needs to be done?" />
+          <textarea id="newTaskNotes" class="task-input task-notes-input" rows="3" placeholder="Notes (optional)"></textarea>
+          <div class="task-add-row">
+            <input type="date" id="newTaskDue" class="task-input task-input-date" />
+            <button id="saveGlobalTaskBtn" class="btn btn-primary btn-sm"><i class="fas fa-check"></i> Add</button>
+            <button id="cancelGlobalTaskBtn" class="btn btn-sm">Cancel</button>
+          </div>
+        </div>
+        <div id="tasksPanelContent" class="tasks-panel-content">Loading…</div>
+      </div>
+    </div>
+
+    <div id="campaignModal" class="modal" style="display:none;">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="campaignTitle">
+        <button id="closeCampaignModal" class="close">×</button>
+        <h3 id="campaignTitle"><i class="fas fa-paper-plane"></i> Send Campaign</h3>
+        <p id="campaignAudience" class="muted" style="margin-bottom:12px;"></p>
+
+        <div id="campaignStep1">
+          <label for="campaignPrompt">What's this email about?</label>
+          <textarea id="campaignPrompt" rows="3" placeholder="e.g. Invite this group to a community forum next month"></textarea>
+          <label for="campaignCaseStudy" style="margin-top:10px;display:block;">Reference a case study (optional)</label>
+          <select id="campaignCaseStudy"><option value="">None</option></select>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button id="campaignGenerateBtn" class="btn btn-primary"><i class="fas fa-wand-magic-sparkles"></i> Generate Draft</button>
+          </div>
+          <div id="campaignGenStatus" class="muted" style="margin-top:8px;"></div>
+        </div>
+
+        <div id="campaignStep2" style="display:none;margin-top:4px;">
+          <label for="campaignSubject">Subject</label>
+          <input id="campaignSubject" type="text" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);font-size:14px;font-family:inherit;margin-bottom:8px;" placeholder="Email subject" />
+          <label for="campaignBody">Body</label>
+          <textarea id="campaignBody" rows="12" placeholder="Email body…"></textarea>
+          <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+            <button id="campaignSendBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+            <button id="campaignBackBtn" class="btn"><i class="fas fa-arrow-left"></i> Edit prompt</button>
+            <span id="campaignSendStatus" class="muted"></span>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div id="pipelineModal" class="modal pipeline-modal" style="display:none;">
-    <div class="modal-content pipeline-modal-content" role="dialog" aria-modal="true" aria-label="Pipeline">
-      <div class="pipeline-header">
-        <h3><i class="fas fa-kanban"></i> Pipeline</h3>
-        <button id="closePipelineModal" class="close">×</button>
-      </div>
-
-      <div class="pipeline-search-row">
-        <input id="pipelineSearchInput" class="pipeline-search-input" placeholder="Search contacts by name or organization to add or move…" autocomplete="off" />
-        <div id="pipelineSearchResults" class="pipeline-search-results" style="display:none;"></div>
-      </div>
-
-      <div class="pipeline-stage-tabs">
-        <button class="pipeline-tab active" data-stage="">All</button>
-        <button class="pipeline-tab" data-stage="Lead">Lead</button>
-        <button class="pipeline-tab" data-stage="Engaged">Engaged</button>
-        <button class="pipeline-tab" data-stage="Proposal">Proposal</button>
-        <button class="pipeline-tab" data-stage="Client">Client</button>
-        <button class="pipeline-tab" data-stage="Inactive">Inactive</button>
-      </div>
-
-      <div id="pipelineList" class="pipeline-list">
-        <div class="pipeline-loading">Loading…</div>
+    <div id="pipelineModal" class="modal pipeline-modal" style="display:none;">
+      <div class="modal-content pipeline-modal-content" role="dialog" aria-modal="true" aria-label="Pipeline">
+        <div class="pipeline-header">
+          <h3><i class="fas fa-kanban"></i> Pipeline</h3>
+          <button id="closePipelineModal" class="close">×</button>
+        </div>
+        <div class="pipeline-search-row">
+          <input id="pipelineSearchInput" class="pipeline-search-input" placeholder="Search contacts by name or organization to add or move…" autocomplete="off" />
+          <div id="pipelineSearchResults" class="pipeline-search-results" style="display:none;"></div>
+        </div>
+        <div class="pipeline-stage-tabs">
+          <button class="pipeline-tab active" data-stage="">All</button>
+          <button class="pipeline-tab" data-stage="Lead">Lead</button>
+          <button class="pipeline-tab" data-stage="Engaged">Engaged</button>
+          <button class="pipeline-tab" data-stage="Proposal">Proposal</button>
+          <button class="pipeline-tab" data-stage="Client">Client</button>
+          <button class="pipeline-tab" data-stage="Inactive">Inactive</button>
+        </div>
+        <div id="pipelineList" class="pipeline-list">
+          <div class="pipeline-loading">Loading…</div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="draftEmailModal" class="modal" style="display:none;">
-    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="draftEmailTitle">
-      <button id="closeDraftEmailModal" class="close">×</button>
-      <h3 id="draftEmailTitle">Draft Email</h3>
-      <p id="draftEmailAudience" class="muted"></p>
-      <label for="draftEmailPrompt">What's the email about?</label>
-      <textarea id="draftEmailPrompt" rows="3" placeholder="e.g. Invite this group to a community meeting in Dallas"></textarea>
-      <label for="draftEmailCaseStudy" style="margin-top:10px;display:block;">Reference a case study (optional)</label>
-      <select id="draftEmailCaseStudy">
-        <option value="">None</option>
-      </select>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <button id="draftEmailGenerateBtn" class="btn btn-primary">Generate</button>
-        <button id="draftEmailCopyBtn" class="btn" style="display:none;">Copy to Clipboard</button>
+    <div id="draftEmailModal" class="modal" style="display:none;">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="draftEmailTitle">
+        <button id="closeDraftEmailModal" class="close">×</button>
+        <h3 id="draftEmailTitle">Draft Email</h3>
+        <p id="draftEmailAudience" class="muted"></p>
+        <label for="draftEmailPrompt">What's the email about?</label>
+        <textarea id="draftEmailPrompt" rows="3" placeholder="e.g. Invite this group to a community meeting in Dallas"></textarea>
+        <label for="draftEmailCaseStudy" style="margin-top:10px;display:block;">Reference a case study (optional)</label>
+        <select id="draftEmailCaseStudy">
+          <option value="">None</option>
+        </select>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button id="draftEmailGenerateBtn" class="btn btn-primary">Generate</button>
+          <button id="draftEmailCopyBtn" class="btn" style="display:none;">Copy to Clipboard</button>
+        </div>
+        <div id="draftEmailStatus" class="muted" style="margin-top:8px;"></div>
+        <textarea id="draftEmailOutput" rows="14" style="display:none;width:100%;margin-top:8px;" placeholder="Your drafted email will appear here..."></textarea>
       </div>
-      <div id="draftEmailStatus" class="muted" style="margin-top:8px;"></div>
-      <textarea id="draftEmailOutput" rows="14" style="display:none;width:100%;margin-top:8px;" placeholder="Your drafted email will appear here..."></textarea>
     </div>
-  </div>
 
-  <div id="createFlyerModal" class="modal" style="display:none;">
-    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="createFlyerTitle">
-      <button id="closeCreateFlyerModal" class="close">×</button>
-      <h3 id="createFlyerTitle">Create Flyer/Post</h3>
-      <label for="createFlyerPrompt">What's it about?</label>
-      <textarea id="createFlyerPrompt" rows="3" placeholder="e.g. Announcing our new community outreach office in Dallas"></textarea>
-      <label style="margin-top:10px;display:block;">Format</label>
-      <div class="flyer-format-toggle" style="display:flex;gap:8px;">
-        <label class="btn"><input type="radio" name="flyerFormat" value="square" checked style="margin-right:6px;">Social post (square)</label>
-        <label class="btn"><input type="radio" name="flyerFormat" value="portrait" style="margin-right:6px;">Flyer (portrait)</label>
+    <div id="createFlyerModal" class="modal" style="display:none;">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="createFlyerTitle">
+        <button id="closeCreateFlyerModal" class="close">×</button>
+        <h3 id="createFlyerTitle">Create Flyer/Post</h3>
+        <label for="createFlyerPrompt">What's it about?</label>
+        <textarea id="createFlyerPrompt" rows="3" placeholder="e.g. Announcing our new community outreach office in Dallas"></textarea>
+        <label style="margin-top:10px;display:block;">Format</label>
+        <div class="flyer-format-toggle" style="display:flex;gap:8px;">
+          <label class="btn"><input type="radio" name="flyerFormat" value="square" checked style="margin-right:6px;">Social post (square)</label>
+          <label class="btn"><input type="radio" name="flyerFormat" value="portrait" style="margin-right:6px;">Flyer (portrait)</label>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button id="createFlyerGenerateBtn" class="btn btn-primary">Generate</button>
+          <a id="createFlyerDownloadBtn" class="btn" download="flyer.png" style="display:none;">Download Image</a>
+        </div>
+        <div id="createFlyerStatus" class="muted" style="margin-top:8px;"></div>
+        <img id="createFlyerOutput" style="display:none;max-width:100%;margin-top:8px;border-radius:8px;" alt="Generated flyer/post" />
       </div>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <button id="createFlyerGenerateBtn" class="btn btn-primary">Generate</button>
-        <a id="createFlyerDownloadBtn" class="btn" download="flyer.png" style="display:none;">Download Image</a>
-      </div>
-      <div id="createFlyerStatus" class="muted" style="margin-top:8px;"></div>
-      <img id="createFlyerOutput" style="display:none;max-width:100%;margin-top:8px;border-radius:8px;" alt="Generated flyer/post" />
     </div>
-  </div>
 
-  <!-- file upload removed -->
+  </div><!-- /#appMain -->
+
+  <!-- ═══════════════════════ SCRIPTS ═══════════════════════ -->
 
   <script>
-    // Contact cards/detail panel are rendered client-side, so app.js needs
-    // to know admin status to decide whether to show the Delete button --
-    // unlike the server-rendered nav buttons above, gated with Jinja.
     window.IS_ADMIN = {{ 'true' if current_user.is_admin else 'false' }}
   </script>
 
-  <!-- Lightweight fallback UI handler: toggles search view even if main JS errors -->
+  <!-- Lightweight fallback: shows search even if main app.js hasn't loaded yet -->
   <script>
     (function(){
       function showSearchFallback(){
@@ -324,10 +513,12 @@
         var headerHidden = document.querySelectorAll('.header-hidden');
         var results = document.getElementById('results');
         var pagination = document.querySelector('.pagination');
-        if(hero) hero.style.display='none';
+        var appMain = document.getElementById('appMain');
+        if(hero) hero.style.display = 'none';
         headerHidden.forEach(function(n){ n.classList.remove('header-hidden'); n.style.display = '' });
         if(results) results.style.display = '';
         if(pagination) pagination.style.display = '';
+        if(appMain) appMain.classList.add('has-toolbar');
       }
       if(location.hash === '#search' || location.hash === '#search_roles'){
         showSearchFallback();
@@ -339,6 +530,7 @@
   </script>
 
   <script src="/static/js/app.js"></script>
+
   <script>
     (function(){
       function trySearch(){
@@ -356,17 +548,20 @@
       setTimeout(trySearch, 150);
     })();
   </script>
+
+  <!-- Accessibility toggle: tied to a11yToggle ID in the sidebar -->
   <script>
     const a11yBtn = document.getElementById('a11yToggle');
     function applyA11y(on) {
       document.body.classList.toggle('a11y', on);
-      a11yBtn.classList.toggle('active', on);
-      a11yBtn.innerHTML = on
-        ? '<i class="fas fa-text-height"></i> Large Text On'
-        : '<i class="fas fa-text-height"></i> Large Text';
+      if(a11yBtn) {
+        a11yBtn.classList.toggle('active', on);
+        const label = a11yBtn.querySelector('.toolbar-label');
+        if(label) label.textContent = on ? 'Large Text On' : 'Large Text';
+      }
     }
     applyA11y(localStorage.getItem('a11y') === '1');
-    a11yBtn.addEventListener('click', () => {
+    if(a11yBtn) a11yBtn.addEventListener('click', () => {
       const next = !document.body.classList.contains('a11y');
       localStorage.setItem('a11y', next ? '1' : '0');
       applyA11y(next);

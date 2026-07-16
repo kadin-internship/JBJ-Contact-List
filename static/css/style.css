@@ -258,6 +258,216 @@ main{padding:24px 0}
 /* hide original header/search when hero present; JS toggles .header-hidden display */
 .header-hidden{display:none}
 
+/* ═══════════════════════════════════════════════════════════
+   SIDE TOOLBAR
+   Fixed left rail; icons only (64 px) until hovered (220 px).
+   Hidden by .header-hidden on the homepage, revealed by
+   showSearch() in app.js.
+═══════════════════════════════════════════════════════════ */
+.side-toolbar{
+  position:fixed;left:0;top:0;bottom:0;
+  width:64px;
+  background:linear-gradient(180deg,var(--maroon-dark) 0%,#130103 100%);
+  display:flex;flex-direction:column;
+  z-index:300;
+  overflow:hidden;
+  transition:width 0.25s cubic-bezier(0.4,0,0.2,1);
+  box-shadow:4px 0 24px rgba(0,0,0,0.3);
+  border-right:1px solid rgba(255,255,255,0.06);
+}
+.side-toolbar:hover{width:220px}
+
+/* Logo / brand at the top of the rail */
+.toolbar-logo-wrap{
+  padding:12px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  display:flex;align-items:center;gap:14px;
+  overflow:hidden;white-space:nowrap;
+  flex-shrink:0;min-height:60px;
+}
+.toolbar-logo-img{
+  width:38px;height:auto;flex-shrink:0;
+  background:rgba(255,255,255,0.95);border-radius:8px;
+  padding:4px 5px;box-sizing:border-box;
+}
+.toolbar-brand-text{
+  font-size:12px;font-weight:700;
+  color:rgba(255,255,255,0.88);
+  letter-spacing:0.6px;text-transform:uppercase;
+  opacity:0;transition:opacity 0.15s;white-space:nowrap;
+}
+.side-toolbar:hover .toolbar-brand-text{opacity:1}
+
+/* Nav item list */
+.toolbar-nav-list{
+  list-style:none;padding:8px 0;margin:0;
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:none;
+}
+.toolbar-nav-list::-webkit-scrollbar{display:none}
+.toolbar-nav-list li{padding:2px 8px}
+
+/* Each nav link / button inside the rail */
+.toolbar-nav-link{
+  display:flex;align-items:center;gap:14px;
+  padding:10px 10px;border-radius:10px;
+  color:rgba(255,255,255,0.68);
+  text-decoration:none;white-space:nowrap;
+  transition:background 0.15s,color 0.15s;
+  border:none;background:transparent;cursor:pointer;
+  font-size:14px;font-family:inherit;font-weight:500;
+  width:100%;text-align:left;min-height:44px;
+}
+.toolbar-nav-link:hover{background:rgba(255,255,255,0.1);color:#fff}
+.toolbar-nav-list li.toolbar-nav-active .toolbar-nav-link{
+  background:rgba(255,255,255,0.12);color:#fff;
+}
+.toolbar-nav-link i{
+  font-size:18px;width:28px;text-align:center;flex-shrink:0;
+}
+
+/* Labels — hidden until hover */
+.toolbar-label{
+  opacity:0;transition:opacity 0.15s;
+  white-space:nowrap;pointer-events:none;overflow:hidden;
+}
+.side-toolbar:hover .toolbar-label{opacity:1}
+
+/* Horizontal rule between nav groups */
+.toolbar-divider{
+  height:1px!important;background:rgba(255,255,255,0.08);
+  margin:8px 10px!important;padding:0!important;
+  list-style:none;
+}
+
+/* Task count badge inside the toolbar */
+.toolbar-badge{
+  background:#fff;color:var(--maroon);
+  border-radius:999px;font-size:11px;font-weight:700;
+  min-width:18px;height:18px;padding:0 5px;
+  display:inline-flex;align-items:center;justify-content:center;
+  flex-shrink:0;margin-left:auto;
+}
+
+/* Footer: user name + logout */
+.toolbar-footer{
+  padding:8px;border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0;
+}
+.toolbar-user{
+  display:flex;align-items:center;gap:14px;
+  padding:10px 10px;color:rgba(255,255,255,0.5);
+  font-size:13px;overflow:hidden;white-space:nowrap;
+}
+.toolbar-user i{font-size:18px;width:28px;text-align:center;flex-shrink:0}
+.a11y-toolbar-btn{font-size:13px}
+.a11y-toolbar-btn.active{background:rgba(255,255,255,0.15);color:#fff}
+
+/* ═══════════════════════════════════════════════════════════
+   APP MAIN WRAPPER
+   Shifts right by the toolbar width when toolbar is visible.
+═══════════════════════════════════════════════════════════ */
+.app-main{transition:margin-left 0.25s cubic-bezier(0.4,0,0.2,1)}
+.app-main.has-toolbar{margin-left:64px}
+
+/* ═══════════════════════════════════════════════════════════
+   TOP TAB BAR
+   Browser-style tab strip across the top of the content area.
+   Hidden on homepage (via .header-hidden), shown in app mode.
+═══════════════════════════════════════════════════════════ */
+.top-tab-bar{
+  background:var(--maroon-dark);
+  border-bottom:2px solid rgba(255,255,255,0.08);
+  display:flex;align-items:stretch;
+  position:sticky;top:0;z-index:100;
+  box-shadow:0 2px 12px rgba(0,0,0,0.25);
+}
+.top-tab-bar-inner{
+  display:flex;align-items:stretch;width:100%;
+  padding:0 12px;gap:0;
+}
+.tab-bar-tabs{
+  display:flex;align-items:stretch;gap:4px;flex:1;
+  padding:8px 0 0;
+}
+.top-tab{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:8px 20px 10px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-bottom:none;border-radius:8px 8px 0 0;
+  color:rgba(255,255,255,0.62);
+  font-size:13px;font-weight:600;
+  cursor:pointer;text-decoration:none;white-space:nowrap;
+  transition:background 0.15s,color 0.15s;
+  font-family:inherit;
+}
+.top-tab:hover{background:rgba(255,255,255,0.12);color:#fff}
+.top-tab-active,.top-tab.top-tab-active{
+  background:#fff;color:var(--maroon);
+  border-color:rgba(255,255,255,0.25);
+}
+.tab-bar-actions{
+  display:flex;align-items:center;gap:12px;
+  padding:0 8px;flex-shrink:0;
+}
+.tab-bar-user{
+  font-size:13px;color:rgba(255,255,255,0.75);white-space:nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HOMEPAGE — THREE SECTION CARDS
+   Replace the single-button hero with three entry cards.
+═══════════════════════════════════════════════════════════ */
+.hero-sections-center{
+  display:flex;flex-direction:column;align-items:center;
+  gap:40px;width:100%;max-width:1080px;padding:0 20px;
+  position:relative;z-index:2;text-align:center;
+}
+.hero-brand-block{text-align:center}
+.hero-section-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:24px;width:100%;
+}
+.section-hero-card{
+  background:rgba(255,255,255,0.1);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,0.22);
+  border-radius:22px;padding:36px 24px 30px;
+  color:#fff;display:flex;flex-direction:column;
+  align-items:center;gap:18px;cursor:pointer;
+  transition:transform 0.2s,background 0.2s,box-shadow 0.2s;
+  text-decoration:none;
+}
+.section-hero-card:hover{
+  transform:translateY(-8px);
+  background:rgba(255,255,255,0.18);
+  box-shadow:0 24px 54px rgba(0,0,0,0.35);
+}
+.section-card-icon-wrap{
+  width:72px;height:72px;border-radius:18px;
+  background:rgba(255,255,255,0.18);
+  display:flex;align-items:center;justify-content:center;
+  font-size:30px;color:#fff;flex-shrink:0;
+  box-shadow:0 4px 16px rgba(0,0,0,0.2);
+}
+.section-card-title{
+  margin:0;font-size:19px;font-weight:700;
+  font-family:var(--font-display);color:#fff;letter-spacing:0.2px;
+}
+.section-card-desc{
+  margin:0;font-size:13px;
+  color:rgba(255,255,255,0.78);line-height:1.6;flex:1;
+}
+.section-card-btn{margin-top:4px}
+
+@media(max-width:760px){
+  .hero-section-grid{grid-template-columns:1fr}
+  .side-toolbar{display:none}
+  .app-main.has-toolbar{margin-left:0}
+  .top-tab-bar{overflow-x:auto}
+  .top-tab span{display:none}
+}
+
 /* Toast notifications -- replaces native alert() popups for save/delete/
    error feedback, since alert() blocks the page and looks jarring. */
 .toast-stack{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);display:flex;flex-direction:column;gap:10px;z-index:1000;align-items:center}
@@ -629,3 +839,42 @@ body.a11y .search-bar input{font-size:18px;padding:14px}
 body.a11y .filter-chip{font-size:14px;padding:8px 14px}
 body.a11y table{font-size:16px}
 body.a11y table th,body.a11y table td{padding:12px 14px}
+
+/* ── Mobile responsive improvements ─────────────────────────── */
+@media(max-width:760px){
+  /* Tables: allow horizontal scroll instead of overflowing */
+  .card table,.pl-table,.booking-row{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .pl-table thead,.pl-table tbody,.pl-table tr{display:block}
+  .pl-table td,.pl-table th{display:inline-block;min-width:100px}
+
+  /* Admin hub grid */
+  .admin-hub-grid{grid-template-columns:1fr!important}
+
+  /* Proposal hub grid */
+  .pm-hub-grid{grid-template-columns:1fr!important}
+
+  /* Analytics grid */
+  .analytics-grid{grid-template-columns:1fr}
+
+  /* Container padding on small screens */
+  .container{padding-left:14px!important;padding-right:14px!important}
+
+  /* adm-page-header: stack on small screens */
+  .adm-page-header{flex-wrap:wrap;gap:8px;padding:12px 14px}
+
+  /* Top tab bar: increase touch targets */
+  .top-tab{min-height:44px;padding:0 12px}
+
+  /* Proposal builder two-column → single column */
+  .pb-layout{grid-template-columns:1fr!important;height:auto!important}
+  .pb-cs-panel{position:static!important;max-height:300px;overflow-y:auto}
+
+  /* Recent proposals panel */
+  .pm-recent-panel{position:static!important;left:auto!important;flex-wrap:wrap}
+
+  /* Section cards in sequences */
+  .seq-card-header{flex-direction:column;align-items:flex-start}
+
+  /* Landing page grid */
+  .lp-grid{grid-template-columns:1fr!important}
+}

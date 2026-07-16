@@ -1742,11 +1742,15 @@ function showHome(push=true){
   const results = el('results')
   const pagination = document.querySelector('.pagination')
   const detail = el('contactDetail')
+  const appMain = el('appMain')
+  const mainContent = el('mainContent')
   if(hero) hero.style.display = ''
   headerHidden.forEach(n=> { n.classList.add('header-hidden'); n.style.display = 'none' })
   if(results) results.style.display = 'none'
   if(detail) detail.style.display = 'none'
   if(pagination) pagination.style.display = 'none'
+  if(mainContent) mainContent.style.display = 'none'
+  if(appMain) appMain.classList.remove('has-toolbar')
   if(push) history.pushState({page:'home'}, '', '/')
 }
 
@@ -1758,11 +1762,15 @@ function showSearch(push=true, focus=true, view='people'){
   const results = el('results')
   const pagination = document.querySelector('.pagination')
   const detail = el('contactDetail')
+  const appMain = el('appMain')
+  const mainContent = el('mainContent')
   if(hero) hero.style.display = 'none'
   headerHidden.forEach(n=> { n.classList.remove('header-hidden'); n.style.display = '' })
+  if(mainContent) mainContent.style.display = ''
   if(results) results.style.display = ''
   if(pagination) pagination.style.display = ''
   if(detail) detail.style.display = 'none'
+  if(appMain) appMain.classList.add('has-toolbar')
   switchView(view, false)
   if(push) history.pushState({page: view === 'organizations' ? 'search_roles' : 'search'}, '', view === 'organizations' ? '#search_roles' : '#search')
   if(focus){ const si = el('searchInput'); if(si) si.focus() }

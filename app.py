@@ -242,7 +242,7 @@ def format_audit_summary(entry):
     action_label = ACTION_LABELS.get(entry.action, entry.action)
     line = f"{action_label} {entry.entity_label}" if entry.entity_label else action_label
     detail = format_audit_details(entry.action, entry.details)
-    return f"{line} — {detail}" if detail else line
+    return f"{line} - {detail}" if detail else line
 
 
 def _bootstrap_admin_user():
@@ -935,7 +935,7 @@ def create_app(config_class=Config):
         if cs_ids:
             case_studies = CaseStudy.query.filter(CaseStudy.id.in_(cs_ids)).all()
             for cs in case_studies:
-                block = [f'\nRelevant past work — "{cs.title}"']
+                block = [f'\nRelevant past work - "{cs.title}"']
                 if cs.client:  block.append(f'Client: {cs.client}')
                 if cs.sector:  block.append(f'Sector: {cs.sector}')
                 text = '\n'.join(filter(None, [cs.challenges, cs.solution, cs.results])) or cs.extracted_text or ''
@@ -950,9 +950,9 @@ def create_app(config_class=Config):
         system = (
             'You write professional project proposals for JBJ Management, a talent and project management company. '
             'Given the context below, write two sections:\n'
-            '1. A concise "Overview" paragraph (3–5 sentences) that summarizes the project and its value to the client.\n'
-            '2. A "Scope of Work" section (4–8 bullet points) that details deliverables, services, and milestones.\n'
-            'Be specific and professional. Do not invent facts not provided — use [PLACEHOLDER] for missing specifics. '
+            '1. A concise "Overview" paragraph (3-5 sentences) that summarizes the project and its value to the client.\n'
+            '2. A "Scope of Work" section (4-8 bullet points) that details deliverables, services, and milestones.\n'
+            'Be specific and professional. Do not invent facts not provided - use [PLACEHOLDER] for missing specifics. '
             'Respond ONLY with a JSON object: {"overview": "...", "scope": "..."}'
         )
 
@@ -3648,14 +3648,14 @@ def create_app(config_class=Config):
                     f'<p>Your meeting with JBJ Management has been confirmed for '
                     f'<strong>{day_label} at {time_label}</strong>.</p>'
                     f'<p>If you need to cancel or reschedule, please reply to this email.</p>'
-                    f'<p>— JBJ Management</p>'
+                    f'<p>- JBJ Management</p>'
                 )
                 import json as _json2
                 import urllib.request as _urlreq2
                 payload = {
                     'personalizations': [{'to': [{'email': booking.email, 'name': booking.name}]}],
                     'from': {'email': from_email},
-                    'subject': f'Meeting confirmed — {day_label} at {time_label}',
+                    'subject': f'Meeting confirmed - {day_label} at {time_label}',
                     'content': [{'type': 'text/html', 'value': html}],
                 }
                 req = _urlreq2.Request(

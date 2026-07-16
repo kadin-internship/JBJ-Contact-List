@@ -334,7 +334,7 @@ async function loadTagsForBulk() {
     _allTags  = await res.json().catch(() => [])
     const sel = el('ebBulkTagSelect')
     if (!sel) return
-    sel.innerHTML = '<option value="">— All contacts with email —</option>'
+    sel.innerHTML = '<option value="">- All contacts with email -</option>'
     _allTags.forEach(t => {
       const o = document.createElement('option')
       o.value = t; o.textContent = t
@@ -428,7 +428,7 @@ function setupSendModal() {
       }
     } catch (e) {
       clearTimeout(timer)
-      status.textContent = e.name === 'AbortError' ? 'Timed out — check your SMTP settings or try again.' : 'Could not reach the server.'
+      status.textContent = e.name === 'AbortError' ? 'Timed out - check your SMTP settings or try again.' : 'Could not reach the server.'
     } finally {
       btn.disabled = false
     }

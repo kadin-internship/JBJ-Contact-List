@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>{% if proposal %}Edit Proposal{% else %}New Proposal{% endif %} — JBJ Management</title>
+  <title>{% if proposal %}Edit Proposal{% else %}New Proposal{% endif %} - JBJ Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
@@ -242,7 +242,7 @@
     .btn-danger { background: #c0392b; color: #fff; border: none; }
     .btn-danger:hover { background: #a93226; }
 
-    /* Client name autocomplete — same pattern as contact-search-results */
+    /* Client name autocomplete - same pattern as contact-search-results */
     .client-search-results {
       position: absolute;
       top: calc(100% + 4px);
@@ -519,7 +519,7 @@
               <div class="form-group">
                 <label>Budget</label>
                 <input type="text" id="budgetInput"
-                  placeholder="e.g. $15,000 – $20,000"
+                  placeholder="e.g. $15,000 - $20,000"
                   value="{{ proposal.budget if proposal else '' }}">
               </div>
             </div>
@@ -568,7 +568,7 @@
             <div class="form-group">
               <label>Scope of Work</label>
               <textarea id="scopeInput" rows="5"
-                placeholder="Detail what is included in this proposal — deliverables, services, milestones…">{{ proposal.scope if proposal else '' }}</textarea>
+                placeholder="Detail what is included in this proposal - deliverables, services, milestones…">{{ proposal.scope if proposal else '' }}</textarea>
             </div>
           </div>
         </div>
@@ -599,7 +599,7 @@
             <div class="form-group">
               <label>Notes</label>
               <textarea id="notesInput" rows="4"
-                placeholder="Private notes about this proposal — pricing rationale, negotiation points, follow-up tasks…">{{ proposal.notes if proposal else '' }}</textarea>
+                placeholder="Private notes about this proposal - pricing rationale, negotiation points, follow-up tasks…">{{ proposal.notes if proposal else '' }}</textarea>
             </div>
           </div>
         </div>

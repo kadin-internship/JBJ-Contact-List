@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Analytics — JBJ Management</title>
+  <title>Analytics - JBJ Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
@@ -175,8 +175,8 @@
         if(!j.activities.length){ body.innerHTML = '<p class="muted">No matching outreach entries.</p>'; return }
         body.innerHTML = j.activities.map(a => `
           <div class="activity-item">
-            <div class="activity-meta"><strong>${a.contacted_on || 'No date'}</strong> — ${a.employee_name}${a.channel ? ' via ' + a.channel : ''}</div>
-            <div class="activity-summary">${a.contact_name || a.organization || 'Unknown contact'}${a.contact_email ? ' (' + a.contact_email + ')' : ''}${a.summary ? ' — ' + a.summary : ''}</div>
+            <div class="activity-meta"><strong>${a.contacted_on || 'No date'}</strong> - ${a.employee_name}${a.channel ? ' via ' + a.channel : ''}</div>
+            <div class="activity-summary">${a.contact_name || a.organization || 'Unknown contact'}${a.contact_email ? ' (' + a.contact_email + ')' : ''}${a.summary ? ' - ' + a.summary : ''}</div>
           </div>
         `).join('')
       }catch(e){
@@ -210,7 +210,7 @@
         if(!j.entries.length){ body.innerHTML = '<p class="muted">No matching admin activity.</p>'; return }
         body.innerHTML = j.entries.map(e => `
           <div class="activity-item">
-            <div class="activity-meta"><strong>${e.created_at ? new Date(e.created_at).toLocaleString() : 'No date'}</strong> — ${e.actor_name}</div>
+            <div class="activity-meta"><strong>${e.created_at ? new Date(e.created_at).toLocaleString() : 'No date'}</strong> - ${e.actor_name}</div>
             <div class="activity-summary">${e.summary}</div>
           </div>
         `).join('')

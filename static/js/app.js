@@ -29,7 +29,7 @@ function selectCard(key, cardEl, openFn){
 function el(id){return document.getElementById(id)}
 function initials(first, last, fallback){
   const text = (first||'').charAt(0) + (last||'').charAt(0)
-  return text || (fallback || '—')
+  return text || (fallback || '-')
 }
 
 // Deterministic, varied colors for tag/list pills -- same label always
@@ -320,8 +320,8 @@ function renderRow(c) {
   row.innerHTML = `
     <div class="list-avatar" style="${avatarStyle}">${initials(c.first_name, c.last_name)}</div>
     <div class="list-name">${c.first_name || ''} ${c.last_name || ''}</div>
-    <div class="list-org">${c.organization || '<span style="color:#ccc">—</span>'}</div>
-    <div class="list-title">${c.title || '<span style="color:#ccc">—</span>'}</div>
+    <div class="list-org">${c.organization || '<span style="color:#ccc">-</span>'}</div>
+    <div class="list-title">${c.title || '<span style="color:#ccc">-</span>'}</div>
     <div>${c.tag ? `<span class="list-tag" style="${tagColor ? `background:${tagColor}18;color:${tagColor};border-color:${tagColor}40` : ''}">${c.tag}</span>` : ''}</div>
     <div class="list-actions">
       <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button>
@@ -378,7 +378,7 @@ function renderOrgCard(item){
   div.tabIndex = 0
   const contacts = item.contacts || []
   const contactsHtml = contacts.length
-    ? `<div class="org-contacts">${contacts.map(c=>`<div class="org-contact-row" data-id="${c.id}"><span class="pc-name">${c.name||'(no name)'}</span><span class="pc-meta">${c.title? ' — '+c.title : ''}</span></div>`).join('')}</div>`
+    ? `<div class="org-contacts">${contacts.map(c=>`<div class="org-contact-row" data-id="${c.id}"><span class="pc-name">${c.name||'(no name)'}</span><span class="pc-meta">${c.title? ' - '+c.title : ''}</span></div>`).join('')}</div>`
     : '<div class="muted">No contact on file</div>'
   div.innerHTML = `
     <div class="card-top">
@@ -420,7 +420,7 @@ function renderOrgRow(item) {
       ${tagColor ? `<span class="list-tag" style="background:${tagColor}18;color:${tagColor};border-color:${tagColor}40">${item.tag}</span>` : ''}
       <span style="margin-left:${tagColor ? '6px' : '0'}">${item.contact_count || 0} contact${item.contact_count === 1 ? '' : 's'}</span>
     </div>
-    <div class="list-title">${item.notes ? item.notes.replace(/\|\|/g, ', ') : '<span style="color:#ccc">—</span>'}</div>
+    <div class="list-title">${item.notes ? item.notes.replace(/\|\|/g, ', ') : '<span style="color:#ccc">-</span>'}</div>
     <div></div>
     <div class="list-actions">
       <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i></button>
@@ -451,7 +451,7 @@ async function showContactDetail(contact){
     const hasNotes = c.notes && c.notes.trim().length>0
     panel.innerHTML = `
       <div class="detail-card">
-        <div class="detail-photo photo-placeholder">${(c.first_name||c.last_name)? (c.first_name||'').charAt(0) + (c.last_name||'').charAt(0) : '—'}</div>
+        <div class="detail-photo photo-placeholder">${(c.first_name||c.last_name)? (c.first_name||'').charAt(0) + (c.last_name||'').charAt(0) : '-'}</div>
         <div class="detail-main">
           <h2>${(c.first_name||'') + ' ' + (c.last_name||'')} <button id="detailFavoriteBtn" class="favorite-btn${c.is_favorite? ' is-favorite':''}" title="${c.is_favorite? 'Unstar' : 'Star this contact'}" aria-pressed="${c.is_favorite? 'true':'false'}"><i class="${c.is_favorite? 'fas':'far'} fa-star"></i></button></h2>
           <div class="detail-sub">${c.title||''} ${c.organization? ' • '+c.organization : ''}</div>
@@ -476,7 +476,7 @@ async function showContactDetail(contact){
     `
     panel.style.display = ''
     panel.scrollTop = 0
-    // On desktop the panel is sticky so it's always visible — no scroll needed.
+    // On desktop the panel is sticky so it's always visible - no scroll needed.
     // On mobile it stacks below the results, so scroll it into view.
     if(window.innerWidth < 768) panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
     const edit = el('detailEditBtn'); if(edit) edit.addEventListener('click', ()=> openProfile(c.id))
@@ -508,7 +508,7 @@ function showOrgDetail(item){
     ? `<div class="detail-row"><strong>Contacts:</strong></div><div class="org-contact-list">${contacts.map(c=>`
         <div class="org-contact-item">
           <div class="org-contact-info">
-            <div class="avatar sm">${c.name ? c.name.split(' ').filter(Boolean).map(s=>s.charAt(0)).slice(0,2).join('') : '—'}</div>
+            <div class="avatar sm">${c.name ? c.name.split(' ').filter(Boolean).map(s=>s.charAt(0)).slice(0,2).join('') : '-'}</div>
             <div class="org-contact-text">
               <div class="pc-name">${c.name||'(no name)'}</div>
               <div class="pc-meta">${c.title||''}${c.email? ' • '+c.email : ''}</div>
@@ -575,14 +575,14 @@ function activitySectionHtml(){
 function activityBadgeHtml(activity){
   if(!activity || activity.length === 0) return ''
   const latest = activity[0]
-  return `<span class="flag flag-warn">Contacted ${activity.length} time${activity.length===1?'':'s'} — last ${new Date(latest.contacted_on+'T00:00:00').toLocaleDateString()} by ${latest.employee_name}</span>`
+  return `<span class="flag flag-warn">Contacted ${activity.length} time${activity.length===1?'':'s'} - last ${new Date(latest.contacted_on+'T00:00:00').toLocaleDateString()} by ${latest.employee_name}</span>`
 }
 
 function activityListHtml(activity){
   if(!activity || activity.length === 0) return '<div class="muted">No outreach logged yet.</div>'
   return activity.map(a=>`
     <div class="activity-item">
-      <div class="activity-meta"><strong>${new Date(a.contacted_on+'T00:00:00').toLocaleDateString()}</strong> — ${a.employee_name}${a.channel? ' via '+a.channel : ''}</div>
+      <div class="activity-meta"><strong>${new Date(a.contacted_on+'T00:00:00').toLocaleDateString()}</strong> - ${a.employee_name}${a.channel? ' via '+a.channel : ''}</div>
       <div class="activity-summary">${(a.summary||'').replace(/\n/g,'<br>')}</div>
       <button class="btn btn-sm activity-delete" data-id="${a.id}"><i class="fas fa-trash"></i> Delete</button>
     </div>
@@ -1404,7 +1404,7 @@ function bindSendCampaign(){
         if(snd) snd.textContent = 'Send (0 recipients)'
       } else {
         const sample = (json.sample || []).join(', ')
-        aud.textContent = `Will send to ${n} contact${n===1?'':'s'}${sample ? ' — e.g. ' + sample : ''}.`
+        aud.textContent = `Will send to ${n} contact${n===1?'':'s'}${sample ? ' - e.g. ' + sample : ''}.`
         if(snd) snd.textContent = `Send to ${n} contact${n===1?'':'s'}`
       }
     }catch(e){ if(el('campaignAudience')) el('campaignAudience').textContent = 'Could not count recipients.' }
@@ -1505,7 +1505,7 @@ function bindSendCampaign(){
       if(!res.ok){ ss.textContent = json.error || 'Send failed.'; return }
       modal.style.display = 'none'
       toast(`Campaign sent: ${json.sent} delivered, ${json.failed} failed.`)
-    }catch(e){ ss.textContent = 'Send failed — check your connection.' }
+    }catch(e){ ss.textContent = 'Send failed - check your connection.' }
     finally{ el('campaignSendBtn').disabled = false }
   })
 }
@@ -1524,7 +1524,7 @@ async function movePipelineContact(contactId, stage){
 
 function pipelineStageOpts(current){
   return ['', ...PIPELINE_STAGES].map(s =>
-    `<option value="${s}" ${s===current?'selected':''}>${s||'— Remove —'}</option>`
+    `<option value="${s}" ${s===current?'selected':''}>${s||'- Remove -'}</option>`
   ).join('')
 }
 
@@ -1592,7 +1592,7 @@ async function loadPipelineData(){
 
 function pipelineStageSectionHtml(currentStage){
   const opts = ['', ...PIPELINE_STAGES].map(s =>
-    `<option value="${s}" ${s===currentStage?'selected':''}>${s||'— Not in pipeline —'}</option>`
+    `<option value="${s}" ${s===currentStage?'selected':''}>${s||'- Not in pipeline -'}</option>`
   ).join('')
   return `<div class="detail-section pipeline-stage-section">
     <h4 class="detail-section-title"><i class="fas fa-kanban"></i> Pipeline Stage</h4>

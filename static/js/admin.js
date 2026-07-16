@@ -23,7 +23,7 @@ function showSummary(obj){
   if(s) s.style.display = ''
   const lines = [summaryPhrase('contact', obj.contacts), summaryPhrase('organization', obj.organizations)]
     .filter(Boolean)
-  s.innerHTML = `<p><i class="fas fa-circle-check"></i> Synced from spreadsheet — ${lines.join(' · ')}</p>`
+  s.innerHTML = `<p><i class="fas fa-circle-check"></i> Synced from spreadsheet - ${lines.join(' · ')}</p>`
   // fetch categories breakdown
   fetch('/api/categories').then(r=>r.json()).then(cat=>{
     const list = cat.map(c=>`<div>${c.tag||'<none>'}: ${c.count}</div>`).join('')

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Audit Log — JBJ Management</title>
+  <title>Audit Log - JBJ Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
@@ -67,7 +67,7 @@
         {% for e in entries %}
         <div class="activity-item">
           <div class="activity-meta"><strong>{{ e.created_at.strftime('%b %d, %Y %I:%M %p') }}</strong></div>
-          <div class="activity-summary">{{ e.summary }} — by {{ e.actor_name }}</div>
+          <div class="activity-summary">{{ e.summary }} - by {{ e.actor_name }}</div>
         </div>
         {% endfor %}
       </div>

@@ -38,7 +38,23 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5050/)",
       "Bash(curl -s \"http://localhost:5050/api/counties\")",
       "Bash(curl -s \"http://localhost:5050/api/section-categories\")",
-      "Bash(curl -s -o /tmp/exp.csv -w \"%{http_code}\\\\n\" \"http://localhost:5050/api/export?county=Dallas\")"
+      "Bash(curl -s -o /tmp/exp.csv -w \"%{http_code}\\\\n\" \"http://localhost:5050/api/export?county=Dallas\")",
+      "Bash(node screenshot.js)",
+      "Bash(node screenshot2.js)",
+      "Bash(curl -s -b jbj_cookies.txt \"http://localhost:5050/api/sections?limit=50\")",
+      "Bash(node screenshot4.js)",
+      "Bash(node debug3.js)",
+      "Bash(curl -s -b jbj_cookies.txt \"http://localhost:5050/api/export?tag=Clergy,Chamber%20of%20Commerce\" -o export_test.csv -w \"%{http_code}\\\\n\")",
+      "Bash(.venv/bin/python -c ' *)",
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s https://jbj-contact-hub.onrender.com/static/js/app.js)",
+      "Bash(curl -s https://jbj-contact-hub.onrender.com/)",
+      "Bash(node test_fixes.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://jbj-contact-hub.onrender.com/login)",
+      "Bash(node test_back.js)",
+      "Bash(node test_back2.js)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('models.py'\\).read\\(\\)\\)\")",
+      "Bash(node test_audit.js)"
     ],
     "additionalDirectories": [
       "/private/tmp"

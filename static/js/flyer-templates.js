@@ -1,4 +1,4 @@
-// Shared starter template definitions — used by both the list page and the in-builder browser.
+// Shared starter template definitions - used by both the list page and the in-builder browser.
 const STARTER_TEMPLATES = [
   // ---- Square (540×540) -----------------------------------------------
   {
@@ -58,7 +58,7 @@ const STARTER_TEMPLATES = [
       { type:'text',       x:36,  y:60,  width:100, height:160, text:'“', fontSize:130, color:'#AD0304', bold:true, align:'left', opacity:25 },
       { type:'text',       x:60,  y:130, width:420, height:200, text:'Your inspiring quote or key message goes here. Make it powerful and memorable.', fontSize:24, color:'#ffffff', bold:false, align:'center', opacity:100 },
       { type:'shape',      x:195, y:348, width:150, height:3,   color:'#AD0304', opacity:100, radius:0 },
-      { type:'text',       x:60,  y:364, width:420, height:38,  text:'— ATTRIBUTED NAME', fontSize:15, color:'#AD0304', bold:false, align:'center', opacity:100 },
+      { type:'text',       x:60,  y:364, width:420, height:38,  text:'- ATTRIBUTED NAME', fontSize:15, color:'#AD0304', bold:false, align:'center', opacity:100 },
       { type:'logo',       x:190, y:450, width:160, height:50,  opacity:100 },
     ]
   },

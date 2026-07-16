@@ -361,7 +361,7 @@ class EmailEvent(db.Model):
 
 class SocialToken(db.Model):
     """OAuth token for a connected social platform (LinkedIn or Facebook page).
-    Only one row per platform — re-connecting overwrites the previous token."""
+    Only one row per platform - re-connecting overwrites the previous token."""
     __tablename__ = 'social_tokens'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -578,7 +578,7 @@ class Booking(db.Model):
 
 class Proposal(db.Model):
     """A client proposal assembled from case studies, contacts, and custom
-    sections. Built entirely inside the app — no external editor needed."""
+    sections. Built entirely inside the app - no external editor needed."""
     __tablename__ = 'proposals'
 
     id              = db.Column(db.Integer, primary_key=True)

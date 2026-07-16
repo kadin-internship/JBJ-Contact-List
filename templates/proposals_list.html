@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Saved Proposals — JBJ Management</title>
+  <title>Saved Proposals - JBJ Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
@@ -157,14 +157,14 @@
                 <a href="/proposals/{{ p.id }}" class="pl-title-link">{{ p.title or 'Untitled' }}</a>
               </td>
               <td>
-                <div>{{ p.client_name or '—' }}</div>
+                <div>{{ p.client_name or '-' }}</div>
                 {% if p.client_org %}<div class="pl-client">{{ p.client_org }}</div>{% endif %}
               </td>
               <td>
                 <span class="pl-status status-{{ p.status or 'draft' }}">{{ p.status or 'draft' }}</span>
               </td>
-              <td class="pl-date">{{ p.updated_at.strftime('%b %d, %Y') if p.updated_at else '—' }}</td>
-              <td class="pl-date">{{ p.created_by.display_name if p.created_by else '—' }}</td>
+              <td class="pl-date">{{ p.updated_at.strftime('%b %d, %Y') if p.updated_at else '-' }}</td>
+              <td class="pl-date">{{ p.created_by.display_name if p.created_by else '-' }}</td>
               <td>
                 <div style="display:flex;gap:6px;">
                   <a href="/proposals/{{ p.id }}" class="btn btn-sm"><i class="fas fa-pen"></i> Edit</a>

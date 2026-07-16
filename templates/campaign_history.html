@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Campaign History — JBJ Management</title>
+  <title>Campaign History - JBJ Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
@@ -194,7 +194,7 @@
             const opens  = (s.events.open  || {}).unique || 0
             const clicks = (s.events.click || {}).unique || 0
             const recipients = s.recipient_count || 0
-            const date = s.started_at ? new Date(s.started_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'
+            const date = s.started_at ? new Date(s.started_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '-'
             const statusColor = s.status === 'completed' ? 'var(--green)' : s.status === 'failed' ? '#c0392b' : 'var(--amber)'
             return `<tr style="border-bottom:1px solid rgba(0,0,0,0.06);">
               <td style="padding:12px;">${s.subject || '(no subject)'}</td>

@@ -326,7 +326,7 @@ main{padding:24px 0}
   font-size:18px;width:28px;text-align:center;flex-shrink:0;
 }
 
-/* Labels — hidden until hover */
+/* Labels - hidden until hover */
 .toolbar-label{
   opacity:0;transition:opacity 0.15s;
   white-space:nowrap;pointer-events:none;overflow:hidden;
@@ -415,7 +415,7 @@ main{padding:24px 0}
 }
 
 /* ═══════════════════════════════════════════════════════════
-   HOMEPAGE — THREE SECTION CARDS
+   HOMEPAGE - THREE SECTION CARDS
    Replace the single-button hero with three entry cards.
 ═══════════════════════════════════════════════════════════ */
 .hero-sections-center{
@@ -564,7 +564,7 @@ main{padding:24px 0}
 .fb-palette-panel .filter-section h4{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin:14px 0 6px}
 .fb-palette-panel label{color:var(--charcoal);font-size:12px;font-weight:600}
 
-/* Canvas area — neutral mid-tone background so the canvas pops */
+/* Canvas area - neutral mid-tone background so the canvas pops */
 .fb-canvas-area{display:flex;justify-content:center;align-items:flex-start;background:#d8d8d4;min-height:100%;padding:40px 24px;overflow-y:auto}
 .fb-canvas{position:relative;background:#fff;box-shadow:0 8px 40px rgba(0,0,0,0.22),0 2px 8px rgba(0,0,0,0.12);overflow:hidden;cursor:default;user-select:none;border-radius:2px;transition:outline .1s}
 .fb-canvas.fb-drag-over{outline:3px dashed #AD0304;outline-offset:4px}

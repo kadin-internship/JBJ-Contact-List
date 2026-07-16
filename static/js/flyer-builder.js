@@ -575,7 +575,7 @@ function setupPalette() {
     })
   })
 
-  // Palette image tile — file input is inline in the tile, user clicks it directly
+  // Palette image tile - file input is inline in the tile, user clicks it directly
   const paletteImgInput = el('fbImageUpload')
   if (paletteImgInput) paletteImgInput.addEventListener('change', async () => {
     const file = paletteImgInput.files[0]
@@ -926,7 +926,7 @@ function setupSendModal() {
     } catch (err) {
       clearTimeout(timer)
       status.style.color = 'var(--danger,#c00)'
-      status.textContent = err.name === 'AbortError' ? 'Timed out — the send may still be in progress.' : 'Could not reach the server.'
+      status.textContent = err.name === 'AbortError' ? 'Timed out - the send may still be in progress.' : 'Could not reach the server.'
       btn.disabled = false
     }
   })
@@ -1058,7 +1058,7 @@ function init() {
   el('fbSaveBtn').addEventListener('click', saveTemplate)
   el('fbNameInput').addEventListener('input', markDirty)
 
-  pushHistory() // baseline — so Ctrl+Z can't go before the loaded state
+  pushHistory() // baseline - so Ctrl+Z can't go before the loaded state
 
   window.addEventListener('beforeunload', e => {
     if (dirty) { e.preventDefault(); e.returnValue = '' }

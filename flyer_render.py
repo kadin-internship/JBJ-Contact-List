@@ -81,11 +81,11 @@ def _wrap_text(draw, text, font, max_width_px):
 def render_flyer_png(elements, fmt='square', bg_color='#ffffff', asset_loader=None, bg_image_bytes=None):
     """Render a list of flyer elements to PNG bytes.
 
-    elements       – ordered list of element dicts (array index = z-order)
-    fmt            – canvas format key
-    bg_color       – hex background fill (used even when bg_image_bytes is set)
-    asset_loader   – callable(asset_id: int) -> bytes | None
-    bg_image_bytes – raw image bytes to use as background (cover-scaled)
+    elements       - ordered list of element dicts (array index = z-order)
+    fmt            - canvas format key
+    bg_color       - hex background fill (used even when bg_image_bytes is set)
+    asset_loader   - callable(asset_id: int) -> bytes | None
+    bg_image_bytes - raw image bytes to use as background (cover-scaled)
     """
     import io as _io
     fmt_info = CANVAS_FORMATS.get(fmt, CANVAS_FORMATS['square'])

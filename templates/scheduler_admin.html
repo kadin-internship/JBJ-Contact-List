@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Meeting Scheduler — JBJ Management</title>
+  <title>Meeting Scheduler - JBJ Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
@@ -180,7 +180,7 @@
         : ''
       return `<div class="booking-row" data-id="${b.id}">
         <div>${fmtDate(b.date)}</div>
-        <div>${fmtTime(b.start_time)} – ${fmtTime(b.end_time)}</div>
+        <div>${fmtTime(b.start_time)} - ${fmtTime(b.end_time)}</div>
         <div><strong>${b.name}</strong><br><span class="muted" style="font-size:12px;">${b.email}</span>${b.phone ? `<br><span class="muted" style="font-size:12px;">${b.phone}</span>` : ''}</div>
         <div class="muted" style="font-size:13px;">${b.notes || ''}</div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">

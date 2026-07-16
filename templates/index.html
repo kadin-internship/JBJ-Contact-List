@@ -39,6 +39,7 @@
       <div class="header-actions">
         <div class="header-actions-row">
           <span class="current-user">{{ current_user.display_name }}</span>
+          <button id="a11yToggle" class="a11y-btn" title="Toggle large text mode"><i class="fas fa-text-height"></i> Large Text</button>
           <a id="backHomeBtn" class="btn" href="/"><i class="fas fa-house"></i> Back to Home</a>
           <button id="addContactBtn" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add Contact</button>
           <button id="tasksBtn" class="btn task-nav-btn"><i class="fas fa-list-check"></i> Tasks <span id="taskBadge" class="task-badge" style="display:none;"></span></button>
@@ -354,6 +355,22 @@
       }
       setTimeout(trySearch, 150);
     })();
+  </script>
+  <script>
+    const a11yBtn = document.getElementById('a11yToggle');
+    function applyA11y(on) {
+      document.body.classList.toggle('a11y', on);
+      a11yBtn.classList.toggle('active', on);
+      a11yBtn.innerHTML = on
+        ? '<i class="fas fa-text-height"></i> Large Text On'
+        : '<i class="fas fa-text-height"></i> Large Text';
+    }
+    applyA11y(localStorage.getItem('a11y') === '1');
+    a11yBtn.addEventListener('click', () => {
+      const next = !document.body.classList.contains('a11y');
+      localStorage.setItem('a11y', next ? '1' : '0');
+      applyA11y(next);
+    });
   </script>
 </body>
 </html>

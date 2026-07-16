@@ -714,6 +714,8 @@ def create_app(config_class=Config):
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_post_social BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pipeline_stage VARCHAR(32)",
+            "ALTER TABLE flyer_templates ADD COLUMN background VARCHAR(32) DEFAULT '#ffffff'",
+            "ALTER TABLE flyer_templates ADD COLUMN bg_asset_id INTEGER",
         ]:
             try:
                 db.session.execute(db.text(stmt))
@@ -1296,6 +1298,83 @@ def create_app(config_class=Config):
         log_audit('email_template_deleted', 'email_template', template_id, label)
         return jsonify({'deleted': True})
 
+    @app.route('/api/email-templates/<int:template_id>/duplicate', methods=['POST'])
+    def duplicate_email_template(template_id):
+        import copy as _copy
+        t = EmailTemplate.query.get_or_404(template_id)
+        dup = EmailTemplate(
+            name=f'{t.name} (copy)',
+            subject=t.subject,
+            blocks=_copy.deepcopy(t.blocks),
+            is_public=False,
+            created_by_id=current_user.id,
+        )
+        db.session.add(dup)
+        db.session.commit()
+        log_audit('email_template_created', 'email_template', dup.id, dup.name)
+        return jsonify(dup.to_dict()), 201
+
+    @app.route('/api/email-templates/<int:template_id>/send-bulk', methods=['POST'])
+    def send_email_template_bulk(template_id):
+        """Send the email template to a filtered group of contacts.
+        Merge tags ({{first_name}} etc.) are replaced per-contact.
+        Only contacts with a non-empty email address receive the email."""
+        import re as _re
+        t = EmailTemplate.query.get_or_404(template_id)
+        data = request.get_json(force=True) or {}
+        tag_filter = (data.get('tag') or '').strip()
+        subject_override = (data.get('subject') or '').strip()
+        html_body = (data.get('html') or '').strip()
+        if not html_body:
+            return jsonify({'error': 'Email has no content.'}), 400
+
+        query = Contact.query.filter(Contact.email.isnot(None), Contact.email != '')
+        if tag_filter:
+            query = query.filter(Contact.tag == tag_filter)
+        contacts = query.all()
+        if not contacts:
+            return jsonify({'error': 'No contacts with email addresses match that filter.'}), 400
+
+        subject = subject_override or t.subject or t.name or 'Email from JBJ Management'
+
+        def replace_tags(text, contact):
+            replacements = {
+                '{{first_name}}': contact.first_name or '',
+                '{{last_name}}':  contact.last_name or '',
+                '{{full_name}}':  ' '.join(filter(None, [contact.first_name, contact.last_name])),
+                '{{organization}}': contact.organization or '',
+                '{{title}}':      contact.title or '',
+            }
+            for tag, val in replacements.items():
+                text = text.replace(tag, val)
+            return text
+
+        host_url = request.host_url
+        sent, failed = 0, 0
+        errors = []
+        template_id_value, template_name = t.id, t.name
+        db.session.close()
+
+        for contact in contacts:
+            try:
+                body = replace_tags(html_body, contact)
+                body = absolutize_static_urls(body, host_url)
+                wrapped = (
+                    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;'
+                    f'margin:0 auto;padding:16px;">{body}</div>'
+                )
+                contact_subject = replace_tags(subject, contact)
+                send_email_smtp(contact.email, contact_subject, wrapped, [])
+                sent += 1
+            except Exception as e:
+                failed += 1
+                errors.append(str(e))
+
+        log_audit('email_template_sent', 'email_template', template_id_value, template_name, {
+            'bulk': True, 'tag': tag_filter, 'sent': sent, 'failed': failed,
+        })
+        return jsonify({'sent': sent, 'failed': failed, 'errors': errors[:5]})
+
     @app.route('/api/email-templates/<int:template_id>/send', methods=['POST'])
     def send_email_template(template_id):
         """Sends the current compose content to one typed-in address --
@@ -1392,6 +1471,8 @@ def create_app(config_class=Config):
             name=(data.get('name') or '').strip() or 'Untitled flyer',
             format=data.get('format', 'square') if data.get('format') in _valid_flyer_formats() else 'square',
             elements=data.get('elements') or [],
+            background=data.get('background') or '#ffffff',
+            bg_asset_id=data.get('bg_asset_id'),
             created_by_id=current_user.id,
         )
         db.session.add(t)
@@ -1411,6 +1492,10 @@ def create_app(config_class=Config):
         if data.get('format') in _valid_flyer_formats():
             t.format = data['format']
         t.elements = data.get('elements') or []
+        if 'background' in data:
+            t.background = (data.get('background') or '#ffffff')[:32]
+        if 'bg_asset_id' in data:
+            t.bg_asset_id = data.get('bg_asset_id')
         if 'is_public' in data:
             t.is_public = bool(data['is_public'])
         db.session.commit()
@@ -1439,7 +1524,8 @@ def create_app(config_class=Config):
         q               = data.get('q', '')
         followup        = data.get('followup', '')
         favorites_only  = bool(data.get('favorites_only', False))
-        background      = data.get('background', '#ffffff')
+        background      = data.get('background', t.background or '#ffffff')
+        bg_asset_id     = data.get('bg_asset_id', t.bg_asset_id)
 
         contacts = filtered_contacts_query(
             q=q, tag=tag, county=county, followup=followup, favorites_only=favorites_only
@@ -1461,7 +1547,15 @@ def create_app(config_class=Config):
             except (TypeError, ValueError):
                 return None
 
-        png_bytes = render_flyer_png(t.elements, fmt=t.format, bg_color=background, asset_loader=asset_loader)
+        bg_img_bytes = None
+        if bg_asset_id:
+            try:
+                _a = FlyerAsset.query.get(int(bg_asset_id))
+                if _a:
+                    bg_img_bytes = _a.data
+            except (TypeError, ValueError):
+                pass
+        png_bytes = render_flyer_png(t.elements, fmt=t.format, bg_color=background, asset_loader=asset_loader, bg_image_bytes=bg_img_bytes)
 
         msg_part = f'<p style="margin:0 0 16px;">{message}</p>' if message else ''
         html_body = (
@@ -1506,8 +1600,14 @@ def create_app(config_class=Config):
             except (TypeError, ValueError):
                 return None
 
-        bg = data.get('background', '#ffffff')
-        png_bytes = render_flyer_png(elements, fmt=fmt, bg_color=bg, asset_loader=asset_loader)
+        bg = data.get('background', t.background or '#ffffff')
+        bg_asset_id = data.get('bg_asset_id', t.bg_asset_id)
+        bg_image_bytes = None
+        if bg_asset_id:
+            a = FlyerAsset.query.get(int(bg_asset_id))
+            if a:
+                bg_image_bytes = a.data
+        png_bytes = render_flyer_png(elements, fmt=fmt, bg_color=bg, asset_loader=asset_loader, bg_image_bytes=bg_image_bytes)
         return jsonify({
             'image': 'data:image/png;base64,' + base64.b64encode(png_bytes).decode(),
             'width':  CANVAS_FORMATS.get(fmt, CANVAS_FORMATS['square'])['rw'],
@@ -2856,8 +2956,9 @@ def create_app(config_class=Config):
         caption    = (data.get('caption') or '').strip()
         platforms  = data.get('platforms') or []
         template_id = data.get('template_id')
-        elements   = data.get('elements')
-        background = data.get('background', '#ffffff')
+        elements    = data.get('elements')
+        background  = data.get('background', '#ffffff')
+        bg_asset_id = data.get('bg_asset_id')
 
         if not caption:
             return jsonify({'error': 'Caption is required.'}), 400
@@ -2873,7 +2974,16 @@ def create_app(config_class=Config):
                 return a.data if a else None
             except (TypeError, ValueError):
                 return None
-        png_bytes = render_flyer_png(els, fmt=t.format, bg_color=background, asset_loader=asset_loader)
+        _bg_id = bg_asset_id or t.bg_asset_id
+        _bg_bytes = None
+        if _bg_id:
+            try:
+                _ba = FlyerAsset.query.get(int(_bg_id))
+                if _ba:
+                    _bg_bytes = _ba.data
+            except (TypeError, ValueError):
+                pass
+        png_bytes = render_flyer_png(els, fmt=t.format, bg_color=background, asset_loader=asset_loader, bg_image_bytes=_bg_bytes)
 
         results = {}
 

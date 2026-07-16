@@ -78,15 +78,16 @@ def _wrap_text(draw, text, font, max_width_px):
     return lines or ['']
 
 
-def render_flyer_png(elements, fmt='square', bg_color='#ffffff', asset_loader=None):
+def render_flyer_png(elements, fmt='square', bg_color='#ffffff', asset_loader=None, bg_image_bytes=None):
     """Render a list of flyer elements to PNG bytes.
 
-    elements  – ordered list of element dicts (array index = z-order)
-    fmt       – 'square' or 'portrait'
-    bg_color  – hex background fill
-    asset_loader – callable(asset_id: int) -> bytes | None, used for
-                   Image elements that reference a stored FlyerAsset
+    elements       – ordered list of element dicts (array index = z-order)
+    fmt            – canvas format key
+    bg_color       – hex background fill (used even when bg_image_bytes is set)
+    asset_loader   – callable(asset_id: int) -> bytes | None
+    bg_image_bytes – raw image bytes to use as background (cover-scaled)
     """
+    import io as _io
     fmt_info = CANVAS_FORMATS.get(fmt, CANVAS_FORMATS['square'])
     dw, dh   = fmt_info['dw'], fmt_info['dh']
     rw, rh   = fmt_info['rw'], fmt_info['rh']
@@ -94,6 +95,20 @@ def render_flyer_png(elements, fmt='square', bg_color='#ffffff', asset_loader=No
     sy       = rh / dh   # y-axis scale: display → render
 
     canvas = Image.new('RGBA', (rw, rh), _hex_to_rgba(bg_color))
+    if bg_image_bytes:
+        try:
+            bg_img = Image.open(_io.BytesIO(bg_image_bytes)).convert('RGBA')
+            # cover-scale: fill canvas, crop if needed
+            img_w, img_h = bg_img.size
+            scale = max(rw / img_w, rh / img_h)
+            new_w, new_h = round(img_w * scale), round(img_h * scale)
+            bg_img = bg_img.resize((new_w, new_h), Image.LANCZOS)
+            off_x = (new_w - rw) // 2
+            off_y = (new_h - rh) // 2
+            bg_img = bg_img.crop((off_x, off_y, off_x + rw, off_y + rh))
+            canvas.paste(bg_img, (0, 0))
+        except Exception:
+            pass
     draw   = ImageDraw.Draw(canvas)
 
     for el in elements:

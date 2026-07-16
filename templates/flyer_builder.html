@@ -6,9 +6,17 @@
   <title>{{ template.name }} — Flyer Builder — JBJ Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Bebas+Neue&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Montserrat:wght@400;700&family=Oswald:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/flyer-templates.js"></script>
+  <style>
+    .fb-tpl-modal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+    .fb-starter-card{cursor:pointer;border-radius:12px;border:2px solid rgba(148,153,156,0.18);padding:12px;background:#fff;transition:border-color .15s,box-shadow .15s}
+    .fb-starter-card:hover{border-color:var(--maroon);box-shadow:0 4px 18px rgba(173,3,4,0.1)}
+    .fb-starter-name{font-size:14px;font-weight:600;margin-top:10px;color:var(--charcoal)}
+    .fb-starter-desc{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}
+  </style>
 </head>
 <body>
   <header class="site-header">
@@ -18,7 +26,7 @@
         <input id="fbNameInput" type="text" class="eb-name-input" value="{{ template.name }}" placeholder="Untitled flyer">
       </div>
       <div style="display:flex;gap:10px;align-items:center;">
-        <span id="fbSaveStatus" class="muted" style="font-size:13px;"></span>
+        <span id="fbSaveStatus"></span>
         <div class="export-wrap">
           <button id="fbCanvasSizeBtn" class="btn" type="button"><i class="fas fa-crop-simple"></i> <span id="fbCanvasSizeLabel">{{ template.format }}</span> <i class="fas fa-chevron-down" style="font-size:11px;"></i></button>
           <div id="fbCanvasSizeMenu" class="export-menu fb-size-menu" style="display:none;"></div>
@@ -26,6 +34,9 @@
         <button id="fbVisibilityBtn" class="btn" title="Toggle public/private">
           <i id="fbVisibilityIcon" class="fas fa-lock"></i> <span id="fbVisibilityLabel">Private</span>
         </button>
+        <button id="fbUndoBtn" class="btn" title="Undo (Ctrl+Z)" disabled><i class="fas fa-rotate-left"></i></button>
+        <button id="fbRedoBtn" class="btn" title="Redo (Ctrl+Y)" disabled><i class="fas fa-rotate-right"></i></button>
+        <button id="fbBrowseTemplatesBtn" class="btn" title="Browse Templates"><i class="fas fa-table-cells-large"></i> Templates</button>
         <button id="fbSaveBtn" class="btn"><i class="fas fa-check"></i> Save</button>
         <button id="fbSendBtn" class="btn"><i class="fas fa-paper-plane"></i> Send to Contacts</button>
         {% if current_user.is_admin or current_user.can_post_social %}
@@ -94,10 +105,11 @@
               <span class="fb-tile-preview" style="font-size:8px;font-weight:700;color:#AD0304;letter-spacing:1px;">LOGO</span>
               <span class="fb-tile-label">Logo</span>
             </button>
-            <button type="button" class="fb-palette-tile" data-add="image" title="Upload image">
-              <span class="fb-tile-preview" style="font-size:16px;color:#aaa;"><i class="fas fa-image"></i></span>
-              <span class="fb-tile-label">Image</span>
-            </button>
+            <div class="fb-palette-tile" title="Upload image" style="position:relative;cursor:pointer;">
+              <span class="fb-tile-preview" style="font-size:16px;color:#aaa;pointer-events:none;"><i class="fas fa-image"></i></span>
+              <span class="fb-tile-label" style="pointer-events:none;">Image</span>
+              <input type="file" id="fbImageUpload" accept="image/*" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0.001;cursor:pointer;pointer-events:auto;z-index:10;">
+            </div>
           </div>
         </div>
 
@@ -105,7 +117,7 @@
           <h4>Background</h4>
           <div style="display:flex;flex-direction:column;gap:8px;">
             <label style="font-size:12px;font-weight:600;">Canvas color
-              <input type="color" id="fbBgColor" value="#ffffff" style="width:100%;height:32px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);cursor:pointer;margin-top:4px;">
+              <input type="color" id="fbBgColor" value="#ffffff" style="width:100%;height:32px;border-radius:8px;border:1px solid rgba(148,153,156,0.3);cursor:pointer;margin-top:4px;">
             </label>
             <div class="fb-color-swatches" id="fbColorSwatches">
               <button class="fb-swatch" style="background:#ffffff;" data-color="#ffffff" title="White"></button>
@@ -117,12 +129,21 @@
               <button class="fb-swatch" style="background:#F5F5F0;" data-color="#F5F5F0" title="Off-white"></button>
               <button class="fb-swatch" style="background:#D68182;" data-color="#D68182" title="Rose"></button>
             </div>
+            <div>
+              <p style="font-size:12px;font-weight:600;margin:4px 0 6px;">Background image</p>
+              <div style="position:relative;width:100%;">
+                <div class="btn" style="width:100%;justify-content:center;pointer-events:none;"><span id="fbBgImageBtnText"><i class="fas fa-image"></i> Upload image</span></div>
+                <input type="file" id="fbBgImageUpload" accept="image/*" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0.001;cursor:pointer;pointer-events:auto;z-index:10;">
+              </div>
+              <p id="fbBgImageStatus" style="font-size:12px;color:#1E7B34;margin:4px 0 0;display:none;"><i class="fas fa-check"></i> Image set</p>
+              <button id="fbBgImageRemoveBtn" class="btn" style="width:100%;justify-content:center;margin-top:4px;color:var(--maroon);border-color:rgba(173,3,4,0.3);display:none;"><i class="fas fa-times"></i> Remove image</button>
+            </div>
           </div>
         </div>
 
         <div class="filter-section">
           <h4>Canvas</h4>
-          <p class="muted" style="font-size:12px;margin:0;">{{ 'Square 1080×1080' if template.format == 'square' else 'Portrait 1080×1536' }}</p>
+          <p style="font-size:12px;margin:0;" class="muted">{{ 'Square 1080×1080' if template.format == 'square' else 'Portrait 1080×1536' }}</p>
         </div>
       </div>
     </aside>
@@ -131,8 +152,8 @@
     <div class="fb-canvas-area">
       <div class="fb-canvas-container">
         <div id="fbCanvas" class="fb-canvas fb-canvas-{{ template.format }}"></div>
+        <p class="fb-canvas-hint">Click to select &nbsp;·&nbsp; Double-click to edit text &nbsp;·&nbsp; Drag to move &nbsp;·&nbsp; Drag handle to resize &nbsp;·&nbsp; Ctrl+C/V copy/paste &nbsp;·&nbsp; Del to delete</p>
       </div>
-      <p class="muted" style="text-align:center;font-size:12px;margin-top:8px;">Click an element to select it · Drag to move · Drag corner to resize</p>
     </div>
 
     <!-- Right: style panel -->
@@ -231,9 +252,18 @@
     </div>
   </div>
 
+  <!-- Browse Templates modal -->
+  <div id="fbBrowseTemplatesModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" style="max-width:780px;">
+      <button id="fbCloseBrowseTemplatesModal" class="close">×</button>
+      <h3>Browse Templates</h3>
+      <p class="muted" style="margin:0 0 16px;font-size:13px;">Click a template to load it into the canvas — your current design will be replaced (undo with Ctrl+Z).</p>
+      <div id="fbBuilderStarterGrid" class="fb-tpl-modal-grid"></div>
+    </div>
+  </div>
+
   <!-- File input at body level so programmatic .click() is never blocked
        by a parent overflow or scroll container -->
-  <input type="file" id="fbImageUpload" accept="image/*" style="display:none;">
 
   <script>
     window.FLYER_TEMPLATE_ID = {{ template.id }}

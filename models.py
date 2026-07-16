@@ -252,7 +252,9 @@ class FlyerTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256), nullable=False)
     format = db.Column(db.String(16), nullable=False, default='square')  # 'square' | 'portrait'
-    elements = db.Column(db.JSON, nullable=False, default=list)
+    elements    = db.Column(db.JSON, nullable=False, default=list)
+    background  = db.Column(db.String(32), nullable=False, default='#ffffff')
+    bg_asset_id = db.Column(db.Integer, db.ForeignKey('flyer_assets.id'), nullable=True)
     is_public = db.Column(db.Boolean, default=False, nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_by = db.relationship('User', foreign_keys=[created_by_id], lazy='joined')
@@ -264,7 +266,9 @@ class FlyerTemplate(db.Model):
             'id': self.id,
             'name': self.name,
             'format': self.format,
-            'elements': self.elements or [],
+            'elements':    self.elements or [],
+            'background':  self.background or '#ffffff',
+            'bg_asset_id': self.bg_asset_id,
             'is_public': self.is_public,
             'created_by_id': self.created_by_id,
             'created_by_name': self.created_by.display_name if self.created_by else None,

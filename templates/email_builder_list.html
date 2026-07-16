@@ -9,6 +9,21 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .eb-tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:20px;}
+    .eb-tpl-card{background:#fff;border:2px solid rgba(148,153,156,0.2);border-radius:14px;padding:0;overflow:hidden;cursor:pointer;transition:border-color .15s,box-shadow .15s;display:flex;flex-direction:column;}
+    .eb-tpl-card:hover{border-color:#AD0304;box-shadow:0 4px 16px rgba(173,3,4,0.12);}
+    .eb-tpl-card.blank{border-style:dashed;}
+    .eb-tpl-preview{height:160px;overflow:hidden;padding:14px 16px;font-size:11px;line-height:1.5;background:#fafafa;border-bottom:1px solid rgba(148,153,156,0.15);pointer-events:none;flex:1;}
+    .eb-tpl-preview h2{font-family:'Archivo Black',sans-serif;color:#AD0304;font-size:13px;border-bottom:2px solid #AD0304;padding-bottom:4px;margin:0 0 6px;}
+    .eb-tpl-preview h3{font-size:11px;font-weight:700;color:#333;margin:6px 0 3px;}
+    .eb-tpl-preview p{margin:0 0 4px;color:#444;}
+    .eb-tpl-preview .cta{display:inline-block;background:#AD0304;color:#fff;padding:4px 10px;border-radius:999px;font-weight:600;font-size:10px;margin:4px 0;}
+    .eb-tpl-preview .blank-inner{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#aaa;}
+    .eb-tpl-footer{padding:12px 14px;}
+    .eb-tpl-name{font-weight:600;font-size:14px;margin:0 0 2px;}
+    .eb-tpl-desc{font-size:12px;color:#888;margin:0;}
+  </style>
 </head>
 <body>
   <header class="site-header">
@@ -48,7 +63,10 @@
           {{ t.blocks|length }} block{{ '' if t.blocks|length == 1 else 's' }} · updated {{ t.updated_at.strftime('%b %d, %Y') }}
           {% if t.created_by_id != current_user_id %} · by {{ t.created_by.display_name if t.created_by else 'Unknown' }}{% endif %}
         </p>
-        <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); duplicateEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-copy"></i> Duplicate</button>
+          <button class="btn" style="align-self:flex-start;" onclick="event.preventDefault(); event.stopPropagation(); deleteEmailTemplate({{ t.id }}, {{ t.name|tojson }})"><i class="fas fa-trash"></i> Delete</button>
+        </div>
       </a>
       {% endfor %}
     </div>
@@ -57,24 +75,209 @@
     {% endif %}
   </main>
 
+  <!-- Starter Templates Modal -->
+  <div id="ebStarterModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" style="max-width:860px;">
+      <button id="ebStarterClose" class="close">×</button>
+      <h3 style="margin:0 0 4px;">New Email</h3>
+      <p class="muted" style="margin:0 0 16px;">Choose a starting point or begin with a blank canvas.</p>
+      <div class="eb-tpl-grid">
+
+        <div class="eb-tpl-card blank" data-tpl="blank">
+          <div class="eb-tpl-preview">
+            <div class="blank-inner">
+              <i class="fas fa-plus" style="font-size:24px;"></i>
+              <span style="font-size:13px;font-weight:600;">Blank</span>
+            </div>
+          </div>
+          <div class="eb-tpl-footer">
+            <p class="eb-tpl-name">Blank Email</p>
+            <p class="eb-tpl-desc">Start from scratch</p>
+          </div>
+        </div>
+
+        <div class="eb-tpl-card" data-tpl="event">
+          <div class="eb-tpl-preview">
+            <div style="text-align:center;margin-bottom:6px;"><span style="font-size:9px;font-weight:700;color:#AD0304;letter-spacing:1px;">JBJ MANAGEMENT</span></div>
+            <h2>Event Announcement</h2>
+            <p>We're excited to invite you to an exclusive event featuring top talent from our roster.</p>
+            <p><strong>Date:</strong> Saturday, August 10<br><strong>Venue:</strong> The Venue Name, Dallas TX</p>
+            <div style="text-align:center;"><span class="cta">Register Here</span></div>
+          </div>
+          <div class="eb-tpl-footer">
+            <p class="eb-tpl-name">Event Announcement</p>
+            <p class="eb-tpl-desc">Invite contacts to an upcoming event</p>
+          </div>
+        </div>
+
+        <div class="eb-tpl-card" data-tpl="newsletter">
+          <div class="eb-tpl-preview">
+            <div style="text-align:center;margin-bottom:6px;"><span style="font-size:9px;font-weight:700;color:#AD0304;letter-spacing:1px;">JBJ MANAGEMENT</span></div>
+            <h2>Monthly Newsletter</h2>
+            <h3>What's New This Month</h3>
+            <p>Here's a roundup of the latest news, events, and announcements from JBJ Management.</p>
+            <h3>Upcoming Events</h3>
+            <p>Check out what's coming up on our calendar this month.</p>
+          </div>
+          <div class="eb-tpl-footer">
+            <p class="eb-tpl-name">Monthly Newsletter</p>
+            <p class="eb-tpl-desc">Regular update with multiple sections</p>
+          </div>
+        </div>
+
+        <div class="eb-tpl-card" data-tpl="followup">
+          <div class="eb-tpl-preview">
+            <p>Hi {{first_name}},</p>
+            <p>I wanted to follow up on our recent conversation and see if you had any questions.</p>
+            <p>I'd love to connect at your convenience — feel free to reply to this email or reach out directly.</p>
+            <p>Best regards,<br><strong>JBJ Management</strong></p>
+          </div>
+          <div class="eb-tpl-footer">
+            <p class="eb-tpl-name">Personal Follow-Up</p>
+            <p class="eb-tpl-desc">Simple personalized outreach</p>
+          </div>
+        </div>
+
+        <div class="eb-tpl-card" data-tpl="roster">
+          <div class="eb-tpl-preview">
+            <div style="text-align:center;margin-bottom:6px;"><span style="font-size:9px;font-weight:700;color:#AD0304;letter-spacing:1px;">JBJ MANAGEMENT</span></div>
+            <h2>New Roster Addition</h2>
+            <p>We're thrilled to announce a new addition to the JBJ Management family.</p>
+            <h3>Artist Name</h3>
+            <p>Genre · Based in City, TX</p>
+            <div style="text-align:center;"><span class="cta">Learn More</span></div>
+          </div>
+          <div class="eb-tpl-footer">
+            <p class="eb-tpl-name">Roster Update</p>
+            <p class="eb-tpl-desc">Announce a new artist signing</p>
+          </div>
+        </div>
+
+        <div class="eb-tpl-card" data-tpl="reminder">
+          <div class="eb-tpl-preview">
+            <div style="background:#1a1a1a;color:#fff;padding:8px 10px;border-radius:6px;text-align:center;margin-bottom:8px;"><strong style="font-size:11px;">📢 Reminder</strong></div>
+            <p>Hi {{first_name}},</p>
+            <p>Just a friendly reminder that our upcoming event is happening this weekend. We hope to see you there!</p>
+            <p><strong>Date:</strong> This Saturday<br><strong>Time:</strong> 7:00 PM</p>
+            <div style="text-align:center;"><span class="cta">View Details</span></div>
+          </div>
+          <div class="eb-tpl-footer">
+            <p class="eb-tpl-name">Event Reminder</p>
+            <p class="eb-tpl-desc">Last-minute nudge before an event</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <script>
-    async function createNewTemplate(){
+    const STARTER_HTML = {
+      blank: { subject: '', html: '<p><br></p>' },
+      event: {
+        subject: 'You\'re Invited — [Event Name]',
+        html: `<div style="text-align:center;margin:16px 0;"><img src="/static/img/logo.png" alt="JBJ Management" style="width:160px;max-width:100%;"></div>
+<h2 style="font-family:'Archivo Black',sans-serif;color:#AD0304;border-bottom:2px solid #AD0304;padding-bottom:8px;margin:20px 0 12px;">You're Invited</h2>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Hi {{first_name}},</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">We're excited to invite you to an exclusive event featuring top talent from our roster. This is a great opportunity to connect, enjoy live performances, and celebrate the art of music.</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;"><strong>Date:</strong> Saturday, August 10<br><strong>Time:</strong> 7:00 PM – 11:00 PM<br><strong>Venue:</strong> The Venue Name, Dallas, TX</p>
+<div style="text-align:center;margin:20px 0;"><a href="#" style="background:#AD0304;color:#ffffff;display:inline-block;padding:14px 32px;border-radius:999px;font-weight:600;text-decoration:none;font-size:16px;">Register Here</a></div>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">We hope to see you there!</p>
+<div style="margin:24px 0 0;padding-top:16px;border-top:1px solid #eee;font-size:14px;line-height:1.6;"><strong>JBJ Management</strong><br><span style="color:#555;">Dallas, TX</span></div>
+<div style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;margin-top:24px;border-top:1px solid #eee;line-height:1.6;">JBJ Management · Dallas, TX<br><a href="#" style="color:#aaa;">Unsubscribe</a></div>`
+      },
+      newsletter: {
+        subject: 'JBJ Management — [Month] Newsletter',
+        html: `<div style="text-align:center;margin:16px 0;"><img src="/static/img/logo.png" alt="JBJ Management" style="width:160px;max-width:100%;"></div>
+<h2 style="font-family:'Archivo Black',sans-serif;color:#AD0304;border-bottom:2px solid #AD0304;padding-bottom:8px;margin:20px 0 12px;">What's New This Month</h2>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Hi {{first_name}},</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Here's a roundup of the latest news, events, and announcements from the JBJ Management team.</p>
+<h3 style="color:#3D4041;margin:16px 0 8px;">Upcoming Events</h3>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Check out what's coming up on our calendar this month. We have some exciting shows and appearances lined up.</p>
+<hr style="border:none;border-top:2px solid #e0e0e0;margin:20px 0;">
+<h3 style="color:#3D4041;margin:16px 0 8px;">Roster News</h3>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Our artists have been busy — here's a look at some recent highlights and milestones from across the roster.</p>
+<hr style="border:none;border-top:2px solid #e0e0e0;margin:20px 0;">
+<h3 style="color:#3D4041;margin:16px 0 8px;">Industry Updates</h3>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Stay in the loop with the latest from the music and entertainment industry.</p>
+<div style="text-align:center;padding:14px 0;font-size:14px;letter-spacing:0.5px;"><a href="#" style="color:#AD0304;text-decoration:none;margin:0 10px;font-weight:600;">Facebook</a><span style="color:#ccc;">·</span><a href="#" style="color:#AD0304;text-decoration:none;margin:0 10px;font-weight:600;">Instagram</a><span style="color:#ccc;">·</span><a href="#" style="color:#AD0304;text-decoration:none;margin:0 10px;font-weight:600;">LinkedIn</a></div>
+<div style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;margin-top:24px;border-top:1px solid #eee;line-height:1.6;">JBJ Management · Dallas, TX<br>This email was sent to you because you are part of our outreach network.<br><a href="#" style="color:#aaa;">Unsubscribe</a></div>`
+      },
+      followup: {
+        subject: 'Following Up — JBJ Management',
+        html: `<p style="line-height:1.6;color:#333;margin:0 0 12px;">Hi {{first_name}},</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">I wanted to follow up on our recent conversation and see if you had any questions or if there's anything I can help with.</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">I'd love to connect at your convenience — feel free to reply to this email or reach out directly.</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Looking forward to hearing from you!</p>
+<div style="margin:24px 0 0;padding-top:16px;border-top:1px solid #eee;font-size:14px;line-height:1.6;"><strong>Your Name</strong><br><span style="color:#555;">Title · JBJ Management</span><br><span style="color:#888;">email@jbj-management.com · (555) 000-0000</span></div>`
+      },
+      roster: {
+        subject: 'Exciting News — New Addition to the JBJ Roster',
+        html: `<div style="text-align:center;margin:16px 0;"><img src="/static/img/logo.png" alt="JBJ Management" style="width:160px;max-width:100%;"></div>
+<h2 style="font-family:'Archivo Black',sans-serif;color:#AD0304;border-bottom:2px solid #AD0304;padding-bottom:8px;margin:20px 0 12px;">New Roster Addition</h2>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Hi {{first_name}},</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">We're thrilled to announce a new addition to the JBJ Management family. We're proud to welcome them and can't wait for you to hear more about their incredible work.</p>
+<h3 style="color:#3D4041;margin:16px 0 8px;">Artist Name</h3>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;"><strong>Genre:</strong> Genre Name<br><strong>Based in:</strong> City, TX</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Add a brief bio or description of the artist here. What makes them unique? What are they working on?</p>
+<div style="text-align:center;margin:20px 0;"><a href="#" style="background:#AD0304;color:#ffffff;display:inline-block;padding:14px 32px;border-radius:999px;font-weight:600;text-decoration:none;font-size:16px;">Learn More</a></div>
+<div style="margin:24px 0 0;padding-top:16px;border-top:1px solid #eee;font-size:14px;line-height:1.6;"><strong>JBJ Management</strong><br><span style="color:#555;">Dallas, TX</span></div>
+<div style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;margin-top:24px;border-top:1px solid #eee;line-height:1.6;">JBJ Management · Dallas, TX<br><a href="#" style="color:#aaa;">Unsubscribe</a></div>`
+      },
+      reminder: {
+        subject: 'Reminder — [Event Name] This Weekend',
+        html: `<div style="text-align:center;margin:16px 0;"><img src="/static/img/logo.png" alt="JBJ Management" style="width:160px;max-width:100%;"></div>
+<div style="background:#1a1a1a;color:#ffffff;padding:16px 20px;border-radius:8px;text-align:center;margin:16px 0;"><strong style="font-size:18px;">📢 Event Reminder</strong><p style="margin:8px 0 0;opacity:0.85;">Don't forget — we're happening this weekend!</p></div>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Hi {{first_name}},</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;">Just a friendly reminder that our upcoming event is right around the corner. We'd love to see you there!</p>
+<p style="line-height:1.6;color:#333;margin:0 0 12px;"><strong>Date:</strong> This Saturday<br><strong>Time:</strong> 7:00 PM<br><strong>Location:</strong> Venue Name, Dallas, TX</p>
+<div style="text-align:center;margin:20px 0;"><a href="#" style="background:#AD0304;color:#ffffff;display:inline-block;padding:14px 32px;border-radius:999px;font-weight:600;text-decoration:none;font-size:16px;">View Details</a></div>
+<div style="margin:24px 0 0;padding-top:16px;border-top:1px solid #eee;font-size:14px;line-height:1.6;"><strong>JBJ Management</strong><br><span style="color:#555;">Dallas, TX</span></div>
+<div style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;margin-top:24px;border-top:1px solid #eee;line-height:1.6;">JBJ Management · Dallas, TX<br><a href="#" style="color:#aaa;">Unsubscribe</a></div>`
+      },
+    }
+
+    async function createFromTemplate(tpl) {
+      const data = STARTER_HTML[tpl] || STARTER_HTML.blank
       const res = await fetch('/api/email-templates', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name: 'Untitled email'}),
+        body: JSON.stringify({
+          name: 'Untitled email',
+          subject: data.subject,
+          blocks: [{ id: 'body', type: 'richtext', html: data.html }],
+        }),
       })
       const j = await res.json().catch(() => ({}))
       if (res.ok) window.location.href = `/email-builder/${j.id}`
     }
-    async function deleteEmailTemplate(id, name){
+
+    async function duplicateEmailTemplate(id, name) {
+      const res = await fetch(`/api/email-templates/${id}/duplicate`, { method: 'POST' })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) window.location.href = `/email-builder/${j.id}`
+    }
+
+    async function deleteEmailTemplate(id, name) {
       if (!confirm(`Delete "${name}"? This can't be undone.`)) return
       const res = await fetch(`/api/email-templates/${id}`, {method: 'DELETE'})
       if (res.ok) window.location.reload()
     }
-    document.getElementById('ebNewBtn').addEventListener('click', createNewTemplate)
+
+    // Starter modal
+    const modal = document.getElementById('ebStarterModal')
+    document.getElementById('ebStarterClose').addEventListener('click', () => { modal.style.display = 'none' })
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none' })
+
+    document.querySelectorAll('.eb-tpl-card').forEach(card => {
+      card.addEventListener('click', () => createFromTemplate(card.dataset.tpl))
+    })
+
+    function openStarterModal() { modal.style.display = '' }
+
+    document.getElementById('ebNewBtn').addEventListener('click', openStarterModal)
     const ebNewBtnInline = document.getElementById('ebNewBtnInline')
-    if (ebNewBtnInline) ebNewBtnInline.addEventListener('click', (e) => { e.preventDefault(); createNewTemplate() })
+    if (ebNewBtnInline) ebNewBtnInline.addEventListener('click', (e) => { e.preventDefault(); openStarterModal() })
   </script>
 </body>
 </html>

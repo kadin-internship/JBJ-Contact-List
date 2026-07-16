@@ -166,15 +166,30 @@
           <i class="fas fa-highlighter"></i>
           <input type="color" id="ebHighlightInput" value="#ffff00">
         </label>
+        <span class="eb-toolbar-sep"></span>
+        <!-- Merge tags -->
         <div class="export-wrap">
-          <button type="button" id="ebAttachBtn" title="Attach / insert image or link"><i class="fas fa-paperclip"></i></button>
+          <button type="button" id="ebMergeBtn" title="Insert merge tag (personalization)"><i class="fas fa-user-tag"></i></button>
+          <div id="ebMergeMenu" class="export-menu" style="display:none;min-width:180px;">
+            <div style="padding:8px 12px 4px;font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;">Merge Tags</div>
+            <button type="button" class="export-menu-item" data-merge="{{first_name}}"><i class="fas fa-tag"></i> First Name</button>
+            <button type="button" class="export-menu-item" data-merge="{{last_name}}"><i class="fas fa-tag"></i> Last Name</button>
+            <button type="button" class="export-menu-item" data-merge="{{full_name}}"><i class="fas fa-tag"></i> Full Name</button>
+            <button type="button" class="export-menu-item" data-merge="{{organization}}"><i class="fas fa-tag"></i> Organization</button>
+            <button type="button" class="export-menu-item" data-merge="{{title}}"><i class="fas fa-tag"></i> Title / Role</button>
+          </div>
+        </div>
+        <!-- Link + media -->
+        <button type="button" id="ebLinkBtn" title="Insert link"><i class="fas fa-link"></i></button>
+        <div class="export-wrap">
+          <button type="button" id="ebAttachBtn" title="Attach file or insert image"><i class="fas fa-paperclip"></i></button>
           <div id="ebAttachMenu" class="export-menu" style="display:none;">
             <button type="button" class="export-menu-item" id="ebAttachFileItem"><i class="fas fa-paperclip"></i> Attach a file</button>
-            <button type="button" class="export-menu-item" data-action="image"><i class="fas fa-image"></i> Insert image from URL</button>
-            <button type="button" class="export-menu-item" data-action="link"><i class="fas fa-link"></i> Insert link to a website</button>
+            <button type="button" class="export-menu-item" id="ebInsertImgItem"><i class="fas fa-image"></i> Insert image</button>
           </div>
         </div>
         <input type="file" id="ebFileInput" multiple style="display:none;">
+        <input type="file" id="ebImgUploadInput" accept="image/*" style="position:fixed;left:-9999px;top:0;opacity:0.001;pointer-events:auto;width:1px;height:1px;">
         <span class="eb-toolbar-sep"></span>
         <button type="button" data-cmd="removeFormat" title="Clear formatting"><i class="fas fa-text-slash"></i></button>
       </div>
@@ -187,17 +202,65 @@
     </div>
   </main>
 
+  <!-- Send modal (single address + segment) -->
   <div id="sendEmailModal" class="modal" style="display:none;">
-    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="sendEmailTitle">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="sendEmailTitle" style="max-width:520px;">
       <button id="closeSendEmailModal" class="close">×</button>
-      <h3 id="sendEmailTitle">Send Email</h3>
-      <p class="muted">Sends the current compose content to one address. To send to your filtered contact list, a bulk-send feature is coming soon.</p>
-      <label for="sendEmailTo" style="display:block;margin-top:10px;">To<br><input id="sendEmailTo" type="email" placeholder="name@example.com" required></label>
-      <p id="sendEmailAttachmentSummary" class="muted" style="margin-top:10px;">No files attached. Use the <i class="fas fa-paperclip"></i> button in the toolbar to attach one.</p>
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <button id="sendEmailConfirmBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+      <h3 id="sendEmailTitle" style="margin:0 0 16px;">Send Email</h3>
+
+      <!-- Tab bar -->
+      <div style="display:flex;gap:0;border-bottom:2px solid #eee;margin-bottom:16px;">
+        <button id="ebSendTabSingle" class="eb-send-tab active" type="button">Single address</button>
+        <button id="ebSendTabBulk" class="eb-send-tab" type="button">Send to contacts</button>
       </div>
-      <div id="sendEmailStatus" class="muted" style="margin-top:8px;"></div>
+
+      <!-- Single send pane -->
+      <div id="ebSendPaneSingle">
+        <label for="sendEmailTo" style="display:block;margin-top:4px;font-weight:600;font-size:14px;">To<br>
+          <input id="sendEmailTo" type="email" placeholder="name@example.com" required style="margin-top:4px;">
+        </label>
+        <p id="sendEmailAttachmentSummary" class="muted" style="margin-top:10px;">No files attached. Use the <i class="fas fa-paperclip"></i> button in the toolbar to attach one.</p>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button id="sendEmailConfirmBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+        </div>
+        <div id="sendEmailStatus" class="muted" style="margin-top:8px;"></div>
+      </div>
+
+      <!-- Bulk send pane -->
+      <div id="ebSendPaneBulk" style="display:none;">
+        <p class="muted" style="margin:0 0 12px;font-size:13px;">Send to all contacts with a matching tag. Merge tags like <code>{{first_name}}</code> are replaced per-contact.</p>
+        <label style="display:block;font-weight:600;font-size:14px;margin-bottom:8px;">Filter by tag
+          <select id="ebBulkTagSelect" style="margin-top:4px;width:100%;padding:8px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);font-size:14px;">
+            <option value="">— All contacts with email —</option>
+          </select>
+        </label>
+        <p id="ebBulkPreview" class="muted" style="font-size:13px;margin:8px 0 12px;"></p>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button id="ebBulkSendBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send to contacts</button>
+        </div>
+        <div id="ebBulkStatus" class="muted" style="margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hyperlink modal -->
+  <div id="ebLinkModal" class="modal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" style="max-width:420px;">
+      <button id="ebLinkModalClose" class="close">×</button>
+      <h3 style="margin:0 0 14px;">Insert Link</h3>
+      <label style="display:block;font-weight:600;font-size:14px;margin-bottom:8px;">Link text
+        <input id="ebLinkText" type="text" placeholder="Click here" style="margin-top:4px;">
+      </label>
+      <label style="display:block;font-weight:600;font-size:14px;margin-bottom:8px;">URL
+        <input id="ebLinkUrl" type="url" placeholder="https://" style="margin-top:4px;">
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:14px;">
+        <input id="ebLinkNewTab" type="checkbox" checked> Open in new tab
+      </label>
+      <div style="display:flex;gap:8px;">
+        <button id="ebLinkInsertBtn" class="btn btn-primary"><i class="fas fa-link"></i> Insert</button>
+        <button id="ebLinkModalClose2" class="btn">Cancel</button>
+      </div>
     </div>
   </div>
 

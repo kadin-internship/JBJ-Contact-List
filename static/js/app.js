@@ -324,8 +324,8 @@ function renderRow(c) {
     <div class="list-title">${c.title || '<span style="color:#ccc">—</span>'}</div>
     <div>${c.tag ? `<span class="list-tag" style="${tagColor ? `background:${tagColor}18;color:${tagColor};border-color:${tagColor}40` : ''}">${c.tag}</span>` : ''}</div>
     <div class="list-actions">
-      <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i></button>
-      <button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i></button>
+      <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button>
+      <button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i> Edit</button>
     </div>
   `
   row.addEventListener('click', (ev) => {
@@ -697,7 +697,7 @@ function taskItemHtml(t, showContact){
         </div>
         ${notesHtml}
       </div>
-      <button class="task-delete-btn btn btn-sm" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
+      <button class="task-delete-btn btn btn-sm" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i> Delete</button>
     </div>`
 }
 
@@ -780,7 +780,7 @@ function renderCompletedTaskList(tasks){
             ${contactSpan}
           </div>
         </div>
-        <button class="task-delete-btn btn btn-sm" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i></button>
+        <button class="task-delete-btn btn btn-sm" data-id="${t.id}" title="Delete"><i class="fas fa-trash"></i> Delete</button>
       </div>`
   }).join('')
 }
@@ -950,12 +950,15 @@ async function search(){
       state.total = j.total || 0
       if(!j.organizations || j.organizations.length === 0){ out.innerHTML = '<div>No organizations found</div>'; renderPagination(state.total); return }
       if(state.layout === 'list'){
-        out.className = 'results-list'
+        out.className = 'results-list-wrap'
+        const list = document.createElement('div')
+        list.className = 'results-list'
         const header = document.createElement('div')
         header.className = 'list-header'
         header.innerHTML = '<span></span><span>Organization</span><span>Contacts</span><span>Notes</span><span></span><span></span>'
-        out.appendChild(header)
-        j.organizations.forEach(item => out.appendChild(renderOrgRow(item)))
+        list.appendChild(header)
+        j.organizations.forEach(item => list.appendChild(renderOrgRow(item)))
+        out.appendChild(list)
       } else {
         out.className = 'results-grid'
         j.organizations.forEach(item => out.appendChild(renderOrgCard(item)))
@@ -969,12 +972,15 @@ async function search(){
       state.total = j.total || 0
       if(!j.contacts || j.contacts.length===0){ out.innerHTML = '<div>No results</div>'; renderPagination(state.total); return }
       if(state.layout === 'list'){
-        out.className = 'results-list'
+        out.className = 'results-list-wrap'
+        const list = document.createElement('div')
+        list.className = 'results-list'
         const header = document.createElement('div')
         header.className = 'list-header'
         header.innerHTML = '<span></span><span>Name</span><span>Organization</span><span>Title</span><span>Tag</span><span></span>'
-        out.appendChild(header)
-        j.contacts.forEach(c => out.appendChild(renderRow(c)))
+        list.appendChild(header)
+        j.contacts.forEach(c => list.appendChild(renderRow(c)))
+        out.appendChild(list)
       } else {
         out.className = 'results-grid'
         j.contacts.forEach(c => out.appendChild(renderCard(c)))

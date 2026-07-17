@@ -64,7 +64,7 @@ class Contact(db.Model):
 
     # Extended fields from the expanded spreadsheet format
     salutation           = db.Column(db.String(32), nullable=True)
-    middle_initial       = db.Column(db.String(8), nullable=True)
+    middle_initial       = db.Column(db.String(64), nullable=True)
     suffix               = db.Column(db.String(32), nullable=True)
     email_secondary      = db.Column(db.String(320), nullable=True)
     industry             = db.Column(db.String(128), nullable=True)

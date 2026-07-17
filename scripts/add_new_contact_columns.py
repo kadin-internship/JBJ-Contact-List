@@ -24,7 +24,7 @@ from db import db
 
 NEW_COLUMNS = [
     ('salutation',           'VARCHAR(32)'),
-    ('middle_initial',       'VARCHAR(8)'),
+    ('middle_initial',       'VARCHAR(64)'),
     ('suffix',               'VARCHAR(32)'),
     ('email_secondary',      'VARCHAR(320)'),
     ('industry',             'VARCHAR(128)'),

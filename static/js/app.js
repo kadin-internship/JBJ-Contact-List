@@ -466,12 +466,14 @@ async function showContactDetail(contact){
             const visible = lists.slice(0,SHOW)
             const hidden  = lists.slice(SHOW)
             const uid = 'lists-' + (c.id||Math.random())
-            const visibleHtml = visible.map(x=>`<li>${x}</li>`).join('')
-            const hiddenHtml  = hidden.length
-              ? `<li id="${uid}-more" style="display:none">${hidden.map(x=>`<ul style="margin:0;padding:0;list-style:none;">${x}</ul>`).join('')}</li>
-                 <li><button onclick="var m=document.getElementById('${uid}-more'),b=document.getElementById('${uid}-btn');m.style.display=m.style.display==='none'?'':'none';b.textContent=m.style.display===''?'Show less':'+ ${hidden.length} more'" id="${uid}-btn" style="background:none;border:none;color:var(--maroon);font-size:12px;cursor:pointer;padding:0;margin-top:2px;">+ ${hidden.length} more</button></li>`
+            const liStyle = 'margin-bottom:2px;'
+            const ulStyle = 'margin:4px 0 0 16px;padding:0;font-size:13px;line-height:1.8;'
+            const visibleHtml = visible.map(x=>`<li style="${liStyle}">${x}</li>`).join('')
+            const hiddenBlock = hidden.length
+              ? `<ul id="${uid}-more" style="${ulStyle}display:none;">${hidden.map(x=>`<li style="${liStyle}">${x}</li>`).join('')}</ul>
+                 <button id="${uid}-btn" onclick="var m=document.getElementById('${uid}-more'),b=this;var open=m.style.display==='none';m.style.display=open?'':'none';b.textContent=open?'Show less':'+ ${hidden.length} more';" style="background:none;border:none;color:var(--maroon,#AD0304);font-size:12px;cursor:pointer;padding:2px 0;margin-left:16px;">+ ${hidden.length} more</button>`
               : ''
-            return `<div class="detail-row"><strong>Email Lists:</strong><ul style="margin:4px 0 0 16px;padding:0;font-size:13px;line-height:1.8;">${visibleHtml}${hiddenHtml}</ul></div>`
+            return `<div class="detail-row"><strong>Email Lists:</strong><ul style="${ulStyle}">${visibleHtml}</ul>${hiddenBlock}</div>`
           })()}
           <div class="detail-notes">${hasNotes? `<h4>Notes</h4><div class="notes">${(c.notes||'').replace(/\n/g,'<br>')}</div>` : ''}</div>
           <div class="detail-flags" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">

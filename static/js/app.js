@@ -458,7 +458,8 @@ async function showContactDetail(contact){
           <div class="detail-row"><strong>Email:</strong> ${c.email? `<a href="mailto:${c.email}">${c.email}</a>` : '<span class="muted">No email</span>'}</div>
           <div class="detail-row"><strong>Phone:</strong> ${c.phone_office? `<a href="tel:${c.phone_office}">${c.phone_office}</a>` : (c.phone_cell? `<a href="tel:${c.phone_cell}">${c.phone_cell}</a>` : '<span class="muted">No phone</span>')}</div>
           <div class="detail-row"><strong>County:</strong> ${c.county || '<span class="muted">Unknown</span>'}</div>
-          <div class="detail-row"><strong>Tags:</strong> ${(c.lists||[]).map(x=>pillHtml(x,'small')).join(' ') } ${c.tag? pillHtml(c.tag,'small'): ''}</div>
+          ${c.tag ? `<div class="detail-row"><strong>Category:</strong> ${pillHtml(c.tag,'small')}</div>` : ''}
+          ${(c.lists||[]).length ? `<div class="detail-row"><strong>Email Lists:</strong> <span style="display:inline-flex;flex-wrap:wrap;gap:4px;">${(c.lists||[]).map(x=>pillHtml(x,'small')).join('')}</span></div>` : ''}
           <div class="detail-notes">${hasNotes? `<h4>Notes</h4><div class="notes">${(c.notes||'').replace(/\n/g,'<br>')}</div>` : ''}</div>
           <div class="detail-flags" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
             ${incomplete? '<span class="flag flag-warn">Incomplete</span>' : '<span class="flag flag-ok">Complete</span>'}

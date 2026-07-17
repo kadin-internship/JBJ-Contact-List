@@ -66,11 +66,16 @@ window.addEventListener('load', ()=>{
   const exportBtn = $('exportBtn')
 
   pick.addEventListener('click', ()=>fileInput.click())
-  fileInput.addEventListener('change', (e)=>{ const f = e.target.files[0]; if(f) uploadWithProgress(f).then(showSummary).catch(err=>alert('Upload failed')) })
+  function handleUploadError(err) {
+    let msg = 'Upload failed'
+    try { const j = JSON.parse(err); msg = j.error || j.details || err } catch(e) { msg = err || 'Upload failed' }
+    alert('Upload error: ' + msg)
+  }
+  fileInput.addEventListener('change', (e)=>{ const f = e.target.files[0]; if(f) uploadWithProgress(f).then(showSummary).catch(handleUploadError) })
 
   drop.addEventListener('dragover', (e)=>{ e.preventDefault(); drop.style.background = '#fff6' })
   drop.addEventListener('dragleave', (e)=>{ drop.style.background = '' })
-  drop.addEventListener('drop', (e)=>{ e.preventDefault(); drop.style.background=''; const f = e.dataTransfer.files[0]; if(f) uploadWithProgress(f).then(showSummary).catch(err=>alert('Upload failed')) })
+  drop.addEventListener('drop', (e)=>{ e.preventDefault(); drop.style.background=''; const f = e.dataTransfer.files[0]; if(f) uploadWithProgress(f).then(showSummary).catch(handleUploadError) })
 
   exportBtn.addEventListener('click', ()=>{ window.location.href = '/api/export' })
 })

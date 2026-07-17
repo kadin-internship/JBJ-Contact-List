@@ -2265,21 +2265,21 @@ def create_app(config_class=Config):
         contacts_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
         orgs_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
 
-        for df in sheets.values():
-            if df is None or df.empty:
-                continue
-            if looks_like_contacts_sheet(df):
-                _import_contacts(df, contacts_result, archive_missing=archive_missing)
-            elif looks_like_orgs_sheet(df):
-                _import_orgs(df, orgs_result)
-            # Sheets that match neither shape (e.g. an instructions tab)
-            # are silently ignored rather than guessed at.
-
         try:
+            for df in sheets.values():
+                if df is None or df.empty:
+                    continue
+                if looks_like_contacts_sheet(df):
+                    _import_contacts(df, contacts_result, archive_missing=archive_missing)
+                elif looks_like_orgs_sheet(df):
+                    _import_orgs(df, orgs_result)
+                # Sheets that match neither shape (e.g. an instructions tab)
+                # are silently ignored rather than guessed at.
             db.session.commit()
         except Exception as e:
             db.session.rollback()
-            return jsonify({'error': 'database error', 'details': str(e)}), 500
+            import traceback
+            return jsonify({'error': str(e), 'details': traceback.format_exc()}), 500
 
         log_audit('spreadsheet_sync', 'sync', None, f.filename, {
             'contacts': contacts_result,

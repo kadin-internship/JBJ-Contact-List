@@ -459,7 +459,20 @@ async function showContactDetail(contact){
           <div class="detail-row"><strong>Phone:</strong> ${c.phone_office? `<a href="tel:${c.phone_office}">${c.phone_office}</a>` : (c.phone_cell? `<a href="tel:${c.phone_cell}">${c.phone_cell}</a>` : '<span class="muted">No phone</span>')}</div>
           <div class="detail-row"><strong>County:</strong> ${c.county || '<span class="muted">Unknown</span>'}</div>
           ${c.tag ? `<div class="detail-row"><strong>Category:</strong> ${pillHtml(c.tag,'small')}</div>` : ''}
-          ${(c.lists||[]).length ? `<div class="detail-row"><strong>Email Lists:</strong> <span style="display:inline-flex;flex-wrap:wrap;gap:4px;">${(c.lists||[]).map(x=>pillHtml(x,'small')).join('')}</span></div>` : ''}
+          ${(()=>{
+            const lists = c.lists||[]
+            if(!lists.length) return ''
+            const SHOW = 3
+            const visible = lists.slice(0,SHOW)
+            const hidden  = lists.slice(SHOW)
+            const uid = 'lists-' + (c.id||Math.random())
+            const visibleHtml = visible.map(x=>`<li>${x}</li>`).join('')
+            const hiddenHtml  = hidden.length
+              ? `<li id="${uid}-more" style="display:none">${hidden.map(x=>`<ul style="margin:0;padding:0;list-style:none;">${x}</ul>`).join('')}</li>
+                 <li><button onclick="var m=document.getElementById('${uid}-more'),b=document.getElementById('${uid}-btn');m.style.display=m.style.display==='none'?'':'none';b.textContent=m.style.display===''?'Show less':'+ ${hidden.length} more'" id="${uid}-btn" style="background:none;border:none;color:var(--maroon);font-size:12px;cursor:pointer;padding:0;margin-top:2px;">+ ${hidden.length} more</button></li>`
+              : ''
+            return `<div class="detail-row"><strong>Email Lists:</strong><ul style="margin:4px 0 0 16px;padding:0;font-size:13px;line-height:1.8;">${visibleHtml}${hiddenHtml}</ul></div>`
+          })()}
           <div class="detail-notes">${hasNotes? `<h4>Notes</h4><div class="notes">${(c.notes||'').replace(/\n/g,'<br>')}</div>` : ''}</div>
           <div class="detail-flags" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
             ${incomplete? '<span class="flag flag-warn">Incomplete</span>' : '<span class="flag flag-ok">Complete</span>'}

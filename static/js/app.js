@@ -7,7 +7,7 @@ const API = {
   counties: '/api/counties',
 }
 
-let state = { page: 1, limit: 25, q: '', tags: [], counties: [], followup: '', favoritesOnly: false, total: 0, view: 'people', selectedKey: null, layout: 'grid' }
+let state = { page: 1, limit: 25, q: '', tags: [], counties: [], followup: '', favoritesOnly: false, incompleteOnly: false, total: 0, view: 'people', selectedKey: null, layout: 'grid' }
 
 // Clicking a card a second time hides the detail panel instead of leaving
 // it open forever -- this is also what drives the "selected card" highlight
@@ -941,6 +941,7 @@ async function search(){
   if(state.counties.length) params.set('county', state.counties.join(','))
   if(state.view !== 'organizations' && state.followup) params.set('followup', state.followup)
   if(state.view !== 'organizations' && state.favoritesOnly) params.set('favorites_only', '1')
+  if(state.view !== 'organizations' && state.incompleteOnly) params.set('incomplete_only', '1')
   try{
     if(state.view === 'organizations'){
       const res = await fetch(API.sections + '?' + params.toString())
@@ -1158,6 +1159,15 @@ function bind(){
 
   const applyFiltersBtn = el('applyFiltersBtn')
   if(applyFiltersBtn) applyFiltersBtn.addEventListener('click', ()=>{ state.page = 1; search() })
+
+  const incompleteCard = el('statIncompleteCard')
+  if(incompleteCard) incompleteCard.addEventListener('click', ()=>{
+    state.incompleteOnly = !state.incompleteOnly
+    incompleteCard.style.outline = state.incompleteOnly ? '2px solid var(--amber, #f59e0b)' : ''
+    el('statIncompleteLabel').textContent = state.incompleteOnly ? 'Need Review (filtered)' : 'Need Review'
+    state.page = 1
+    search()
+  })
 
   // keyboard shortcuts: Ctrl+K and '/' -- but not while typing in a field,
   // otherwise '/' could never be typed into notes, lists, etc.

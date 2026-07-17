@@ -101,7 +101,7 @@ def contact_incomplete_clause():
     return and_(no_email, no_phone)
 
 
-def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None, followup=None, favorites_only=False):
+def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None, followup=None, favorites_only=False, incomplete_only=False):
     """Shared filter logic for /api/contacts and the export endpoints, so
     exports always match what's currently shown on screen.
 
@@ -165,6 +165,8 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
                 ))
     if favorites_only:
         query = query.filter(Contact.is_favorite == True)
+    if incomplete_only:
+        query = query.filter(contact_incomplete_clause())
     return query
 
 
@@ -287,6 +289,11 @@ def _import_contacts(df, result, archive_missing=False):
     rows would time out on a remote database with per-row lookups).
     """
     cleaned = clean_dataframe(df)
+
+    # Flush any pending writes before querying so the query doesn't trigger
+    # an autoflush mid-import (which would fail if a prior sheet wrote a row
+    # that violates a column constraint before we widened it).
+    db.session.flush()
 
     # One query to load every existing contact
     all_existing = Contact.query.all()
@@ -1904,10 +1911,11 @@ def create_app(config_class=Config):
         county = parse_multi_param('county')
         followup = request.args.get('followup', type=str)
         favorites_only = request.args.get('favorites_only', type=str) in ('1', 'true', 'True')
+        incomplete_only = request.args.get('incomplete_only', type=str) in ('1', 'true', 'True')
         page = request.args.get('page', default=1, type=int)
         limit = request.args.get('limit', default=25, type=int)
 
-        query = filtered_contacts_query(q=q, tag=tag, county=county, followup=followup, favorites_only=favorites_only)
+        query = filtered_contacts_query(q=q, tag=tag, county=county, followup=followup, favorites_only=favorites_only, incomplete_only=incomplete_only)
 
         total = query.count()
         results = query.order_by(Contact.added.desc()).offset((page - 1) * limit).limit(limit).all()

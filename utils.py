@@ -63,18 +63,40 @@ def clean_dataframe(df: pd.DataFrame) -> list:
                     return v
         return None
 
-    email_col = pick('email')
-    first_col = pick('first', 'first_name', 'firstname')
-    last_col = pick('last', 'last_name', 'lastname')
-    active_col = pick('active')
-    org_col = pick('organization', 'org', 'company')
-    lists_col = pick('lists', 'list')
-    tag_col = pick('tag')
-    county_col = pick('county')
-    title_col = pick('title', 'position')
-    phone_office_col = pick('phone_office', 'office_phone', 'phone')
-    phone_cell_col = pick('phone_cell', 'cell_phone', 'mobile')
-    notes_col = pick('notes', 'note')
+    # Exact lowercase column names listed first so the substring fallback
+    # never fires for these.  Order matters -- most-specific alias first.
+    email_col           = pick('email - work', 'email work', 'email')
+    email_secondary_col = pick('email - secondary', 'email secondary', 'email2', 'secondary email')
+    first_col           = pick('first name', 'first_name', 'firstname', 'first')
+    last_col            = pick('last name', 'last_name', 'lastname', 'last')
+    salutation_col      = pick('salutation')
+    mi_col              = pick('m.i.', 'mi', 'middle initial', 'middle_initial')
+    suffix_col          = pick('suffix')
+    active_col          = pick('active')
+    email_status_col    = pick('email status', 'emailstatus')
+    org_col             = pick('company', 'organization', 'org')
+    industry_col        = pick('industry')
+    lists_col           = pick('email lists', 'lists', 'list')
+    tag_col             = pick('tag')
+    county_col          = pick('county')
+    title_col           = pick('role / title', 'role/title', 'title', 'position')
+    # Phone columns use explicit full names BEFORE generic 'phone' so
+    # PhonePersonal and PhoneWork don't get swapped by substring matching.
+    phone_work_col      = pick('phonework', 'phone - work', 'phone_office', 'office_phone', 'work phone', 'workphone')
+    phone_personal_col  = pick('phonepersonal', 'phone - personal', 'phone_cell', 'cell_phone', 'mobile', 'personal phone', 'personalphoone')
+    phone_misc_col      = pick('phone - misc.', 'phone misc', 'phonemisc', 'phone - misc')
+    notes_col           = pick('notes', 'note')
+    street_col          = pick('street', 'address')
+    city_col            = pick('city')
+    state_col           = pick('state')
+    zip_col             = pick('zip', 'postal', 'zip code')
+    website_col         = pick('website', 'url', 'web')
+    duns_col            = pick('duns number', 'duns')
+    b2gnow_col          = pick('b2gnow vendor number', 'b2gnow', 'vendor number')
+    cmbl_col            = pick('cmbl status', 'cmbl')
+    cert_type_col       = pick('certification type', 'cert type', 'certtype')
+    dba_col             = pick('dba name', 'dba')
+    cert_agency_col     = pick('certifying agency', 'certifying')
 
     records = df.to_dict(orient='records')
     cleaned = []
@@ -107,13 +129,31 @@ def clean_dataframe(df: pd.DataFrame) -> list:
         if not org:
             continue
 
-        phone_office = normalize_phone(get_raw(phone_office_col)) if phone_office_col else None
-        phone_cell = normalize_phone(get_raw(phone_cell_col)) if phone_cell_col else None
-        lists = split_lists(r.get(lists_col)) if lists_col else []
-        tag = get_raw(tag_col) if tag_col else ''
-        county = get_raw(county_col) if county_col else None
-        title = get_raw(title_col) if title_col else None
-        notes = get_raw(notes_col) if notes_col else None
+        phone_office   = normalize_phone(get_raw(phone_work_col))     if phone_work_col     else None
+        phone_cell     = normalize_phone(get_raw(phone_personal_col)) if phone_personal_col else None
+        phone_misc     = normalize_phone(get_raw(phone_misc_col))     if phone_misc_col     else None
+        lists          = split_lists(r.get(lists_col))                if lists_col          else []
+        tag            = get_raw(tag_col)                              if tag_col            else ''
+        county         = get_raw(county_col)                          if county_col         else None
+        title          = get_raw(title_col)                           if title_col          else None
+        notes          = get_raw(notes_col)                           if notes_col          else None
+        salutation     = get_raw(salutation_col)                      if salutation_col     else None
+        middle_initial = get_raw(mi_col)                              if mi_col             else None
+        suffix         = get_raw(suffix_col)                          if suffix_col         else None
+        email_secondary = get_raw(email_secondary_col)                if email_secondary_col else None
+        industry       = get_raw(industry_col)                        if industry_col       else None
+        email_status   = get_raw(email_status_col)                    if email_status_col   else None
+        street         = get_raw(street_col)                          if street_col         else None
+        city           = get_raw(city_col)                            if city_col           else None
+        state          = get_raw(state_col)                           if state_col          else None
+        zip_code       = get_raw(zip_col)                             if zip_col            else None
+        website        = get_raw(website_col)                         if website_col        else None
+        duns_number    = get_raw(duns_col)                            if duns_col           else None
+        b2gnow         = get_raw(b2gnow_col)                          if b2gnow_col         else None
+        cmbl_status    = get_raw(cmbl_col)                            if cmbl_col           else None
+        cert_type      = get_raw(cert_type_col)                       if cert_type_col      else None
+        dba_name       = get_raw(dba_col)                             if dba_col            else None
+        cert_agency    = get_raw(cert_agency_col)                     if cert_agency_col    else None
 
         if email:
             if email in seen_emails:
@@ -133,11 +173,30 @@ def clean_dataframe(df: pd.DataFrame) -> list:
             'title': title,
             'phone_office': phone_office,
             'phone_cell': phone_cell,
+            'phone_personal': phone_cell,
+            'phone_misc': phone_misc,
             'active': active,
             'lists': lists,
             'tag': tag,
             'county': county,
             'notes': notes,
+            'salutation': salutation,
+            'middle_initial': middle_initial,
+            'suffix': suffix,
+            'email_secondary': email_secondary,
+            'industry': industry,
+            'email_status': email_status,
+            'street': street,
+            'city': city,
+            'state': state,
+            'zip_code': zip_code,
+            'website': website,
+            'duns_number': duns_number,
+            'b2gnow_vendor_number': b2gnow,
+            'cmbl_status': cmbl_status,
+            'certification_type': cert_type,
+            'dba_name': dba_name,
+            'certifying_agency': cert_agency,
         })
 
     # compute completeness

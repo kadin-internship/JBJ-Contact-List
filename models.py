@@ -62,6 +62,27 @@ class Contact(db.Model):
     unsubscribe_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
     pipeline_stage = db.Column(db.String(32), nullable=True, index=True)
 
+    # Extended fields from the expanded spreadsheet format
+    salutation           = db.Column(db.String(32), nullable=True)
+    middle_initial       = db.Column(db.String(8), nullable=True)
+    suffix               = db.Column(db.String(32), nullable=True)
+    email_secondary      = db.Column(db.String(320), nullable=True)
+    industry             = db.Column(db.String(128), nullable=True)
+    email_status         = db.Column(db.String(64), nullable=True)
+    phone_personal       = db.Column(db.String(64), nullable=True)
+    phone_misc           = db.Column(db.String(64), nullable=True)
+    street               = db.Column(db.String(256), nullable=True)
+    city                 = db.Column(db.String(128), nullable=True)
+    state                = db.Column(db.String(64), nullable=True)
+    zip_code             = db.Column(db.String(20), nullable=True)
+    website              = db.Column(db.String(512), nullable=True)
+    duns_number          = db.Column(db.String(64), nullable=True)
+    b2gnow_vendor_number = db.Column(db.String(64), nullable=True)
+    cmbl_status          = db.Column(db.String(64), nullable=True)
+    certification_type   = db.Column(db.String(256), nullable=True)
+    dba_name             = db.Column(db.String(256), nullable=True)
+    certifying_agency    = db.Column(db.String(256), nullable=True)
+
     __table_args__ = (
         Index('ix_contacts_name', 'first_name', 'last_name'),
     )
@@ -86,6 +107,25 @@ class Contact(db.Model):
             'is_favorite': bool(self.is_favorite),
             'unsubscribed': bool(self.unsubscribed),
             'pipeline_stage': self.pipeline_stage,
+            'salutation': self.salutation,
+            'middle_initial': self.middle_initial,
+            'suffix': self.suffix,
+            'email_secondary': self.email_secondary,
+            'industry': self.industry,
+            'email_status': self.email_status,
+            'phone_personal': self.phone_personal,
+            'phone_misc': self.phone_misc,
+            'street': self.street,
+            'city': self.city,
+            'state': self.state,
+            'zip_code': self.zip_code,
+            'website': self.website,
+            'duns_number': self.duns_number,
+            'b2gnow_vendor_number': self.b2gnow_vendor_number,
+            'cmbl_status': self.cmbl_status,
+            'certification_type': self.certification_type,
+            'dba_name': self.dba_name,
+            'certifying_agency': self.certifying_agency,
         }
 
 

@@ -267,30 +267,54 @@ def _bootstrap_admin_user():
     db.session.commit()
 
 
-def _import_contacts(df, result):
+_SHEET_FIELDS = [
+    'first_name', 'last_name', 'organization', 'title',
+    'phone_office', 'phone_cell', 'phone_personal', 'phone_misc',
+    'active', 'county', 'notes', 'tag', 'industry', 'email_status',
+    'salutation', 'middle_initial', 'suffix', 'email_secondary',
+    'street', 'city', 'state', 'zip_code', 'website',
+    'duns_number', 'b2gnow_vendor_number', 'cmbl_status',
+    'certification_type', 'dba_name', 'certifying_agency',
+]
+
+
+def _import_contacts(df, result, archive_missing=False):
     """Upsert a People-sheet DataFrame into Contact, accumulating
-    inserted/updated/skipped counts into `result`. Matches existing rows
-    by email when present; rows without an email (allowed since
-    Contact.email is optional) are matched by name+organization instead,
-    since there's no other reliable natural key."""
+    inserted/updated/skipped/archived counts into `result`. Matches
+    existing rows by email when present; rows without an email are
+    matched by name+organization. When archive_missing=True, any contact
+    already in the database but absent from this file is marked Inactive."""
     cleaned = clean_dataframe(df)
+
+    # Track keys seen in this file (for archive_missing pass)
+    seen_emails = set()
+    seen_nameorgs = set()
+
     for row in cleaned:
         email = (row.get('email') or '').strip()
         if email:
             existing = Contact.query.filter(func.lower(Contact.email) == email.lower()).first()
+            seen_emails.add(email.lower())
         else:
+            fn = (row.get('first_name') or '').lower()
+            ln = (row.get('last_name') or '').lower()
+            org = (row.get('organization') or '').lower()
             existing = Contact.query.filter(
-                func.lower(Contact.first_name) == (row.get('first_name') or '').lower(),
-                func.lower(Contact.last_name) == (row.get('last_name') or '').lower(),
-                func.lower(Contact.organization) == (row.get('organization') or '').lower(),
+                func.lower(Contact.first_name) == fn,
+                func.lower(Contact.last_name) == ln,
+                func.lower(Contact.organization) == org,
             ).first()
+            seen_nameorgs.add((fn, ln, org))
+
         if existing:
             changed = False
-            for field in ['first_name', 'last_name', 'organization', 'title', 'phone_office', 'phone_cell', 'active', 'county', 'notes', 'tag']:
+            # Overwrite with sheet value whenever the sheet has a non-empty value
+            for field in _SHEET_FIELDS:
                 val = row.get(field)
-                if val and (getattr(existing, field) in (None, '', False)):
+                if val and val != getattr(existing, field):
                     setattr(existing, field, val)
                     changed = True
+            # Merge email lists (preserve lists added inside the app)
             existing_lists = existing.lists or []
             new_lists = row.get('lists') or []
             merged = list(dict.fromkeys(existing_lists + new_lists))
@@ -314,15 +338,51 @@ def _import_contacts(df, result):
                 title=row.get('title') or None,
                 phone_office=row.get('phone_office') or None,
                 phone_cell=row.get('phone_cell') or None,
+                phone_personal=row.get('phone_personal') or None,
+                phone_misc=row.get('phone_misc') or None,
                 email=email or None,
                 active=row.get('active') or None,
                 lists=row.get('lists') or [],
                 county=row.get('county') or None,
                 notes=row.get('notes') or None,
+                industry=row.get('industry') or None,
+                email_status=row.get('email_status') or None,
+                salutation=row.get('salutation') or None,
+                middle_initial=row.get('middle_initial') or None,
+                suffix=row.get('suffix') or None,
+                email_secondary=row.get('email_secondary') or None,
+                street=row.get('street') or None,
+                city=row.get('city') or None,
+                state=row.get('state') or None,
+                zip_code=row.get('zip_code') or None,
+                website=row.get('website') or None,
+                duns_number=row.get('duns_number') or None,
+                b2gnow_vendor_number=row.get('b2gnow_vendor_number') or None,
+                cmbl_status=row.get('cmbl_status') or None,
+                certification_type=row.get('certification_type') or None,
+                dba_name=row.get('dba_name') or None,
+                certifying_agency=row.get('certifying_agency') or None,
                 data_complete=bool(row.get('data_complete')),
             )
             db.session.add(c)
             result['inserted'] += 1
+
+    if archive_missing:
+        archived = 0
+        for c in Contact.query.filter(Contact.active != 'Inactive').all():
+            if c.email and c.email.lower() in seen_emails:
+                continue
+            if not c.email:
+                key = (
+                    (c.first_name or '').lower(),
+                    (c.last_name or '').lower(),
+                    (c.organization or '').lower(),
+                )
+                if key in seen_nameorgs:
+                    continue
+            c.active = 'Inactive'
+            archived += 1
+        result['archived'] = archived
 
 
 def _import_orgs(df, result):
@@ -2201,6 +2261,7 @@ def create_app(config_class=Config):
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
+        archive_missing = request.form.get('archive_missing') == '1'
         contacts_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
         orgs_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
 
@@ -2208,7 +2269,7 @@ def create_app(config_class=Config):
             if df is None or df.empty:
                 continue
             if looks_like_contacts_sheet(df):
-                _import_contacts(df, contacts_result)
+                _import_contacts(df, contacts_result, archive_missing=archive_missing)
             elif looks_like_orgs_sheet(df):
                 _import_orgs(df, orgs_result)
             # Sheets that match neither shape (e.g. an instructions tab)

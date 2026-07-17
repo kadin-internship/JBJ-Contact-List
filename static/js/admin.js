@@ -23,7 +23,8 @@ function showSummary(obj){
   if(s) s.style.display = ''
   const lines = [summaryPhrase('contact', obj.contacts), summaryPhrase('organization', obj.organizations)]
     .filter(Boolean)
-  s.innerHTML = `<p><i class="fas fa-circle-check"></i> Synced from spreadsheet - ${lines.join(' · ')}</p>`
+  const archived = obj.contacts && obj.contacts.archived ? ` · ${obj.contacts.archived} marked Inactive` : ''
+  s.innerHTML = `<p><i class="fas fa-circle-check"></i> Synced from spreadsheet - ${lines.join(' · ')}${archived}</p>`
   // fetch categories breakdown
   fetch('/api/categories').then(r=>r.json()).then(cat=>{
     const list = cat.map(c=>`<div>${c.tag||'<none>'}: ${c.count}</div>`).join('')
@@ -36,6 +37,8 @@ function uploadWithProgress(file){
     const xhr = new XMLHttpRequest()
     const fd = new FormData()
     fd.append('file', file)
+    const archiveCb = $('archiveMissing')
+    if(archiveCb && archiveCb.checked) fd.append('archive_missing', '1')
     xhr.open('POST','/api/upload')
     xhr.upload.addEventListener('progress', (e)=>{
       if(e.lengthComputable){

@@ -125,13 +125,29 @@
       <section class="card admin-upload">
         <p class="muted" style="margin:0 0 12px;">
           Upload your spreadsheet whenever you've made changes to it. New
-          people/organizations are added and existing ones are updated to
-          match - nothing is deleted. Works with a plain CSV (People only)
-          or an Excel workbook with a People tab and a separate
-          Organizations tab.
+          people are added and existing ones are updated - works with a plain
+          CSV or an Excel workbook. Columns recognized:
+          <strong>Salutation, First Name, M.I., Last Name, Suffix, Company, Role / Title,
+          Email - Work, Email - Secondary, Industry, Tag, County, Email status,
+          PhonePersonal, PhoneWork, Phone - Misc., Street, City, State, Zip,
+          Email Lists, Notes, Website, DUNS Number, B2Gnow Vendor Number,
+          CMBL Status, Certification Type, DBA Name, Certifying Agency.</strong>
         </p>
+
         <div id="dropZone" class="dropzone"><i class="fas fa-file-arrow-up"></i> Drop CSV/Excel here or <button id="pickFile" class="btn">Choose file</button></div>
         <input id="adminFile" type="file" accept=".csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;" />
+
+        <label style="display:flex;align-items:flex-start;gap:10px;margin-top:14px;cursor:pointer;font-size:13px;line-height:1.5;">
+          <input type="checkbox" id="archiveMissing" style="margin-top:2px;flex-shrink:0;">
+          <span>
+            <strong>Mark contacts not in this file as Inactive.</strong>
+            Use this when your spreadsheet is the authoritative source and people
+            have been removed from it. Contacts will be marked Inactive rather than
+            deleted, so their outreach history is preserved and they can be
+            reactivated later.
+          </span>
+        </label>
+
         <div class="progress-wrap" style="display:none;">
           <label>Import progress</label>
           <div class="progress"><div id="progressBar" class="progress-bar" style="width:0%"></div></div>

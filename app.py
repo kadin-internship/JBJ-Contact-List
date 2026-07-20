@@ -2278,6 +2278,30 @@ def create_app(config_class=Config):
         db.session.commit()
         return jsonify(a.to_dict()), 201
 
+    @app.route('/organizations/<path:org_name>')
+    @login_required
+    def org_detail_page(org_name):
+        contacts = Contact.query.filter(
+            func.lower(Contact.organization) == org_name.lower(),
+            Contact.deleted_at.is_(None)
+        ).order_by(Contact.last_name, Contact.first_name).all()
+        outreach = OutreachOrg.query.filter(
+            func.lower(OutreachOrg.organization) == org_name.lower()
+        ).first()
+        activity = Activity.query.filter(
+            func.lower(Activity.organization) == org_name.lower()
+        ).order_by(Activity.contacted_on.desc(), Activity.created_at.desc()).limit(50).all()
+        tags = list({c.tag for c in contacts if c.tag})
+        avg_score = round(sum(c._score() for c in contacts) / len(contacts)) if contacts else 0
+        return render_template('org_detail.html',
+            org_name=org_name,
+            contacts=contacts,
+            outreach=outreach,
+            activity=activity,
+            tags=tags,
+            avg_score=avg_score,
+        )
+
     @app.route('/api/organizations/<organization>/activity', methods=['GET'])
     def list_org_activity(organization):
         rows = Activity.query.filter(func.lower(Activity.organization) == organization.lower()) \

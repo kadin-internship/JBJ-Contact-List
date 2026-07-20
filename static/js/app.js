@@ -406,6 +406,7 @@ function renderOrgCard(item){
     ${item.notes ? `<div class="category">${item.notes.replace(/\|\|/g,', ')}</div>` : ''}
     <div class="card-actions" style="margin-top:8px;display:flex;gap:8px;">
       <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button>
+      <a href="/organizations/${encodeURIComponent(item.organization)}" class="btn btn-sm" style="text-decoration:none;"><i class="fas fa-arrow-up-right-from-square"></i> Full Page</a>
       <button class="btn btn-sm add-btn"><i class="fas fa-plus"></i> Add Contact</button>
     </div>
   `
@@ -438,6 +439,7 @@ function renderOrgRow(item) {
     <div></div>
     <div class="list-actions">
       <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i></button>
+      <a href="/organizations/${encodeURIComponent(item.organization)}" class="btn btn-sm" style="text-decoration:none;" title="Open full page"><i class="fas fa-arrow-up-right-from-square"></i></a>
       <button class="btn btn-sm add-btn"><i class="fas fa-plus"></i></button>
     </div>
   `

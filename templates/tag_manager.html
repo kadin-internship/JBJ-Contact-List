@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tag Manager - JBJ Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .adm-page-header{background:linear-gradient(165deg,var(--maroon) 0%,var(--maroon-dark) 100%);color:#fff;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 4px 18px rgba(0,0,0,0.18);}
+    .adm-page-header-left{display:flex;align-items:center;gap:14px;}
+    .adm-page-header h1{margin:0;font-family:var(--font-display);font-size:20px;font-weight:400;color:#fff;}
+    .adm-page-header .btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:#fff;}
+    .adm-page-header .btn:hover{background:rgba(255,255,255,0.2);}
+    .tm-table{width:100%;border-collapse:collapse;font-size:14px;}
+    .tm-table th{text-align:left;padding:10px 14px;border-bottom:2px solid #eee;color:#555;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px;}
+    .tm-table td{padding:10px 14px;border-bottom:1px solid #f0f0f0;vertical-align:middle;}
+    .tm-table tr:hover td{background:#f9f9f9;}
+    .tm-tag-name{font-weight:600;color:#222;}
+    .tm-count{display:inline-block;background:#f0f0f0;border-radius:20px;padding:2px 10px;font-size:12px;color:#555;font-weight:600;}
+    .tm-actions{display:flex;gap:8px;align-items:center;}
+    .btn-sm{padding:5px 12px;font-size:12px;border-radius:6px;cursor:pointer;border:1px solid transparent;}
+    .btn-rename{background:#f5f5f5;border-color:#ddd;color:#333;}
+    .btn-rename:hover{background:#e8e8e8;}
+    .btn-merge{background:#e8f0fe;border-color:#bad0ff;color:#1a56db;}
+    .btn-merge:hover{background:#c7d9ff;}
+    .btn-del{background:#fef2f2;border-color:#fecaca;color:#dc2626;}
+    .btn-del:hover{background:#fee2e2;}
+    .tm-search{width:100%;max-width:360px;padding:9px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:18px;}
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;}
+    .modal-overlay.open{display:flex;}
+    .modal-box{background:#fff;border-radius:16px;padding:32px;width:420px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+    .modal-box h3{margin:0 0 16px;font-size:18px;}
+    .modal-box input,.modal-box select{width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box;}
+    .modal-box label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;text-transform:uppercase;}
+    .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;}
+    .btn-primary{background:var(--maroon);color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;}
+    .btn-primary:hover{background:var(--maroon-dark);}
+    .btn-cancel{background:#f5f5f5;border:1px solid #ddd;padding:9px 20px;border-radius:8px;font-size:14px;cursor:pointer;}
+    .flash{display:none;padding:10px 16px;border-radius:8px;margin-bottom:16px;font-size:14px;}
+    .flash.success{background:#f0fdf4;border:1px solid #86efac;color:#166534;}
+    .flash.error{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;}
+  </style>
+</head>
+<body>
+
+  <nav class="side-toolbar" id="sideToolbar">
+    <div class="toolbar-logo-wrap">
+      <img class="toolbar-logo-img" src="/static/img/logo.png" alt="JBJ Management">
+      <span class="toolbar-brand-text">Admin</span>
+    </div>
+    <ul class="toolbar-nav-list">
+      <li><a href="/admin" class="toolbar-nav-link" title="Admin Hub"><i class="fas fa-gauge-high"></i><span class="toolbar-label">Admin Hub</span></a></li>
+      <li class="toolbar-divider" aria-hidden="true"></li>
+      <li><a href="/admin/sync" class="toolbar-nav-link" title="Sync Spreadsheet"><i class="fas fa-file-arrow-up"></i><span class="toolbar-label">Sync Spreadsheet</span></a></li>
+      <li class="toolbar-nav-active"><a href="/admin/tags" class="toolbar-nav-link" title="Tag Manager"><i class="fas fa-tags"></i><span class="toolbar-label">Tag Manager</span></a></li>
+      <li><a href="/admin/merge" class="toolbar-nav-link" title="Merge Contacts"><i class="fas fa-code-merge"></i><span class="toolbar-label">Merge Contacts</span></a></li>
+      <li><a href="/admin/users" class="toolbar-nav-link" title="Manage Users"><i class="fas fa-users-gear"></i><span class="toolbar-label">Manage Users</span></a></li>
+      <li><a href="/admin/audit" class="toolbar-nav-link" title="Audit Log"><i class="fas fa-clipboard-list"></i><span class="toolbar-label">Audit Log</span></a></li>
+      <li><a href="/admin/analytics" class="toolbar-nav-link" title="Analytics"><i class="fas fa-chart-bar"></i><span class="toolbar-label">Analytics</span></a></li>
+    </ul>
+    <div class="toolbar-footer">
+      <div class="toolbar-user"><i class="fas fa-user-circle"></i><span class="toolbar-label">{{ current_user.display_name }}</span></div>
+      <div><a href="/" class="toolbar-nav-link" title="Main Hub"><i class="fas fa-house"></i><span class="toolbar-label">Main Hub</span></a></div>
+      <div><a href="/logout" class="toolbar-nav-link" title="Logout"><i class="fas fa-arrow-right-from-bracket"></i><span class="toolbar-label">Logout</span></a></div>
+    </div>
+  </nav>
+
+  <div class="app-main has-toolbar" id="appMain">
+    <nav class="top-tab-bar">
+      <div class="top-tab-bar-inner">
+        <div class="tab-bar-tabs">
+          <a href="/#search" class="top-tab"><i class="fas fa-address-book"></i><span>Contact Management</span></a>
+          <a href="/email-events" class="top-tab"><i class="fas fa-envelope-open-text"></i><span>Email &amp; Events</span></a>
+          <a href="/proposals" class="top-tab"><i class="fas fa-file-contract"></i><span>Proposal Manager</span></a>
+          <a href="/admin" class="top-tab top-tab-active"><i class="fas fa-gear"></i><span>Admin</span></a>
+        </div>
+        <div class="tab-bar-actions"><span class="tab-bar-user">{{ current_user.display_name }}</span></div>
+      </div>
+    </nav>
+
+    <div class="adm-page-header">
+      <div class="adm-page-header-left">
+        <a href="/admin" class="btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <h1><i class="fas fa-tags" style="font-size:16px;opacity:0.8;margin-right:4px;"></i> Tag Manager</h1>
+      </div>
+      <span style="color:rgba(255,255,255,.7);font-size:13px;">{{ tags|length }} tags · {{ tags|sum(attribute='count') }} contacts</span>
+    </div>
+
+    <main class="container admin-area" style="padding-top:28px;">
+      <div id="flash" class="flash"></div>
+      <input type="text" id="tagSearch" class="tm-search" placeholder="Search tags…">
+      <section class="card" style="padding:0;overflow:hidden;">
+        <table class="tm-table" id="tagTable">
+          <thead>
+            <tr>
+              <th>Tag</th>
+              <th>Contacts</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tags %}
+            <tr data-tag="{{ t.tag }}">
+              <td class="tm-tag-name">{{ t.tag }}</td>
+              <td><span class="tm-count">{{ t.count }}</span></td>
+              <td class="tm-actions">
+                <button class="btn-sm btn-rename" onclick="openRename('{{ t.tag|replace("'", "\\'") }}')"><i class="fas fa-pen"></i> Rename</button>
+                <button class="btn-sm btn-merge" onclick="openMerge('{{ t.tag|replace("'", "\\'") }}')"><i class="fas fa-code-merge"></i> Merge into…</button>
+                <button class="btn-sm btn-del" onclick="deleteTag('{{ t.tag|replace("'", "\\'") }}', this)"><i class="fas fa-trash"></i> Delete</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <!-- Rename Modal -->
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal-box">
+      <h3><i class="fas fa-pen"></i> Rename Tag</h3>
+      <label>Current name</label>
+      <input type="text" id="renameOld" readonly style="background:#f5f5f5;">
+      <label>New name</label>
+      <input type="text" id="renameNew" placeholder="Enter new tag name…">
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModals()">Cancel</button>
+        <button class="btn-primary" onclick="doRename()">Rename</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Merge Modal -->
+  <div class="modal-overlay" id="mergeModal">
+    <div class="modal-box">
+      <h3><i class="fas fa-code-merge"></i> Merge Tag</h3>
+      <label>Tag to merge (will be removed)</label>
+      <input type="text" id="mergeSource" readonly style="background:#f5f5f5;">
+      <label>Merge into (keep this tag)</label>
+      <select id="mergeTarget">
+        {% for t in tags %}
+        <option value="{{ t.tag }}">{{ t.tag }} ({{ t.count }})</option>
+        {% endfor %}
+      </select>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModals()">Cancel</button>
+        <button class="btn-primary" onclick="doMerge()">Merge</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function flash(msg, type='success'){
+      const el = document.getElementById('flash')
+      el.textContent = msg
+      el.className = 'flash ' + type
+      el.style.display = 'block'
+      setTimeout(()=>{ el.style.display='none' }, 4000)
+    }
+    function closeModals(){
+      document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open'))
+    }
+    function openRename(tag){
+      document.getElementById('renameOld').value = tag
+      document.getElementById('renameNew').value = ''
+      document.getElementById('renameModal').classList.add('open')
+      setTimeout(()=>document.getElementById('renameNew').focus(), 100)
+    }
+    function openMerge(tag){
+      document.getElementById('mergeSource').value = tag
+      const sel = document.getElementById('mergeTarget')
+      for(let opt of sel.options){ if(opt.value !== tag){ sel.value = opt.value; break } }
+      document.getElementById('mergeModal').classList.add('open')
+    }
+    async function doRename(){
+      const old = document.getElementById('renameOld').value
+      const nw  = document.getElementById('renameNew').value.trim()
+      if(!nw){ alert('Enter a new name'); return }
+      const r = await fetch('/api/tags/rename', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({old, new:nw})})
+      const d = await r.json()
+      if(d.error){ flash(d.error,'error'); return }
+      flash(`Renamed "${old}" → "${nw}" for ${d.updated} contacts`)
+      closeModals()
+      setTimeout(()=>location.reload(), 1000)
+    }
+    async function doMerge(){
+      const source = document.getElementById('mergeSource').value
+      const target = document.getElementById('mergeTarget').value
+      if(source === target){ alert('Source and target must be different'); return }
+      if(!confirm(`Merge "${source}" into "${target}"? This cannot be undone.`)) return
+      const r = await fetch('/api/tags/merge', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source, target})})
+      const d = await r.json()
+      if(d.error){ flash(d.error,'error'); return }
+      flash(`Merged "${source}" into "${target}" (${d.updated} contacts updated)`)
+      closeModals()
+      setTimeout(()=>location.reload(), 1000)
+    }
+    async function deleteTag(tag, btn){
+      if(!confirm(`Remove the tag "${tag}" from all contacts? This cannot be undone.`)) return
+      btn.disabled = true
+      const r = await fetch('/api/tags/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({tag})})
+      const d = await r.json()
+      if(d.error){ flash(d.error,'error'); btn.disabled=false; return }
+      flash(`Removed tag "${tag}" from ${d.updated} contacts`)
+      const row = btn.closest('tr')
+      if(row) row.remove()
+    }
+    document.getElementById('tagSearch').addEventListener('input', function(){
+      const q = this.value.toLowerCase()
+      document.querySelectorAll('#tagTable tbody tr').forEach(row=>{
+        row.style.display = row.dataset.tag.toLowerCase().includes(q) ? '' : 'none'
+      })
+    })
+    document.querySelectorAll('.modal-overlay').forEach(m=>{
+      m.addEventListener('click', e=>{ if(e.target===m) closeModals() })
+    })
+  </script>
+</body>
+</html>

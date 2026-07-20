@@ -61,6 +61,7 @@ class Contact(db.Model):
     unsubscribed = db.Column(db.Boolean, default=False, nullable=False, index=True)
     unsubscribe_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
     pipeline_stage = db.Column(db.String(32), nullable=True, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
 
     # Extended fields from the expanded spreadsheet format
     salutation           = db.Column(db.String(64), nullable=True)
@@ -107,6 +108,8 @@ class Contact(db.Model):
             'is_favorite': bool(self.is_favorite),
             'unsubscribed': bool(self.unsubscribed),
             'pipeline_stage': self.pipeline_stage,
+            'deleted_at': self.deleted_at.isoformat() if self.deleted_at else None,
+            'score': self._score(),
             'salutation': self.salutation,
             'middle_initial': self.middle_initial,
             'suffix': self.suffix,
@@ -127,6 +130,21 @@ class Contact(db.Model):
             'dba_name': self.dba_name,
             'certifying_agency': self.certifying_agency,
         }
+
+    def _score(self):
+        s = 0
+        if self.email:                                              s += 20
+        if self.phone_office or self.phone_cell or self.phone_personal: s += 15
+        if self.organization:                                       s += 10
+        if self.tag:                                                s += 10
+        if self.title:                                              s += 10
+        if self.notes:                                              s += 10
+        if self.county:                                             s += 5
+        if self.street:                                             s += 5
+        if self.website:                                            s += 5
+        if self.email_secondary:                                    s += 5
+        if self.industry:                                           s += 5
+        return min(s, 100)
 
 
 class OutreachOrg(db.Model):

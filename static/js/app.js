@@ -7,7 +7,7 @@ const API = {
   counties: '/api/counties',
 }
 
-let state = { page: 1, limit: 25, q: '', tags: [], counties: [], followup: '', favoritesOnly: false, incompleteOnly: false, total: 0, view: 'people', selectedKey: null, layout: 'grid' }
+let state = { page: 1, limit: 25, q: '', tags: [], counties: [], followup: '', favoritesOnly: false, incompleteOnly: false, total: 0, view: 'people', selectedKey: null, layout: 'grid', showDeleted: false }
 
 // Clicking a card a second time hides the detail panel instead of leaving
 // it open forever -- this is also what drives the "selected card" highlight
@@ -46,6 +46,13 @@ const TAG_PALETTE = [
   {bg:'#FBE7E7', text:'#9B3B3C'},
   {bg:'#E8EAF6', text:'#303F9F'},
 ]
+function scoreBadgeHtml(score){
+  if(score == null) return ''
+  const color = score >= 80 ? '#166534' : score >= 50 ? '#92400e' : '#6b7280'
+  const bg    = score >= 80 ? '#f0fdf4' : score >= 50 ? '#fef3c7' : '#f3f4f6'
+  const border= score >= 80 ? '#86efac' : score >= 50 ? '#fcd34d' : '#d1d5db'
+  return `<span title="Profile score: ${score}/100" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:700;background:${bg};color:${color};border:1px solid ${border};"><i class="fas fa-star" style="font-size:9px;"></i>${score}</span>`
+}
 function tagColor(label){
   const s = String(label||'')
   let hash = 0
@@ -293,21 +300,28 @@ function renderCard(c){
     <div class="card-meta-row">
       ${c.tag ? `<span class="card-tag-pill" style="${tagColor ? `background:${tagColor}18;color:${tagColor};border-color:${tagColor}40` : ''}">${c.tag}</span>` : ''}
       ${c.county ? `<span class="card-county"><i class="fas fa-location-dot"></i> ${c.county}</span>` : ''}
+      ${scoreBadgeHtml(c.score)}
     </div>
     ${recencyHtml}
     <div class="card-actions">
-      <button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button>
-      <button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i> Edit</button>
+      ${state.showDeleted
+        ? `<button class="btn btn-sm restore-btn"><i class="fas fa-rotate-left"></i> Restore</button><button class="btn btn-sm btn-danger purge-btn"><i class="fas fa-trash"></i> Delete Forever</button>`
+        : `<button class="btn btn-sm view-btn"><i class="fas fa-eye"></i> View</button><button class="btn btn-sm edit-btn"><i class="fas fa-pen"></i> Edit</button>`
+      }
     </div>
   `
   div.addEventListener('click', (ev)=>{
-    if(ev.target && ev.target.closest('.edit-btn, .favorite-btn')) return
-    selectCard(key, div, ()=> showContactDetail(c))
+    if(ev.target && ev.target.closest('.edit-btn, .favorite-btn, .restore-btn, .purge-btn')) return
+    if(!state.showDeleted) selectCard(key, div, ()=> showContactDetail(c))
   })
   const editBtn = div.querySelector('.edit-btn')
   if(editBtn) editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openProfile(c.id) })
   const favoriteBtn = div.querySelector('.favorite-btn')
   if(favoriteBtn) favoriteBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleFavorite(c, favoriteBtn) })
+  const restoreBtn = div.querySelector('.restore-btn')
+  if(restoreBtn) restoreBtn.addEventListener('click', (e)=>{ e.stopPropagation(); restoreContact(c.id, div) })
+  const purgeBtn = div.querySelector('.purge-btn')
+  if(purgeBtn) purgeBtn.addEventListener('click', (e)=>{ e.stopPropagation(); purgeContact(c.id, div) })
   return div
 }
 
@@ -958,6 +972,7 @@ async function search(){
   if(state.view !== 'organizations' && state.followup) params.set('followup', state.followup)
   if(state.view !== 'organizations' && state.favoritesOnly) params.set('favorites_only', '1')
   if(state.view !== 'organizations' && state.incompleteOnly) params.set('incomplete_only', '1')
+  if(state.showDeleted) params.set('show_deleted', '1')
   try{
     if(state.view === 'organizations'){
       const res = await fetch(API.sections + '?' + params.toString())
@@ -1109,6 +1124,19 @@ async function saveContact(force){
 
 function closeModal(){ const m = el('profileModal'); if(m) m.style.display = 'none' }
 
+async function restoreContact(id, cardEl){
+  const r = await fetch(`/api/contacts/${id}/restore`, {method:'POST'})
+  const d = await r.json()
+  if(d.restored) cardEl.remove()
+}
+
+async function purgeContact(id, cardEl){
+  if(!confirm('Permanently delete this contact? This cannot be undone.')) return
+  const r = await fetch(`/api/contacts/${id}/purge`, {method:'DELETE'})
+  const d = await r.json()
+  if(d.purged) cardEl.remove()
+}
+
 // Switches between the People grid (Contact rows) and the Organizations
 // grid (OutreachOrg rows, cross-referenced with Contacts). The category
 // filter is reset on an actual view change since People/Organization
@@ -1117,13 +1145,15 @@ function closeModal(){ const m = el('profileModal'); if(m) m.style.display = 'no
 function switchView(view, userInitiated){
   const changed = state.view !== view
   state.view = view
+  state.showDeleted = (view === 'deleted')
   if(changed){
     state.page = 1
     state.tags = []
   }
-  const peopleBtn = el('viewPeopleBtn'); const orgBtn = el('viewOrgBtn')
+  const peopleBtn = el('viewPeopleBtn'); const orgBtn = el('viewOrgBtn'); const delBtn = el('viewDeletedBtn')
   if(peopleBtn) peopleBtn.classList.toggle('active', view === 'people')
   if(orgBtn) orgBtn.classList.toggle('active', view === 'organizations')
+  if(delBtn) delBtn.classList.toggle('active', view === 'deleted')
   // Follow-up status is tracked per-Contact, not per-Organization, so the
   // filter doesn't apply (but isn't reset) when browsing Organizations.
   document.querySelectorAll('input[name=followupRadio]').forEach(r => { r.disabled = (view === 'organizations') })
@@ -1148,6 +1178,8 @@ function bind(){
   const viewOrgBtn = el('viewOrgBtn')
   if(viewPeopleBtn) viewPeopleBtn.addEventListener('click', ()=> switchView('people', true))
   if(viewOrgBtn) viewOrgBtn.addEventListener('click', ()=> switchView('organizations', true))
+  const viewDeletedBtn = el('viewDeletedBtn')
+  if(viewDeletedBtn) viewDeletedBtn.addEventListener('click', ()=> switchView('deleted', true))
 
   const layoutGridBtn = el('layoutGridBtn')
   const layoutListBtn = el('layoutListBtn')

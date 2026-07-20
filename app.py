@@ -2,6 +2,8 @@ import os
 import io
 import re
 import csv
+import threading
+import uuid as uuid_mod
 from datetime import date, datetime, timedelta
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_file, render_template, render_template_string, redirect, url_for, abort
@@ -101,7 +103,7 @@ def contact_incomplete_clause():
     return and_(no_email, no_phone)
 
 
-def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None, followup=None, favorites_only=False, incomplete_only=False):
+def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_tag=None, followup=None, favorites_only=False, incomplete_only=False, show_deleted=False):
     """Shared filter logic for /api/contacts and the export endpoints, so
     exports always match what's currently shown on screen.
 
@@ -117,6 +119,10 @@ def filtered_contacts_query(q=None, tag=None, county=None, contact_id=None, org_
     overdue, regardless of the threshold.
     """
     query = Contact.query
+    if show_deleted:
+        query = query.filter(Contact.deleted_at.isnot(None))
+    else:
+        query = query.filter(Contact.deleted_at.is_(None))
     if contact_id:
         query = query.filter(Contact.id == contact_id)
     if q:
@@ -778,6 +784,39 @@ def _process_sequence_emails(app):
             db.session.commit()
 
 
+_upload_tasks: dict = {}
+
+
+def _run_import_task(app_obj, task_id, file_bytes, filename, archive_missing):
+    task = _upload_tasks[task_id]
+    with app_obj.app_context():
+        try:
+            from werkzeug.datastructures import FileStorage
+            fake_f = FileStorage(stream=io.BytesIO(file_bytes), filename=filename)
+            task['progress'] = 10
+            sheets = read_uploaded_file(fake_f)
+            contacts_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
+            orgs_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
+            sheet_list = [(k, v) for k, v in sheets.items() if v is not None and not v.empty]
+            n = max(len(sheet_list), 1)
+            for i, (_, df) in enumerate(sheet_list):
+                task['progress'] = 20 + int((i / n) * 70)
+                if looks_like_contacts_sheet(df):
+                    _import_contacts(df, contacts_result, archive_missing=archive_missing)
+                elif looks_like_orgs_sheet(df):
+                    _import_orgs(df, orgs_result)
+            db.session.commit()
+            task['status'] = 'done'
+            task['progress'] = 100
+            task['result'] = {'contacts': contacts_result, 'organizations': orgs_result}
+        except Exception as exc:
+            db.session.rollback()
+            import traceback
+            task['status'] = 'error'
+            task['error'] = str(exc)
+            task['details'] = traceback.format_exc()
+
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -792,6 +831,7 @@ def create_app(config_class=Config):
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_post_social BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pipeline_stage VARCHAR(32)",
+            "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
             "ALTER TABLE flyer_templates ADD COLUMN background VARCHAR(32) DEFAULT '#ffffff'",
             "ALTER TABLE flyer_templates ADD COLUMN bg_asset_id INTEGER",
         ]:
@@ -1138,6 +1178,130 @@ def create_app(config_class=Config):
         if not current_user.is_admin:
             return redirect(url_for('index'))
         return render_template('admin_sync.html')
+
+    @app.route('/admin/tags')
+    def tag_manager():
+        if not current_user.is_admin:
+            return redirect(url_for('index'))
+        rows = db.session.query(Contact.tag, func.count(Contact.id)).group_by(Contact.tag).order_by(func.count(Contact.id).desc()).all()
+        tags = [{'tag': r[0] or '', 'count': r[1]} for r in rows if r[0]]
+        return render_template('tag_manager.html', tags=tags)
+
+    @app.route('/api/tags/rename', methods=['POST'])
+    @login_required
+    def rename_tag():
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        data = request.get_json(force=True)
+        old, new = (data.get('old') or '').strip(), (data.get('new') or '').strip()
+        if not old or not new:
+            return jsonify({'error': 'old and new required'}), 400
+        updated = Contact.query.filter(Contact.tag == old).update({'tag': new})
+        db.session.commit()
+        return jsonify({'updated': updated})
+
+    @app.route('/api/tags/delete', methods=['POST'])
+    @login_required
+    def delete_tag():
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        data = request.get_json(force=True)
+        tag = (data.get('tag') or '').strip()
+        if not tag:
+            return jsonify({'error': 'tag required'}), 400
+        updated = Contact.query.filter(Contact.tag == tag).update({'tag': None})
+        db.session.commit()
+        return jsonify({'updated': updated})
+
+    @app.route('/api/tags/merge', methods=['POST'])
+    @login_required
+    def merge_tags():
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        data = request.get_json(force=True)
+        source, target = (data.get('source') or '').strip(), (data.get('target') or '').strip()
+        if not source or not target:
+            return jsonify({'error': 'source and target required'}), 400
+        updated = Contact.query.filter(Contact.tag == source).update({'tag': target})
+        db.session.commit()
+        return jsonify({'updated': updated})
+
+    @app.route('/admin/merge')
+    def contact_merge_page():
+        if not current_user.is_admin:
+            return redirect(url_for('index'))
+        return render_template('contact_merge.html')
+
+    @app.route('/api/contacts/duplicates')
+    @login_required
+    def contact_duplicates():
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        # Find duplicate emails
+        dup_email_subq = (
+            db.session.query(Contact.email)
+            .filter(Contact.email != None, Contact.email != '')
+            .group_by(Contact.email)
+            .having(func.count(Contact.id) > 1)
+            .subquery()
+        )
+        email_dups = Contact.query.filter(Contact.email.in_(db.session.query(dup_email_subq))).order_by(Contact.email).all()
+        # Group by email
+        email_groups: dict = {}
+        for c in email_dups:
+            email_groups.setdefault(c.email.strip().lower(), []).append(c)
+        # Find duplicate names (first + last)
+        dup_name_subq = (
+            db.session.query(Contact.first_name, Contact.last_name)
+            .filter(Contact.first_name != None, Contact.last_name != None)
+            .group_by(Contact.first_name, Contact.last_name)
+            .having(func.count(Contact.id) > 1)
+            .subquery()
+        )
+        name_dups = Contact.query.join(
+            dup_name_subq,
+            and_(Contact.first_name == dup_name_subq.c.first_name, Contact.last_name == dup_name_subq.c.last_name)
+        ).order_by(Contact.last_name, Contact.first_name).all()
+        name_groups: dict = {}
+        for c in name_dups:
+            key = f"{(c.first_name or '').lower()}|{(c.last_name or '').lower()}"
+            name_groups.setdefault(key, []).append(c)
+
+        def c_to_dict(c):
+            return {'id': c.id, 'first_name': c.first_name, 'last_name': c.last_name,
+                    'email': c.email, 'organization': c.organization, 'tag': c.tag,
+                    'added': c.added.isoformat() if c.added else None}
+
+        email_pairs = [{'reason': 'same_email', 'key': k, 'contacts': [c_to_dict(c) for c in v]}
+                       for k, v in email_groups.items() if len(v) > 1]
+        name_pairs = [{'reason': 'same_name', 'key': k, 'contacts': [c_to_dict(c) for c in v]}
+                      for k, v in name_groups.items() if len(v) > 1]
+        return jsonify({'email_duplicates': email_pairs, 'name_duplicates': name_pairs,
+                        'total': len(email_pairs) + len(name_pairs)})
+
+    @app.route('/api/contacts/merge', methods=['POST'])
+    @login_required
+    def merge_contacts():
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        data = request.get_json(force=True)
+        keep_id = data.get('keep_id')
+        drop_id = data.get('drop_id')
+        if not keep_id or not drop_id:
+            return jsonify({'error': 'keep_id and drop_id required'}), 400
+        keep = Contact.query.get_or_404(keep_id)
+        drop = Contact.query.get_or_404(drop_id)
+        # Copy non-null fields from drop -> keep where keep is null
+        for col in ('email', 'phone_work', 'phone_cell', 'organization', 'tag',
+                    'street', 'city', 'state', 'zip_code', 'county', 'notes',
+                    'industry', 'website', 'title'):
+            if not getattr(keep, col, None) and getattr(drop, col, None):
+                setattr(keep, col, getattr(drop, col))
+        # Transfer activities
+        Activity.query.filter_by(contact_id=drop.id).update({'contact_id': keep.id})
+        db.session.delete(drop)
+        db.session.commit()
+        return jsonify({'ok': True, 'kept_id': keep.id})
 
     @app.route('/admin/users')
     def manage_users():
@@ -1912,10 +2076,11 @@ def create_app(config_class=Config):
         followup = request.args.get('followup', type=str)
         favorites_only = request.args.get('favorites_only', type=str) in ('1', 'true', 'True')
         incomplete_only = request.args.get('incomplete_only', type=str) in ('1', 'true', 'True')
+        show_deleted = request.args.get('show_deleted', type=str) in ('1', 'true', 'True')
         page = request.args.get('page', default=1, type=int)
         limit = request.args.get('limit', default=25, type=int)
 
-        query = filtered_contacts_query(q=q, tag=tag, county=county, followup=followup, favorites_only=favorites_only, incomplete_only=incomplete_only)
+        query = filtered_contacts_query(q=q, tag=tag, county=county, followup=followup, favorites_only=favorites_only, incomplete_only=incomplete_only, show_deleted=show_deleted)
 
         total = query.count()
         results = query.order_by(Contact.added.desc()).offset((page - 1) * limit).limit(limit).all()
@@ -2006,15 +2171,29 @@ def create_app(config_class=Config):
             return jsonify({'error': 'admin only'}), 403
         c = Contact.query.get_or_404(contact_id)
         label = f"{c.first_name or ''} {c.last_name or ''}".strip() or c.email or f'#{c.id}'
-        # No ON DELETE CASCADE on activities.contact_id -- deleting the
-        # contact's own outreach log entries first avoids a FK violation
-        # on Postgres (SQLite doesn't enforce this by default, but
-        # Postgres does).
-        Activity.query.filter_by(contact_id=c.id).delete()
-        db.session.delete(c)
+        c.deleted_at = datetime.utcnow()
         db.session.commit()
         log_audit('contact_deleted', 'contact', contact_id, label)
         return jsonify({'deleted': True})
+
+    @app.route('/api/contacts/<int:contact_id>/restore', methods=['POST'])
+    def restore_contact(contact_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        c = Contact.query.get_or_404(contact_id)
+        c.deleted_at = None
+        db.session.commit()
+        return jsonify({'restored': True})
+
+    @app.route('/api/contacts/<int:contact_id>/purge', methods=['DELETE'])
+    def purge_contact(contact_id):
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        c = Contact.query.get_or_404(contact_id)
+        Activity.query.filter_by(contact_id=c.id).delete()
+        db.session.delete(c)
+        db.session.commit()
+        return jsonify({'purged': True})
 
     @app.route('/api/contacts/<int:contact_id>/favorite', methods=['PUT'])
     def toggle_contact_favorite(contact_id):
@@ -2266,45 +2445,99 @@ def create_app(config_class=Config):
 
     @app.route('/api/upload', methods=['POST'])
     def upload():
-        # Accepts a CSV (People only) or an Excel workbook -- a workbook
-        # can have a People tab and a separate Organizations tab (matching
-        # the original spreadsheet's shape); each sheet is classified by
-        # its columns and upserted with the matching importer.
         if not current_user.is_admin:
             return jsonify({'error': 'admin only'}), 403
         if 'file' not in request.files:
             return jsonify({'error': 'file is required (form field `file`)'}), 400
+        f = request.files['file']
+        file_bytes = f.read()
+        filename = f.filename
+        archive_missing = request.form.get('archive_missing') == '1'
+        task_id = str(uuid_mod.uuid4())
+        _upload_tasks[task_id] = {'status': 'running', 'progress': 0, 'result': None, 'error': None}
+        t = threading.Thread(
+            target=_run_import_task,
+            args=(app._get_current_object(), task_id, file_bytes, filename, archive_missing),
+            daemon=True,
+        )
+        t.start()
+        return jsonify({'task_id': task_id})
+
+    @app.route('/api/upload/status/<task_id>')
+    @login_required
+    def upload_task_status(task_id):
+        task = _upload_tasks.get(task_id)
+        if not task:
+            return jsonify({'error': 'task not found'}), 404
+        return jsonify(task)
+
+    @app.route('/api/upload/preview', methods=['POST'])
+    @login_required
+    def upload_preview():
+        if not current_user.is_admin:
+            return jsonify({'error': 'admin only'}), 403
+        if 'file' not in request.files:
+            return jsonify({'error': 'file required'}), 400
         f = request.files['file']
         try:
             sheets = read_uploaded_file(f)
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
-        archive_missing = request.form.get('archive_missing') == '1'
-        contacts_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
-        orgs_result = {'inserted': 0, 'updated': 0, 'skipped': 0}
+        from utils import clean_dataframe
+        new_contacts, updated_contacts = [], []
 
-        try:
-            for df in sheets.values():
-                if df is None or df.empty:
-                    continue
-                if looks_like_contacts_sheet(df):
-                    _import_contacts(df, contacts_result, archive_missing=archive_missing)
-                elif looks_like_orgs_sheet(df):
-                    _import_orgs(df, orgs_result)
-                # Sheets that match neither shape (e.g. an instructions tab)
-                # are silently ignored rather than guessed at.
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            import traceback
-            return jsonify({'error': str(e), 'details': traceback.format_exc()}), 500
+        db.session.flush()
+        all_existing = Contact.query.filter(Contact.deleted_at.is_(None)).all()
+        by_email = {c.email.strip().lower(): c for c in all_existing if c.email}
+        by_nameorg = {
+            ((c.first_name or '').lower(), (c.last_name or '').lower(), (c.organization or '').lower()): c
+            for c in all_existing if not c.email
+        }
 
-        log_audit('spreadsheet_sync', 'sync', None, f.filename, {
-            'contacts': contacts_result,
-            'organizations': orgs_result,
+        FIELD_MAP = {
+            'first_name': 'first_name', 'last_name': 'last_name', 'email': 'email',
+            'organization': 'organization', 'title': 'title', 'tag': 'tag',
+            'phone_office': 'phone_office', 'phone_cell': 'phone_cell',
+            'county': 'county', 'notes': 'notes',
+        }
+
+        for df in sheets.values():
+            if df is None or df.empty or not looks_like_contacts_sheet(df):
+                continue
+            for row in clean_dataframe(df):
+                email = (row.get('email') or '').strip()
+                fn = (row.get('first_name') or '').lower()
+                ln = (row.get('last_name') or '').lower()
+                org = (row.get('organization') or '').lower()
+                existing = by_email.get(email.lower()) if email else by_nameorg.get((fn, ln, org))
+                if existing is None:
+                    new_contacts.append({
+                        'name': f"{row.get('first_name','')} {row.get('last_name','')}".strip() or email or '(unnamed)',
+                        'email': email or None,
+                        'organization': row.get('organization'),
+                        'tag': row.get('tag'),
+                    })
+                else:
+                    changes = {}
+                    for row_key, col in FIELD_MAP.items():
+                        new_val = (row.get(row_key) or '').strip() or None
+                        old_val = getattr(existing, col, None)
+                        if new_val and new_val != old_val:
+                            changes[col] = {'old': old_val, 'new': new_val}
+                    if changes:
+                        updated_contacts.append({
+                            'id': existing.id,
+                            'name': f"{existing.first_name or ''} {existing.last_name or ''}".strip() or existing.email,
+                            'changes': changes,
+                        })
+
+        return jsonify({
+            'new_count': len(new_contacts),
+            'updated_count': len(updated_contacts),
+            'new': new_contacts[:50],
+            'updated': updated_contacts[:50],
         })
-        return jsonify({'contacts': contacts_result, 'organizations': orgs_result})
 
     @app.route('/api/export', methods=['GET'])
     def export():

@@ -2779,7 +2779,8 @@ def create_app(config_class=Config):
         import json
         import base64
         from groq import Groq
-        import openai
+        import urllib.request as _urlreq
+        import urllib.parse as _urlparse
         from PIL import Image, ImageDraw, ImageFont
 
         data = request.get_json(silent=True) or {}
@@ -2789,11 +2790,8 @@ def create_app(config_class=Config):
             return jsonify({'error': 'Describe what the post or flyer is about.'}), 400
 
         groq_key = os.environ.get('GROQ_API_KEY')
-        openai_key = os.environ.get('OPENAI_API_KEY')
         if not groq_key:
             return jsonify({'error': 'GROQ_API_KEY is not configured on the server.'}), 500
-        if not openai_key:
-            return jsonify({'error': 'OPENAI_API_KEY is not configured on the server.'}), 500
 
         width, height = (1024, 1536) if fmt == 'portrait' else (1024, 1024)
 
@@ -2832,31 +2830,30 @@ def create_app(config_class=Config):
             body = ''
 
         visual_prompt = (
-            f"A clean, professional background graphic for a "
-            f"{'printed flyer' if fmt == 'portrait' else 'social media post'} about: "
-            f"{prompt}. Style: modern, minimal, photo-realistic or tasteful abstract "
-            "design. Color palette: deep maroon red, black, and soft dusty rose accents "
-            "on white or light background. Leave clear open, uncluttered space in the "
-            "lower third of the image for text to be added afterward. Absolutely no "
-            "text, words, letters, or numbers anywhere in the image."
+            f"Elegant, classy, business-professional background design for a "
+            f"{'letter flyer' if fmt == 'portrait' else 'social media post'} about: {prompt}. "
+            "Style: premium Canva-inspired corporate template. Soft, harmonious color palette — "
+            "muted maroon, warm ivory, soft grey, subtle gold accents. Smooth gradients, "
+            "gentle geometric shapes or abstract soft bokeh. Sophisticated and polished, "
+            "suitable for a professional management firm. Clean, sharp, high resolution. "
+            "CRITICAL: absolutely no text, no letters, no words, no numbers, no watermarks. "
+            "Pure visual background only."
         )
+        negative_prompt = "blur, blurry, grainy, noisy, text, words, letters, numbers, watermark, harsh contrast, neon, cartoon, anime, painting, sketch, ugly, low quality, distorted"
         try:
-            oai_client = openai.OpenAI(api_key=openai_key)
-            img_response = oai_client.images.generate(
-                model="gpt-image-1-mini",
-                prompt=visual_prompt,
-                size=f"{width}x{height}",
-                quality="low",
-            )
-            img_bytes = base64.b64decode(img_response.data[0].b64_json)
-        except openai.APIStatusError as e:
-            return jsonify({'error': f'OpenAI image API error: {e.message}'}), 502
+            img_url = f"https://image.pollinations.ai/prompt/{_urlparse.quote(visual_prompt)}?width={width}&height={height}&nologo=true&model=flux-pro&negative={_urlparse.quote(negative_prompt)}"
+            req = _urlreq.Request(img_url, headers={'User-Agent': 'JBJContacts/1.0'})
+            with _urlreq.urlopen(req, timeout=60) as resp:
+                img_bytes = resp.read()
         except Exception as e:
-            return jsonify({'error': str(e)}), 502
+            return jsonify({'error': f'Image generation error: {e}'}), 502
 
         base_img = Image.open(io.BytesIO(img_bytes)).convert('RGBA')
         if base_img.size != (width, height):
             base_img = base_img.resize((width, height))
+        raw_buf = io.BytesIO()
+        base_img.convert('RGB').save(raw_buf, format='PNG')
+        raw_b64 = base64.b64encode(raw_buf.getvalue()).decode('ascii')
         overlay = Image.new('RGBA', base_img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
@@ -2907,6 +2904,17 @@ def create_app(config_class=Config):
             draw.text((margin, y), line, font=body_font, fill=(240, 240, 240, 255))
             y += body_font.size + 8
 
+        # Paste JBJ logo in top-left corner
+        logo_path = os.path.join(os.path.dirname(__file__), 'static', 'img', 'logo.png')
+        try:
+            logo = Image.open(logo_path).convert('RGBA')
+            logo_max_w = int(width * 0.28)
+            logo_ratio = logo_max_w / logo.width
+            logo = logo.resize((logo_max_w, int(logo.height * logo_ratio)), Image.LANCZOS)
+            overlay.paste(logo, (margin, margin), logo)
+        except Exception:
+            pass
+
         final = Image.alpha_composite(base_img, overlay).convert('RGB')
         buf = io.BytesIO()
         final.save(buf, format='PNG')
@@ -2914,8 +2922,10 @@ def create_app(config_class=Config):
 
         return jsonify({
             'image': f'data:image/png;base64,{final_b64}',
+            'raw_background': f'data:image/png;base64,{raw_b64}',
             'headline': headline,
             'body': body,
+            'format': fmt,
         })
 
     # ------------------------------------------------------------------ #

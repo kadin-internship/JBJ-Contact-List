@@ -40,6 +40,28 @@
         <h3 class="filters-title">Content Blocks</h3>
 
         <div class="filter-section">
+          <h4>Templates</h4>
+          <div class="eb-block-palette" style="grid-template-columns:1fr;">
+            <button class="eb-block-tile eb-block-tile-wide" data-template="simple" type="button">
+              <span class="eb-block-tile-preview" style="font-size:9px;line-height:1.5;">Logo · Body · Signature</span>
+              <span class="eb-block-tile-label">Simple Letter</span>
+            </button>
+            <button class="eb-block-tile eb-block-tile-wide" data-template="meeting" type="button">
+              <span class="eb-block-tile-preview" style="font-size:9px;line-height:1.5;">Logo · Heading · Details · CTA</span>
+              <span class="eb-block-tile-label">Community Meeting</span>
+            </button>
+            <button class="eb-block-tile eb-block-tile-wide" data-template="newsletter" type="button">
+              <span class="eb-block-tile-preview" style="font-size:9px;line-height:1.5;">Logo · Header · Sections · Social</span>
+              <span class="eb-block-tile-label">Newsletter</span>
+            </button>
+            <button class="eb-block-tile eb-block-tile-wide" data-template="announcement" type="button">
+              <span class="eb-block-tile-preview" style="font-size:9px;line-height:1.5;">Logo · Banner · Body · CTA</span>
+              <span class="eb-block-tile-label">Announcement</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-section">
           <h4>Text</h4>
           <div class="eb-block-palette">
             <button class="eb-block-tile" data-insert="heading" type="button">
@@ -126,6 +148,9 @@
       <input id="ebSubjectInput" type="text" class="eb-subject-input" value="{{ template.subject or '' }}" placeholder="Subject">
 
       <div class="eb-toolbar" role="toolbar" aria-label="Formatting">
+        <button type="button" id="ebUndoBtn" title="Undo (Ctrl+Z)"><i class="fas fa-rotate-left"></i></button>
+        <button type="button" id="ebRedoBtn" title="Redo (Ctrl+Y)"><i class="fas fa-rotate-right"></i></button>
+        <span class="eb-toolbar-sep"></span>
         <select id="ebFormatSelect" title="Text style">
           <option value="P">Normal</option>
           <option value="H2">Heading</option>

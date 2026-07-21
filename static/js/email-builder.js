@@ -88,6 +88,11 @@ function setupToolbar() {
     })
   })
 
+  const undoBtn = el('ebUndoBtn')
+  const redoBtn = el('ebRedoBtn')
+  if (undoBtn) undoBtn.addEventListener('mousedown', (e) => { e.preventDefault(); el('ebEditor').focus(); document.execCommand('undo'); markDirty() })
+  if (redoBtn) redoBtn.addEventListener('mousedown', (e) => { e.preventDefault(); el('ebEditor').focus(); document.execCommand('redo'); markDirty() })
+
   el('ebFormatSelect').addEventListener('mousedown', () => el('ebEditor').focus())
   el('ebFormatSelect').addEventListener('change', () => {
     runCmd('formatBlock', el('ebFormatSelect').value)
@@ -505,6 +510,55 @@ const BLOCKS = {
   footer:       () => `<div style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;margin-top:24px;border-top:1px solid #eee;line-height:1.6;">JBJ Management · Dallas, TX<br>This email was sent to you because you are part of our outreach network.<br><a href="#" style="color:#aaa;">Unsubscribe</a></div>`,
 }
 
+const LOGO_HTML = `<div style="text-align:center;margin:0 0 24px;"><img src="/static/img/logo.png" alt="JBJ Management" style="width:160px;max-width:100%;"></div>`
+const FOOTER_HTML = `<div style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;margin-top:24px;border-top:1px solid #eee;line-height:1.6;">JBJ Management · Dallas, TX<br>This email was sent to you because you are part of our outreach network.<br><a href="#" style="color:#aaa;">Unsubscribe</a></div>`
+const SIGNATURE_HTML = `<div style="margin:24px 0 0;padding-top:16px;border-top:1px solid #eee;font-size:14px;line-height:1.6;"><strong>Your Name</strong><br><span style="color:#555;">Title · JBJ Management</span><br><span style="color:#888;">email@jbj-management.com · (555) 000-0000</span></div>`
+
+// Each template wraps the existing body content — preserving the user's words
+const TEMPLATES = {
+  simple: (body) => `${LOGO_HTML}${body}${SIGNATURE_HTML}${FOOTER_HTML}`,
+
+  meeting: (body) => `${LOGO_HTML}
+<h2 style="font-family:'Archivo Black',sans-serif;color:#AD0304;border-bottom:2px solid #AD0304;padding-bottom:8px;margin:0 0 16px;">You're Invited</h2>
+<table width="100%" style="border-collapse:collapse;background:#fafafa;border-radius:8px;margin:0 0 20px;padding:16px;border:1px solid #eee;">
+  <tr><td style="padding:8px 12px;font-size:14px;"><strong>📅 Date:</strong> [DATE]</td></tr>
+  <tr><td style="padding:8px 12px;font-size:14px;"><strong>🕐 Time:</strong> [TIME]</td></tr>
+  <tr><td style="padding:8px 12px;font-size:14px;"><strong>📍 Location:</strong> [LOCATION]</td></tr>
+</table>
+${body}
+<div style="text-align:center;margin:20px 0;"><a href="#" style="background:#AD0304;color:#ffffff;display:inline-block;padding:14px 32px;border-radius:999px;font-weight:600;text-decoration:none;font-size:16px;">RSVP Now</a></div>
+${SIGNATURE_HTML}${FOOTER_HTML}`,
+
+  newsletter: (body) => `${LOGO_HTML}
+<h2 style="font-family:'Archivo Black',sans-serif;color:#AD0304;border-bottom:2px solid #AD0304;padding-bottom:8px;margin:0 0 16px;">Newsletter</h2>
+${body}
+<div style="text-align:center;padding:14px 0;font-size:14px;letter-spacing:0.5px;"><a href="#" style="color:#AD0304;text-decoration:none;margin:0 10px;font-weight:600;">Facebook</a><span style="color:#ccc;">·</span><a href="#" style="color:#AD0304;text-decoration:none;margin:0 10px;font-weight:600;">Instagram</a><span style="color:#ccc;">·</span><a href="#" style="color:#AD0304;text-decoration:none;margin:0 10px;font-weight:600;">LinkedIn</a></div>
+${FOOTER_HTML}`,
+
+  announcement: (body) => `${LOGO_HTML}
+<div style="background:#1a1a1a;color:#ffffff;padding:16px 20px;border-radius:8px;text-align:center;margin:0 0 20px;"><strong style="font-size:18px;">📢 Important Announcement</strong></div>
+${body}
+<div style="text-align:center;margin:20px 0;"><a href="#" style="background:#AD0304;color:#ffffff;display:inline-block;padding:14px 32px;border-radius:999px;font-weight:600;text-decoration:none;font-size:16px;">Learn More</a></div>
+${SIGNATURE_HTML}${FOOTER_HTML}`,
+}
+
+function setupTemplatePalette() {
+  document.querySelectorAll('[data-template]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.template
+      if (!TEMPLATES[type]) return
+      const editor = el('ebEditor')
+      const currentBody = editor.innerHTML.trim() || '<p><br></p>'
+      const newHtml = TEMPLATES[type](currentBody)
+      editor.focus()
+      document.execCommand('selectAll')
+      document.execCommand('insertHTML', false, newHtml)
+      markDirty()
+      editor.scrollTop = 0
+    })
+  })
+}
+
 function setupBlockPalette() {
   document.querySelectorAll('[data-insert]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -585,6 +639,7 @@ async function saveTemplate() {
 function init() {
   el('ebEditor').innerHTML = existingHtml()
   setupToolbar()
+  setupTemplatePalette()
   setupBlockPalette()
   setupAttachments()
   setupSendModal()

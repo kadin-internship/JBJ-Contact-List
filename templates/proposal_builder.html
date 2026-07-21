@@ -463,6 +463,8 @@
           <option value="accepted" {% if proposal and proposal.status=='accepted'    %}selected{% endif %}>Accepted</option>
           <option value="declined" {% if proposal and proposal.status=='declined'    %}selected{% endif %}>Declined</option>
         </select>
+        <button class="btn btn-sm" id="pbUndoBtn" title="Undo (Ctrl+Z)" onclick="document.execCommand('undo')"><i class="fas fa-rotate-left"></i></button>
+        <button class="btn btn-sm" id="pbRedoBtn" title="Redo (Ctrl+Y)" onclick="document.execCommand('redo')"><i class="fas fa-rotate-right"></i></button>
         {% if proposal %}
         <button class="btn btn-sm" id="exportPdfBtn" onclick="window.print()" title="Export as PDF"><i class="fas fa-file-pdf"></i> Export PDF</button>
         <button class="btn btn-danger btn-sm" id="deleteBtn"><i class="fas fa-trash"></i> Delete</button>

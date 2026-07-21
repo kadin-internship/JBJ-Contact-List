@@ -425,9 +425,11 @@
           <input id="campaignSubject" type="text" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(148,153,156,0.4);font-size:14px;font-family:inherit;margin-bottom:8px;" placeholder="Email subject" />
           <label for="campaignBody">Body</label>
           <textarea id="campaignBody" rows="12" placeholder="Email body…"></textarea>
-          <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+          <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;">
             <button id="campaignSendBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
             <button id="campaignBackBtn" class="btn"><i class="fas fa-arrow-left"></i> Edit prompt</button>
+            <button class="btn" title="Undo (Ctrl+Z)" onclick="document.getElementById('campaignBody').focus();document.execCommand('undo')"><i class="fas fa-rotate-left"></i></button>
+            <button class="btn" title="Redo (Ctrl+Y)" onclick="document.getElementById('campaignBody').focus();document.execCommand('redo')"><i class="fas fa-rotate-right"></i></button>
             <span id="campaignSendStatus" class="muted"></span>
           </div>
         </div>
@@ -469,9 +471,10 @@
         <select id="draftEmailCaseStudy">
           <option value="">None</option>
         </select>
-        <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
           <button id="draftEmailGenerateBtn" class="btn btn-primary">Generate</button>
           <button id="draftEmailCopyBtn" class="btn" style="display:none;">Copy to Clipboard</button>
+          <button id="draftEmailOpenBuilderBtn" class="btn btn-primary" style="display:none;"><i class="fas fa-pen-to-square"></i> Open in Email Builder</button>
         </div>
         <div id="draftEmailStatus" class="muted" style="margin-top:8px;"></div>
         <textarea id="draftEmailOutput" rows="14" style="display:none;width:100%;margin-top:8px;" placeholder="Your drafted email will appear here..."></textarea>
@@ -489,9 +492,10 @@
           <label class="btn"><input type="radio" name="flyerFormat" value="square" checked style="margin-right:6px;">Social post (square)</label>
           <label class="btn"><input type="radio" name="flyerFormat" value="portrait" style="margin-right:6px;">Flyer (portrait)</label>
         </div>
-        <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
           <button id="createFlyerGenerateBtn" class="btn btn-primary">Generate</button>
           <a id="createFlyerDownloadBtn" class="btn" download="flyer.png" style="display:none;">Download Image</a>
+          <button id="createFlyerOpenBuilderBtn" class="btn btn-primary" style="display:none;"><i class="fas fa-pen-to-square"></i> Open in Flyer Builder</button>
         </div>
         <div id="createFlyerStatus" class="muted" style="margin-top:8px;"></div>
         <img id="createFlyerOutput" style="display:none;max-width:100%;margin-top:8px;border-radius:8px;" alt="Generated flyer/post" />

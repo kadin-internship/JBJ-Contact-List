@@ -1398,6 +1398,7 @@ function bindDraftEmail(){
     el('draftEmailStatus').textContent = 'Drafting…'
     el('draftEmailOutput').style.display = 'none'
     el('draftEmailCopyBtn').style.display = 'none'
+    if(el('draftEmailOpenBuilderBtn')) el('draftEmailOpenBuilderBtn').style.display = 'none'
     try{
       const res = await fetch('/api/draft-email', {
         method: 'POST',
@@ -1418,6 +1419,7 @@ function bindDraftEmail(){
       el('draftEmailOutput').value = j.draft || ''
       el('draftEmailOutput').style.display = ''
       el('draftEmailCopyBtn').style.display = ''
+      if(el('draftEmailOpenBuilderBtn')) el('draftEmailOpenBuilderBtn').style.display = ''
       el('draftEmailStatus').textContent = `Drafted for ${j.recipient_count} recipient${j.recipient_count===1?'':'s'}.`
     }catch(e){
       el('draftEmailStatus').textContent = 'Could not reach the server.'
@@ -1433,6 +1435,41 @@ function bindDraftEmail(){
       el('draftEmailStatus').textContent = 'Copied to clipboard.'
     }catch(e){ el('draftEmailStatus').textContent = 'Could not copy.' }
   })
+
+  if(el('draftEmailOpenBuilderBtn')){
+    el('draftEmailOpenBuilderBtn').addEventListener('click', async ()=>{
+      const raw = el('draftEmailOutput').value.trim()
+      if(!raw) return
+      const lines = raw.split('\n')
+      let subject = ''
+      let bodyStart = 0
+      const subjectLine = lines.find((l, i) => { bodyStart = i; return l.toLowerCase().startsWith('subject:') })
+      if(subjectLine){ subject = subjectLine.replace(/^subject:\s*/i, '').trim(); bodyStart++ }
+      while(bodyStart < lines.length && lines[bodyStart].trim() === '') bodyStart++
+      const bodyText = lines.slice(bodyStart).join('\n').trim()
+      const bodyHtml = bodyText.split(/\n\n+/).map(p => `<p>${p.replace(/\n/g,'<br>')}</p>`).join('')
+      el('draftEmailOpenBuilderBtn').disabled = true
+      el('draftEmailStatus').textContent = 'Opening in Email Builder…'
+      try{
+        const res = await fetch('/api/email-templates', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            name: subject || 'AI Draft',
+            subject,
+            blocks: [{ id: 'body', type: 'richtext', html: bodyHtml }]
+          })
+        })
+        const t = await res.json()
+        if(!res.ok){ el('draftEmailStatus').textContent = t.error || 'Could not create template.'; return }
+        window.location.href = `/email-builder/${t.id}`
+      }catch(e){
+        el('draftEmailStatus').textContent = 'Could not open Email Builder.'
+      }finally{
+        el('draftEmailOpenBuilderBtn').disabled = false
+      }
+    })
+  }
 }
 
 function bindSendCampaign(){
@@ -1746,6 +1783,7 @@ function bindCreateFlyer(){
     el('createFlyerOutput').style.display = 'none'
     el('createFlyerOutput').src = ''
     el('createFlyerDownloadBtn').style.display = 'none'
+    if(el('createFlyerOpenBuilderBtn')) el('createFlyerOpenBuilderBtn').style.display = 'none'
     el('createFlyerStatus').textContent = ''
     modal.style.display = ''
     el('createFlyerPrompt').focus()
@@ -1762,6 +1800,7 @@ function bindCreateFlyer(){
     el('createFlyerStatus').textContent = 'Generating… this can take up to a minute.'
     el('createFlyerOutput').style.display = 'none'
     el('createFlyerDownloadBtn').style.display = 'none'
+    if(el('createFlyerOpenBuilderBtn')) el('createFlyerOpenBuilderBtn').style.display = 'none'
     try{
       const res = await fetch('/api/generate-flyer', {
         method: 'POST',
@@ -1770,10 +1809,12 @@ function bindCreateFlyer(){
       })
       const j = await res.json()
       if(!res.ok){ el('createFlyerStatus').textContent = j.error || 'Could not generate the image.'; return }
+      window._lastFlyerResult = j
       el('createFlyerOutput').src = j.image
       el('createFlyerOutput').style.display = ''
       el('createFlyerDownloadBtn').href = j.image
       el('createFlyerDownloadBtn').style.display = ''
+      if(el('createFlyerOpenBuilderBtn')) el('createFlyerOpenBuilderBtn').style.display = ''
       el('createFlyerStatus').textContent = `Headline: "${j.headline}"`
     }catch(e){
       el('createFlyerStatus').textContent = 'Could not reach the server.'
@@ -1782,6 +1823,51 @@ function bindCreateFlyer(){
       genBtn.disabled = false
     }
   })
+
+  if(el('createFlyerOpenBuilderBtn')){
+    el('createFlyerOpenBuilderBtn').addEventListener('click', async ()=>{
+      if(!window._lastFlyerResult) return
+      const { raw_background, headline, body, format: genFmt } = window._lastFlyerResult
+      const prompt = el('createFlyerPrompt').value.trim()
+      // Map generate-flyer format names to flyer builder format names
+      const builderFormat = genFmt === 'portrait' ? 'flyer' : 'square'
+      // Canvas display dims for element positioning
+      const dims = { flyer: {w:408,h:528}, square: {w:540,h:540} }
+      const {w, h} = dims[builderFormat] || dims['square']
+      el('createFlyerOpenBuilderBtn').disabled = true
+      el('createFlyerStatus').textContent = 'Opening in Flyer Builder…'
+      try{
+        // Upload the raw background (no baked-in text/logo)
+        const res = await fetch(raw_background)
+        const blob = await res.blob()
+        const fd = new FormData()
+        fd.append('file', blob, 'ai-bg.png')
+        const assetRes = await fetch('/api/flyer-assets', { method: 'POST', body: fd })
+        if(!assetRes.ok){ el('createFlyerStatus').textContent = 'Could not upload image.'; return }
+        const asset = await assetRes.json()
+        // Build editable elements: logo + headline + body text
+        const uid = () => Math.random().toString(36).slice(2,9)
+        const elements = [
+          { id: uid(), type: 'logo', x: 20, y: 20, width: Math.round(w*0.35), height: Math.round(w*0.12), opacity: 100 },
+          { id: uid(), type: 'heading', x: 20, y: Math.round(h*0.72), width: w-40, height: Math.round(h*0.14), text: headline || 'Heading', fontSize: builderFormat==='flyer'?28:36, color: '#ffffff', bold: true, align: 'left', opacity: 100 },
+          ...(body ? [{ id: uid(), type: 'text', x: 20, y: Math.round(h*0.86), width: w-40, height: Math.round(h*0.1), text: body, fontSize: builderFormat==='flyer'?14:16, color: '#f0f0f0', bold: false, align: 'left', opacity: 100 }] : []),
+        ]
+        const tplRes = await fetch('/api/flyer-templates', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ name: prompt || 'AI Flyer', format: builderFormat, elements, background: '#000000', bg_asset_id: asset.id })
+        })
+        if(!tplRes.ok){ el('createFlyerStatus').textContent = 'Could not create flyer.'; return }
+        const tpl = await tplRes.json()
+        window.location.href = `/flyer-builder/${tpl.id}`
+      }catch(e){
+        el('createFlyerStatus').textContent = 'Could not open Flyer Builder.'
+        console.error(e)
+      }finally{
+        el('createFlyerOpenBuilderBtn').disabled = false
+      }
+    })
+  }
 }
 
 window.addEventListener('load', async ()=>{

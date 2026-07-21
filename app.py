@@ -12,7 +12,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from config import Config
 from db import db
-from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy, EmailTemplate, FlyerTemplate, FlyerAsset, Task, SocialToken, EmailEvent, AvailabilityRule, Booking, LandingPage, LandingPageSubmission, EmailSequence, EmailSequenceStep, EmailSequenceEnrollment, Proposal
+from models import Contact, OutreachOrg, Activity, User, AuditLog, CaseStudy, EmailTemplate, FlyerTemplate, FlyerAsset, Task, SocialToken, EmailEvent, AvailabilityRule, Booking, LandingPage, LandingPageSubmission, EmailSequence, EmailSequenceStep, EmailSequenceEnrollment, Proposal, LoginEvent
 from schemas import ContactSchema
 from utils import (
     read_uploaded_file, clean_dataframe, clean_outreach_orgs,
@@ -832,6 +832,8 @@ def create_app(config_class=Config):
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pipeline_stage VARCHAR(32)",
             "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP",
             "ALTER TABLE flyer_templates ADD COLUMN background VARCHAR(32) DEFAULT '#ffffff'",
             "ALTER TABLE flyer_templates ADD COLUMN bg_asset_id INTEGER",
         ]:
@@ -884,12 +886,39 @@ def create_app(config_class=Config):
         if request.method == 'POST':
             username = (request.form.get('username') or '').strip()
             password = request.form.get('password') or ''
+            ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
+            ua = (request.user_agent.string or '')[:256]
             user = User.query.filter_by(username=username).first()
-            if user and user.check_password(password):
+
+            if user and user.is_locked():
+                remaining = int((user.locked_until - datetime.utcnow()).total_seconds() // 60) + 1
+                event = LoginEvent(username=username, user_id=user.id, ip_address=ip, user_agent=ua,
+                                   success=False, note='account_locked')
+                db.session.add(event)
+                db.session.commit()
+                error = f'Account locked due to too many failed attempts. Try again in {remaining} minute{"s" if remaining != 1 else ""}.'
+            elif user and user.check_password(password):
+                user.reset_login_attempts()
+                event = LoginEvent(username=username, user_id=user.id, ip_address=ip, user_agent=ua,
+                                   success=True)
+                db.session.add(event)
+                db.session.commit()
                 login_user(user, remember=True)
                 next_path = request.args.get('next')
                 return redirect(next_path or url_for('index'))
-            error = 'Invalid username or password.'
+            else:
+                if user:
+                    user.record_failed_login()
+                event = LoginEvent(username=username, user_id=user.id if user else None,
+                                   ip_address=ip, user_agent=ua, success=False,
+                                   note='bad_password' if user else 'unknown_user')
+                db.session.add(event)
+                db.session.commit()
+                if user and user.is_locked():
+                    error = 'Too many failed attempts — account locked for 15 minutes.'
+                else:
+                    attempts_left = max(0, 5 - (user.failed_login_attempts if user else 0))
+                    error = f'Invalid username or password.{f" {attempts_left} attempt{'s' if attempts_left != 1 else ''} remaining before lockout." if user and attempts_left < 5 else ""}'
         return render_template('login.html', error=error, username=username)
 
     @app.errorhandler(429)
@@ -1178,6 +1207,18 @@ def create_app(config_class=Config):
         if not current_user.is_admin:
             return redirect(url_for('index'))
         return render_template('admin_sync.html')
+
+    @app.route('/admin/login-audit')
+    def login_audit():
+        if not current_user.is_admin:
+            return redirect(url_for('index'))
+        page = request.args.get('page', default=1, type=int)
+        limit = 50
+        query = LoginEvent.query.order_by(LoginEvent.created_at.desc())
+        total = query.count()
+        events = query.offset((page - 1) * limit).limit(limit).all()
+        pages = max(1, (total + limit - 1) // limit)
+        return render_template('login_audit.html', events=events, page=page, pages=pages, total=total)
 
     @app.route('/admin/tags')
     def tag_manager():

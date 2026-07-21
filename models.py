@@ -1,4 +1,4 @@
-from datetime import datetime, date, time as dtime
+from datetime import datetime, date, time as dtime, timedelta
 from sqlalchemy import Index
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
@@ -17,6 +17,22 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     can_post_social = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime, nullable=True)
+
+    def is_locked(self):
+        if self.locked_until and self.locked_until > datetime.utcnow():
+            return True
+        return False
+
+    def record_failed_login(self):
+        self.failed_login_attempts = (self.failed_login_attempts or 0) + 1
+        if self.failed_login_attempts >= 5:
+            self.locked_until = datetime.utcnow() + timedelta(minutes=15)
+
+    def reset_login_attempts(self):
+        self.failed_login_attempts = 0
+        self.locked_until = None
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -32,6 +48,20 @@ class User(db.Model, UserMixin):
             'is_admin': bool(self.is_admin),
             'can_post_social': bool(self.can_post_social),
         }
+
+
+class LoginEvent(db.Model):
+    """Every login attempt — successful or not — with IP and outcome."""
+    __tablename__ = 'login_events'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    username   = db.Column(db.String(80), nullable=False, index=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    user_agent = db.Column(db.String(256), nullable=True)
+    success    = db.Column(db.Boolean, nullable=False)
+    note       = db.Column(db.String(128), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
 class Contact(db.Model):

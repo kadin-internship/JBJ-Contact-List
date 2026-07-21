@@ -1056,10 +1056,10 @@ def create_app(config_class=Config):
     @app.route('/api/proposals/generate', methods=['POST'])
     @login_required
     def generate_proposal():
-        import anthropic
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        from groq import Groq
+        api_key = os.environ.get('GROQ_API_KEY')
         if not api_key:
-            return jsonify({'error': 'ANTHROPIC_API_KEY is not configured on the server.'}), 500
+            return jsonify({'error': 'GROQ_API_KEY is not configured on the server.'}), 500
 
         data = request.get_json(force=True)
         title       = (data.get('title') or '').strip()
@@ -1104,24 +1104,22 @@ def create_app(config_class=Config):
         )
 
         try:
-            client = anthropic.Anthropic(api_key=api_key)
-            response = client.messages.create(
-                model='claude-sonnet-4-6',
+            client = Groq(api_key=api_key)
+            response = client.chat.completions.create(
+                model='llama-3.3-70b-versatile',
                 max_tokens=1200,
-                system=system,
-                messages=[{'role': 'user', 'content': user_content}],
+                messages=[
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user_content},
+                ],
             )
-            text = next((b.text for b in response.content if b.type == 'text'), '{}')
+            text = response.choices[0].message.content.strip()
             import json as _json
-            # Strip markdown fences if present
-            text = text.strip()
             if text.startswith('```'):
                 text = text.split('```')[1]
                 if text.startswith('json'): text = text[4:]
             result = _json.loads(text.strip())
             return jsonify({'overview': result.get('overview', ''), 'scope': result.get('scope', '')})
-        except anthropic.APIStatusError as e:
-            return jsonify({'error': f'Claude API error: {e.message}'}), 502
         except Exception as e:
             return jsonify({'error': str(e)}), 502
 
@@ -2693,16 +2691,16 @@ def create_app(config_class=Config):
 
     @app.route('/api/draft-email', methods=['POST'])
     def draft_email():
-        import anthropic
+        from groq import Groq
 
         data = request.get_json(silent=True) or {}
         prompt = (data.get('prompt') or '').strip()
         if not prompt:
             return jsonify({'error': 'Describe the email you want to draft.'}), 400
 
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        api_key = os.environ.get('GROQ_API_KEY')
         if not api_key:
-            return jsonify({'error': 'ANTHROPIC_API_KEY is not configured on the server.'}), 500
+            return jsonify({'error': 'GROQ_API_KEY is not configured on the server.'}), 500
 
         q = data.get('q')
         tag = data.get('tag')
@@ -2761,26 +2759,26 @@ def create_app(config_class=Config):
         user_message = "Recipient group:\n" + "\n".join(context_lines) + case_study_block + f"\n\nEmail request: {prompt}"
 
         try:
-            client = anthropic.Anthropic(api_key=api_key)
-            response = client.messages.create(
-                model="claude-sonnet-4-6",
+            client = Groq(api_key=api_key)
+            response = client.chat.completions.create(
+                model='llama-3.3-70b-versatile',
                 max_tokens=1024,
-                system=system,
-                messages=[{"role": "user", "content": user_message}],
+                messages=[
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user_message},
+                ],
             )
-        except anthropic.APIStatusError as e:
-            return jsonify({'error': f'Claude API error: {e.message}'}), 502
         except Exception as e:
             return jsonify({'error': str(e)}), 502
 
-        draft = next((b.text for b in response.content if b.type == 'text'), '')
+        draft = response.choices[0].message.content
         return jsonify({'draft': draft, 'recipient_count': len(rows)})
 
     @app.route('/api/generate-flyer', methods=['POST'])
     def generate_flyer():
         import json
         import base64
-        import anthropic
+        from groq import Groq
         import openai
         from PIL import Image, ImageDraw, ImageFont
 
@@ -2790,10 +2788,10 @@ def create_app(config_class=Config):
         if not prompt:
             return jsonify({'error': 'Describe what the post or flyer is about.'}), 400
 
-        anthropic_key = os.environ.get('ANTHROPIC_API_KEY')
+        groq_key = os.environ.get('GROQ_API_KEY')
         openai_key = os.environ.get('OPENAI_API_KEY')
-        if not anthropic_key:
-            return jsonify({'error': 'ANTHROPIC_API_KEY is not configured on the server.'}), 500
+        if not groq_key:
+            return jsonify({'error': 'GROQ_API_KEY is not configured on the server.'}), 500
         if not openai_key:
             return jsonify({'error': 'OPENAI_API_KEY is not configured on the server.'}), 500
 
@@ -2810,14 +2808,16 @@ def create_app(config_class=Config):
         )
         raw_text = ''
         try:
-            claude = anthropic.Anthropic(api_key=anthropic_key)
-            copy_response = claude.messages.create(
-                model="claude-sonnet-4-6",
+            client = Groq(api_key=groq_key)
+            copy_response = client.chat.completions.create(
+                model='llama-3.3-70b-versatile',
                 max_tokens=200,
-                system=copy_system,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {'role': 'system', 'content': copy_system},
+                    {'role': 'user', 'content': prompt},
+                ],
             )
-            raw_text = next((b.text for b in copy_response.content if b.type == 'text'), '{}').strip()
+            raw_text = copy_response.choices[0].message.content.strip()
             if raw_text.startswith('```'):
                 raw_text = raw_text.strip('`')
                 if raw_text.startswith('json'):
@@ -2825,8 +2825,8 @@ def create_app(config_class=Config):
             parsed = json.loads(raw_text)
             headline = (parsed.get('headline') or '').strip() or 'JBJ Management'
             body = (parsed.get('body') or '').strip()
-        except anthropic.APIStatusError as e:
-            return jsonify({'error': f'Claude API error: {e.message}'}), 502
+        except Exception as e:
+            return jsonify({'error': f'Groq API error: {e}'}), 502
         except Exception:
             headline = raw_text[:60] or 'JBJ Management'
             body = ''
@@ -4083,4 +4083,4 @@ def create_app(config_class=Config):
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), threaded=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), threaded=True)
